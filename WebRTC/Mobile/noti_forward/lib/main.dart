@@ -57,7 +57,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   FwdMode _mode = FwdMode.read;
   FilterMode _filterMode = FilterMode.all;
   Set<String> _selectedApps = {};
-  Map<String, String> _knownLabels = {};
+  final Map<String, String> _knownLabels = {};
 
   bool _readContent = true;
   bool _speakAppName = false;

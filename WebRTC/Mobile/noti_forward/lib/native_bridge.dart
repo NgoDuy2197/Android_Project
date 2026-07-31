@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
@@ -52,14 +51,16 @@ class NativeBridge {
     try {
       await methodChannel.invokeMethod('requestPermission');
     } on PlatformException {
-      // Ignore — settings may still open on some ROMs.
+      // Settings may still open on some ROMs.
     }
   }
 
   static Future<void> openAppDetails() async {
     try {
       await methodChannel.invokeMethod('openAppDetails');
-    } on PlatformException {}
+    } on PlatformException {
+      // Ignore if OEM blocks the intent.
+    }
   }
 
   static Future<bool> isIgnoringBattery() async {
@@ -74,14 +75,18 @@ class NativeBridge {
   static Future<void> requestIgnoreBattery() async {
     try {
       await methodChannel.invokeMethod('requestIgnoreBattery');
-    } on PlatformException {}
+    } on PlatformException {
+      // Ignore if the battery settings intent is unavailable.
+    }
   }
 
   static Future<void> applyBackground(bool enabled) async {
     try {
       await methodChannel
           .invokeMethod('applyBackground', {'enabled': enabled});
-    } on PlatformException {}
+    } on PlatformException {
+      // Keep-alive may be restricted in background.
+    }
   }
 
   static Future<List<InstalledApp>> listInstalledApps({
@@ -123,7 +128,9 @@ class NativeBridge {
         'voice': voice,
         'ratePct': ratePct,
       });
-    } on PlatformException {}
+    } on PlatformException {
+      // TTS engine unavailable.
+    }
   }
 
   static Future<({bool ok, String error})> testWebhook({
@@ -142,6 +149,9 @@ class NativeBridge {
   }
 
   static Stream<Map<dynamic, dynamic>> notificationEvents() {
-    return eventChannel.receiveBroadcastStream().whereType<Map>();
+    return eventChannel.receiveBroadcastStream().map((event) {
+      if (event is Map) return event;
+      return <dynamic, dynamic>{};
+    }).where((event) => event.isNotEmpty);
   }
 }
