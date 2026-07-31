@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CameraMan</string>
+    <string name="widget_title">CameraMan</string>
+    <string name="widget_description">Chụp ảnh / quay video nhanh bằng camera trước và sau.</string>
+    <string name="widget_front_photo">Ảnh trước</string>
+    <string name="widget_front_video">Quay trước</string>
+    <string name="widget_back_photo">Ảnh sau</string>
+    <string name="widget_back_video">Quay sau</string>
+    <string name="widget_motion">Phát hiện chuyển động</string>
+    <string name="widget_combo_desc">CameraMan: 5 nút (ảnh/quay trước–sau + phát hiện chuyển động)</string>
+</resources>

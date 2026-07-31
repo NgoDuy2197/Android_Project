@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebRTC Camera Viewer</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px; padding: 20px;
+      font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+      background: #0f1115; color: #e8eaed;
+    }
+    h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: .3px; }
+    #status {
+      font-size: 13px; padding: 5px 12px; border-radius: 999px;
+      background: #23262e; display: inline-flex; align-items: center; gap: 7px;
+    }
+    #status .dot { width: 9px; height: 9px; border-radius: 50%; background: #e5484d; }
+    #status.live .dot { background: #30a46c; box-shadow: 0 0 8px #30a46c; }
+
+    /* Framed view when not fullscreen */
+    #stage {
+      position: relative; width: min(90vw, 960px); aspect-ratio: 16 / 9;
+      background: #000; border: 1px solid #2a2e37; border-radius: 14px;
+      overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    }
+    #stage:fullscreen { width: 100vw; height: 100vh; border: none; border-radius: 0; aspect-ratio: auto; }
+    video { width: 100%; height: 100%; object-fit: contain; background: #000; display: block; }
+    #placeholder {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #6b7280; font-size: 15px; text-align: center; padding: 20px; pointer-events: none;
+    }
+    #recDot {
+      position: absolute; top: 12px; left: 12px; display: none; align-items: center; gap: 6px;
+      background: rgba(0,0,0,.55); padding: 4px 10px; border-radius: 999px; font-size: 12px;
+    }
+    #recDot.on { display: inline-flex; }
+    #recDot .dot { width: 9px; height: 9px; border-radius: 50%; background: #e5484d; animation: blink 1s steps(2, start) infinite; }
+    @keyframes blink { to { visibility: hidden; } }
+
+    /* Floating control bar, bottom-right of the video (visible in fullscreen). */
+    .toolbar {
+      position: absolute; right: 12px; bottom: 12px; z-index: 5;
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end;
+      max-width: calc(100% - 24px);
+      background: rgba(0,0,0,.45); padding: 8px; border-radius: 12px;
+      backdrop-filter: blur(4px);
+    }
+    button {
+      display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+      background: #23262e; color: #e8eaed; border: 1px solid #333844;
+      padding: 10px 15px; border-radius: 10px; font-size: 14px; transition: .15s;
+    }
+    button:hover:not(:disabled) { background: #2d323c; border-color: #4b5563; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button.rec.active { background: #e5484d; border-color: #e5484d; color: #fff; }
+    button.primary { background: #30a46c; border-color: #30a46c; color: #fff; font-weight: 600; }
+    button.primary:hover { background: #3cb179; }
+    .hint { font-size: 12px; color: #6b7280; }
+
+    /* Connect-phone modal */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+    }
+    .modal-backdrop[hidden] { display: none; }
+    .modal {
+      background: #1a1d24; border: 1px solid #2a2e37; border-radius: 14px;
+      padding: 20px; width: min(92vw, 380px); max-height: 88vh; overflow-y: auto;
+    }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .icon-btn { background: none; border: none; color: #9aa4b2; font-size: 18px; padding: 4px 8px; }
+    .icon-btn:hover { background: #2d323c; }
+    #ipList { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .ip-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: #23262e; border: 1px solid #333844; border-radius: 10px; padding: 10px 12px;
+    }
+    .ip-row code { font-size: 15px; color: #e8eaed; }
+    .ip-row button { padding: 8px 12px; }
+    #qrBox { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 8px; }
+    #qrBox img { width: 260px; height: 260px; background: #fff; border-radius: 10px; padding: 8px; }
+    .qr-addr { font-size: 17px; font-weight: 600; letter-spacing: .5px; }
+    button.ghost { background: none; border: 1px solid #333844; }
+
+    /* Save toast */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #23262e; border: 1px solid #333844; color: #e8eaed;
+      padding: 10px 18px; border-radius: 10px; font-size: 14px;
+      opacity: 0; pointer-events: none; transition: .25s; z-index: 60;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <h1>📹 WebRTC Camera Viewer</h1>
+  <div id="status"><span class="dot"></span><span id="statusText">Đang kết nối máy chủ…</span></div>
+
+  <button id="btnConnectPhone" class="primary">📱 Kết nối điện thoại</button>
+
+  <!-- Popup: list of server addresses, each with a QR button -->
+  <div id="modal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <b>Địa chỉ máy chủ</b>
+        <button id="modalClose" class="icon-btn">✕</button>
+      </div>
+      <p class="hint">Nhập địa chỉ vào app, hoặc bấm QR rồi dùng nút "Quét QR" trên điện thoại.</p>
+      <div id="ipList"></div>
+      <div id="qrBox" hidden>
+        <div class="qr-addr" id="qrAddr"></div>
+        <img id="qrImg" alt="QR" />
+        <button id="qrBack" class="ghost">← Danh sách</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="placeholder">Chưa có tín hiệu camera.<br>Hãy mở app trên điện thoại và bấm Kết nối.</div>
+    <div id="recDot"><span class="dot"></span><span>REC</span></div>
+    <!-- Controls float bottom-right, over the video, so they stay visible in
+         fullscreen too. -->
+    <div class="toolbar">
+      <button id="btnSnap" disabled>📸 Chụp ảnh</button>
+      <button id="btnRec" class="rec" disabled>⏺ Quay video</button>
+      <button id="btnSwitch" disabled>🔄 Đổi camera</button>
+      <button id="btnFull" disabled>⛶ Toàn màn hình</button>
+    </div>
+  </div>
+  <div class="hint">Ảnh và video tự lưu vào thư mục <b>__data</b> cạnh server. Đổi camera gửi tới điện thoại.</div>
+
+  <div id="toast"></div>
+
+  <script>
+    const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    const $ = (id) => document.getElementById(id);
+    const video = $('video');
+    const statusEl = $('status');
+    const statusText = $('statusText');
+    const placeholder = $('placeholder');
+
+    let ws, pc, stream = null;
+    let recorder = null, chunks = [];
+
+    function setStatus(text, live) {
+      statusText.textContent = text;
+      statusEl.classList.toggle('live', !!live);
+    }
+    function setControls(enabled) {
+      $('btnSnap').disabled = !enabled;
+      $('btnRec').disabled = !enabled;
+      $('btnSwitch').disabled = !enabled;
+      $('btnFull').disabled = !enabled;
+    }
+
+    // ---- Signaling ----------------------------------------------------------
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${proto}://${location.host}`);
+
+      ws.onopen = () => {
+        setStatus('Đã kết nối máy chủ, chờ điện thoại…');
+        ws.send(JSON.stringify({ type: 'role', role: 'viewer' }));
+      };
+      ws.onclose = () => {
+        setStatus('Mất kết nối máy chủ, thử lại…');
+        setControls(false);
+        cleanupPeer();
+        setTimeout(connect, 1500);
+      };
+      ws.onmessage = async (ev) => {
+        const msg = JSON.parse(ev.data);
+        switch (msg.type) {
+          case 'broadcaster-status':
+            if (msg.online) setStatus('Điện thoại online, chờ hình ảnh…');
+            else { setStatus('Điện thoại chưa online'); setControls(false); cleanupPeer(); }
+            break;
+          case 'offer':
+            await handleOffer(msg.sdp);
+            break;
+          case 'candidate':
+            if (pc && msg.candidate) await pc.addIceCandidate(msg.candidate).catch(() => {});
+            break;
+        }
+      };
+    }
+
+    async function handleOffer(sdp) {
+      cleanupPeer();
+      pc = new RTCPeerConnection(ICE);
+      pc.onicecandidate = (e) => {
+        if (e.candidate) ws.send(JSON.stringify({ type: 'candidate', candidate: e.candidate }));
+      };
+      pc.ontrack = (e) => {
+        stream = e.streams[0];
+        video.srcObject = stream;
+        placeholder.style.display = 'none';
+        setStatus('🟢 Đang xem camera', true);
+        setControls(true);
+      };
+      pc.onconnectionstatechange = () => {
+        if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+          setStatus('Điện thoại ngắt kết nối'); setControls(false);
+        }
+      };
+      await pc.setRemoteDescription({ type: 'offer', sdp });
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+    }
+
+    function cleanupPeer() {
+      if (pc) { pc.close(); pc = null; }
+      stream = null;
+      video.srcObject = null;
+      placeholder.style.display = 'flex';
+    }
+
+    // ---- Controls -----------------------------------------------------------
+    // Snapshot: draw the current video frame to a canvas and upload the PNG
+    // to the server, which saves it into the __data folder (no download prompt).
+    $('btnSnap').onclick = () => {
+      if (!video.videoWidth) return;
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth; c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
+      c.toBlob((blob) => uploadCapture('photo', blob), 'image/png');
+    };
+
+    // Record: capture the incoming stream with MediaRecorder, then upload the
+    // .webm to the server on stop (saved into __data, no download prompt).
+    $('btnRec').onclick = () => {
+      const btn = $('btnRec');
+      if (recorder && recorder.state === 'recording') {
+        recorder.stop();
+        return;
+      }
+      if (!stream) return;
+      chunks = [];
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9' : 'video/webm';
+      recorder = new MediaRecorder(stream, { mimeType: mime });
+      recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        uploadCapture('video', blob);
+        btn.classList.remove('active'); btn.textContent = '⏺ Quay video';
+        $('recDot').classList.remove('on');
+      };
+      recorder.start();
+      btn.classList.add('active'); btn.textContent = '⏹ Dừng quay';
+      $('recDot').classList.add('on');
+    };
+
+    // Send a captured blob to the server; it writes the file into __data.
+    async function uploadCapture(kind, blob) {
+      if (!blob) return;
+      const label = kind === 'video' ? 'video' : 'ảnh';
+      toast(`Đang lưu ${label}…`);
+      try {
+        const res = await fetch(`/api/save?kind=${kind}`, {
+          method: 'POST',
+          headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+          body: blob,
+        });
+        const data = await res.json();
+        toast(data.ok ? `Đã lưu ${label}: ${data.file}` : `Lưu ${label} thất bại`);
+      } catch {
+        toast(`Lưu ${label} thất bại`);
+      }
+    }
+
+    // Switch camera: send a command to the phone.
+    $('btnSwitch').onclick = () => {
+      ws.send(JSON.stringify({ type: 'command', action: 'switch-camera' }));
+    };
+
+    // Fullscreen the stage (framed view -> fullscreen).
+    $('btnFull').onclick = () => {
+      const stage = $('stage');
+      if (document.fullscreenElement) document.exitFullscreen();
+      else stage.requestFullscreen().catch(() => {});
+    };
+
+    // Transient bottom toast for save feedback.
+    let toastTimer = null;
+    function toast(text) {
+      const el = $('toast');
+      el.textContent = text;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+    }
+
+    // ---- Connect-phone modal (IP list + QR) --------------------------------
+    const modal = $('modal');
+    const ipList = $('ipList');
+    const qrBox = $('qrBox');
+
+    async function openConnectModal() {
+      modal.hidden = false;
+      qrBox.hidden = true;
+      ipList.hidden = false;
+      ipList.innerHTML = '<div class="hint">Đang tải danh sách IP…</div>';
+      try {
+        const res = await fetch('/api/info');
+        const { addresses } = await res.json();
+        if (!addresses.length) {
+          ipList.innerHTML = '<div class="hint">Không tìm thấy địa chỉ mạng nào.</div>';
+          return;
+        }
+        ipList.innerHTML = '';
+        for (const addr of addresses) {
+          const row = document.createElement('div');
+          row.className = 'ip-row';
+          const code = document.createElement('code');
+          code.textContent = addr;
+          const btn = document.createElement('button');
+          btn.textContent = 'QR';
+          btn.onclick = () => showQr(addr);
+          row.append(code, btn);
+          ipList.append(row);
+        }
+      } catch {
+        ipList.innerHTML = '<div class="hint">Lỗi tải danh sách IP.</div>';
+      }
+    }
+
+    function showQr(addr) {
+      $('qrAddr').textContent = addr;
+      $('qrImg').src = `/api/qr?text=${encodeURIComponent(addr)}`;
+      ipList.hidden = true;
+      qrBox.hidden = false;
+    }
+
+    $('btnConnectPhone').onclick = openConnectModal;
+    $('modalClose').onclick = () => { modal.hidden = true; };
+    $('qrBack').onclick = () => { qrBox.hidden = true; ipList.hidden = false; };
+    modal.onclick = (e) => { if (e.target === modal) modal.hidden = true; };
+
+    connect();
+  </script>
+</body>
+</html>

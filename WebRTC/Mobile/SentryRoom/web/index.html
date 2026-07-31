@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>SentryRoom</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Join gate -->
+  <div id="gate" class="gate">
+    <div class="card">
+      <h1>SentryRoom</h1>
+      <p class="muted">Chat • gửi file • gọi thoại/video • cảnh báo chuyển động</p>
+      <label>Tên của bạn</label>
+      <input id="nameInput" placeholder="VD: Duy" />
+      <label>Phòng</label>
+      <input id="roomInput" placeholder="main" />
+      <button id="joinBtn" class="primary">Vào phòng</button>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app" class="app hidden">
+    <header>
+      <div class="room">Phòng: <b id="roomName">main</b></div>
+      <span id="netDot" class="net off" title="Chưa kết nối">◌</span>
+      <div class="spacer"></div>
+      <button id="inviteBtn" class="ghost">Mời (QR)</button>
+      <button id="bellBtn" class="ghost" title="Thông báo">🔔</button>
+      <button id="voiceBtn" class="ghost">🎙 Thoại</button>
+      <button id="videoBtn" class="ghost">🎥 Video</button>
+      <button id="hangBtn" class="ghost danger hidden">⛔ Kết thúc gọi</button>
+    </header>
+
+    <div id="insecureBar" class="warnbar hidden">
+      Đang mở bằng <b>http</b> → trình duyệt chặn camera/micro.
+      <button id="secureBtn" class="ghost small">Mở link https</button>
+    </div>
+
+    <div id="videos" class="videos hidden"></div>
+
+    <section class="motion">
+      <label class="switch">
+        <input type="checkbox" id="motionToggle" />
+        <span>Theo dõi chuyển động (máy này)</span>
+      </label>
+      <div id="motionCfg" class="motion-cfg hidden">
+        <div class="row">
+          <span>Khi có chuyển động</span>
+          <select id="motionAction">
+            <option value="photo">Gửi ảnh vào chat</option>
+            <option value="notify">Chỉ thông báo (không gửi ảnh)</option>
+            <option value="both">Thông báo + gửi ảnh</option>
+          </select>
+        </div>
+        <div class="row">
+          <span>Độ nhạy</span>
+          <input type="range" id="sens" min="1" max="100" value="45" />
+          <span id="sensVal">45</span>
+        </div>
+        <div class="row">
+          <span>Giãn cách ảnh (giây)</span>
+          <input type="number" id="interval" min="1" max="120" value="5" />
+        </div>
+        <div class="row">
+          <span>Mức chuyển động</span>
+          <div class="meter"><div id="meterBar"></div></div>
+          <span id="statusDot" class="dot off">●</span>
+        </div>
+      </div>
+    </section>
+
+    <main id="chat" class="chat"></main>
+    <button id="jumpBtn" class="jump hidden">↓ Tin nhắn mới</button>
+
+    <div id="uploads" class="uploads"></div>
+
+    <footer>
+      <button id="fileBtn" class="ghost">📎</button>
+      <input id="fileInput" type="file" multiple hidden />
+      <input id="msgInput" placeholder="Nhắn tin…" />
+      <button id="sendBtn" class="primary">Gửi</button>
+    </footer>
+  </div>
+
+  <!-- Invite modal -->
+  <div id="qrModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>Quét để vào phòng</h3>
+      <label class="pick">Địa chỉ máy chủ (IP nội bộ được ưu tiên)</label>
+      <select id="ipSelect"></select>
+      <img id="qrImg" alt="QR" />
+      <p class="muted small">Cùng mạng Wi-Fi. Hoặc mở link:</p>
+      <div class="linkrow"><input id="qrLink" readonly /><button id="copyLink" class="ghost">Copy</button></div>
+      <p id="qrNote" class="muted small"></p>
+      <button id="closeQr" class="primary">Đóng</button>
+    </div>
+  </div>
+
+  <!-- Toast fallback when OS notifications aren't permitted -->
+  <div id="toasts" class="toasts"></div>
+
+  <!-- Hidden media used by motion detection -->
+  <video id="motionVideo" playsinline muted class="hidden"></video>
+  <canvas id="motionCanvas" class="hidden"></canvas>
+  <canvas id="shotCanvas" class="hidden"></canvas>
+
+  <script src="socket.io.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+name: screen_share
+description: "Chia sẻ toàn bộ màn hình Android sang một máy Server qua WebRTC trong mạng LAN."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # WebRTC: client chia sẻ màn hình (getDisplayMedia), server làm người xem.
+  flutter_webrtc: ^1.5.2
+  # Client kết nối tới WebSocket điều khiển/tín hiệu của server.
+  web_socket_channel: ^3.0.1
+  # Server hiện mã QR chứa địa chỉ; client quét để kết nối.
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.4.0
+  # Lưu tên hiển thị của client và địa chỉ server gần nhất.
+  shared_preferences: ^2.3.2
+  # Xin quyền khi chạy (thông báo / camera cho chức năng chụp ảnh).
+  permission_handler: ^11.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+  # Sinh icon app từ icon.png (được build_apk.bat gọi).
+  flutter_launcher_icons: ^0.14.4
+
+# Cấu hình icon app. Sinh bằng:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "icon.png"
+  min_sdk_android: 24
+
+flutter:
+  uses-material-design: true

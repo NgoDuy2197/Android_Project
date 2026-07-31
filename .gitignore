@@ -1,0 +1,108 @@
+# ---------------------------------------------------------------------------
+# Gradle / Android
+# ---------------------------------------------------------------------------
+.gradle/
+build/
+captures/
+.cxx/
+.externalNativeBuild/
+local.properties
+*.iml
+output.json
+
+# Signing / secrets
+*.jks
+*.keystore
+key.properties
+google-services.json
+.env
+.env.*
+
+# Prebuilt libretro cores too large for GitHub (34-65 MB each).
+# Download from https://buildbot.libretro.com/nightly/android/latest/arm64-v8a/
+# and drop into JGamer/app/src/main/jniLibs/arm64-v8a/ before building JGamer.
+WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/mame2010_libretro_android.so
+WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/fbneo_libretro_android.so
+WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/mame2003_plus_libretro_android.so
+WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/mame2003_libretro_android.so
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.aar
+*.hprof
+
+# ---------------------------------------------------------------------------
+# Flutter / Dart
+# ---------------------------------------------------------------------------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+*.g.dart
+*.freezed.dart
+doc/api/
+coverage/
+
+# ---------------------------------------------------------------------------
+# iOS / macOS
+# ---------------------------------------------------------------------------
+**/ios/Pods/
+**/macos/Pods/
+**/ios/.symlinks/
+**/macos/.symlinks/
+**/ios/Flutter/App.framework/
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/ephemeral/
+**/macos/Flutter/ephemeral/
+**/Flutter/Generated.xcconfig
+xcuserdata/
+*.xcuserstate
+*.moved-aside
+
+# ---------------------------------------------------------------------------
+# Linux / Windows desktop (Flutter)
+# ---------------------------------------------------------------------------
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+
+# ---------------------------------------------------------------------------
+# Node.js
+# ---------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# ---------------------------------------------------------------------------
+# IDE / Editor
+# ---------------------------------------------------------------------------
+.idea/
+*.iws
+.vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ---------------------------------------------------------------------------
+# OS
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---------------------------------------------------------------------------
+# Logs / temp
+# ---------------------------------------------------------------------------
+*.log
+*.tmp
+*.bak
+*.swp

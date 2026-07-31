@@ -1,0 +1,8 @@
+aiohttp
+python-socketio
+segno
+# Self-signed HTTPS cert: needed so phones get camera/mic (getUserMedia is
+# blocked on plain http://). Without it the server falls back to http only.
+cryptography
+# Optional: friendly interface names ("Wi-Fi", "Ethernet") in the IP picker.
+psutil

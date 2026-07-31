@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JGamer</string>
+    <string name="settings">Settings</string>
+
+    <string name="tab_recent">Recent</string>
+    <string name="tab_nes">NES</string>
+    <string name="tab_snes">SNES</string>
+    <string name="tab_gb">GB/GBC</string>
+    <string name="tab_gba">GBA</string>
+    <string name="tab_genesis">Genesis</string>
+    <string name="tab_arcade">Arcade</string>
+    <string name="tab_pico8">PICO-8</string>
+    <string name="import_skipped"> • skipped %1$d non-%2$s file(s)</string>
+
+    <string name="empty_recent">No recent games yet.\nImport a ROM and play it.</string>
+    <string name="empty_library">No games here yet.\nTap + to import ROMs for this system.</string>
+    <string name="never_played">Never played</string>
+
+    <string name="import_failed">Could not open the file picker.</string>
+    <string name="launch_failed">Could not launch this game.</string>
+    <plurals name="imported_count">
+        <item quantity="one">Imported %d game</item>
+        <item quantity="other">Imported %d games</item>
+    </plurals>
+
+    <string name="action_play">Play</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_delete">Delete</string>
+
+    <string name="game_not_found">Game not found.</string>
+    <string name="core_failed">Failed to start the emulator core.</string>
+
+    <string name="menu_resume">Resume</string>
+    <string name="menu_save_state">Save state</string>
+    <string name="menu_load_state">Load state</string>
+    <string name="menu_reset">Reset game</string>
+    <string name="menu_controls_size">Controls size</string>
+    <string name="menu_edit_layout">Edit controls (move)</string>
+    <string name="menu_edit_done">Finish editing controls</string>
+    <string name="menu_reset_layout">Reset controls layout</string>
+    <string name="menu_switch_engine">Switch engine (core)</string>
+    <string name="menu_use_joystick">D-pad → Joystick</string>
+    <string name="menu_use_dpad">Joystick → D-pad</string>
+    <string name="menu_palette">🎨 Game Boy color palette</string>
+    <string name="menu_theme">🎨 Control theme</string>
+    <string name="menu_screen_size">🖥️ Screen size</string>
+    <string name="size_small">Small</string>
+    <string name="size_medium">Medium</string>
+    <string name="size_large">Large</string>
+    <string name="size_xl">Extra large</string>
+
+    <string name="menu_controllers">🎮 Controllers (2P)</string>
+    <string name="ctrl_connected">%1$d pad(s)</string>
+    <string name="ctrl_touch_p1">Touch controls: Player 1 (tap to switch)</string>
+    <string name="ctrl_touch_p2">Touch controls: Player 2 (tap to switch)</string>
+    <string name="ctrl_identify_p1">Set Player 1 controller (press A)</string>
+    <string name="ctrl_press_a_p1">Press A on the Player 1 controller…</string>
+    <string name="ctrl_p1_set">Player 1 controller set. Other pads = Player 2.</string>
+    <string name="ctrl_remap">Remap buttons — %1$s</string>
+    <string name="ctrl_press_for">Press the key for: %1$s  (Back = cancel)</string>
+    <string name="ctrl_remap_done">Remap saved.</string>
+    <string name="ctrl_remap_cancel">Remap cancelled.</string>
+    <string name="ctrl_reset">Reset controllers</string>
+    <string name="ctrl_reset_done">Controllers reset.</string>
+    <string name="ctrl_no_pad">No gamepad detected for that player.</string>
+    <string name="layout_saved">Layout saved.</string>
+    <string name="load_failed_title">Couldn\'t load this game</string>
+    <string name="load_failed_switch">This engine couldn\'t boot this romset — usually the core/version doesn\'t match the ROM, or the .zip name isn\'t the game\'s romset id (e.g. mslug.zip). Try another engine?</string>
+    <string name="trying_engine">Trying engine: %1$s…</string>
+    <string name="load_failed_all">Couldn\'t boot this ROM with any engine (%1$s).\n\nUsually the romset doesn\'t match the core version, or a BIOS / parent set is missing. Try a romset that matches one of these cores, or add the needed BIOS zip (e.g. neogeo.zip) into the same ROM folder.</string>
+    <string name="menu_quit">Quit to library</string>
+
+    <string name="state_saved">State saved</string>
+    <string name="state_loaded">State loaded</string>
+    <string name="state_failed">Save/Load failed</string>
+    <string name="state_none">No save in this slot</string>
+
+    <string name="opt_resume_launch">Resume last game on launch</string>
+    <string name="opt_resume_launch_sum">Open the app and jump straight into your last game.</string>
+    <string name="opt_auto_save">Auto save-state on exit</string>
+    <string name="opt_auto_save_sum">Automatically snapshot progress so resume restores exactly.</string>
+    <string name="opt_vibrate">Vibrate on button press</string>
+    <string name="opt_vibrate_sum">Haptic feedback for the on-screen gamepad.</string>
+    <string name="settings_info">Import ROMs with the + button (per tab). NES: .nes • SNES: .sfc/.smc • GBA: .gba • Arcade: .zip romset (kept as-is; try FinalBurn Neo, switch to MAME if it fails) • PICO-8: .p8/.p8.png. ROMs are your own; none are bundled.</string>
+</resources>

@@ -1,0 +1,57 @@
+name: cameraman
+description: "Chụp ảnh / quay video nhanh bằng widget màn hình chính, xem lại thành quả và tự ghi hình khi phát hiện chuyển động."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Settings persistence, shared with the native widget/service.
+  shared_preferences: ^2.3.2
+  # Runtime permissions (camera / microphone / notifications).
+  permission_handler: ^11.3.1
+  # Timestamp formatting on gallery tiles.
+  intl: ^0.19.0
+
+  # --- Remote control tab (Server/Client) ---
+  # Live camera view + capture/record on the controlled device.
+  flutter_webrtc: ^1.5.2
+  # Client connects to the server's signaling/control WebSocket.
+  web_socket_channel: ^3.0.1
+  # Server shows a QR of its address; client scans it to connect.
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.4.0
+  # Save remote captures into the app documents folder on the client.
+  path_provider: ^2.1.4
+
+  # Hash the app-lock password (never store it in plaintext).
+  crypto: ^3.0.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+  # Generates the Android launcher icon from icon.png (run by build_apk.bat).
+  flutter_launcher_icons: ^0.14.4
+
+# App launcher icon configuration. Generate with:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "icon.png"
+  min_sdk_android: 24
+
+flutter:
+  uses-material-design: true

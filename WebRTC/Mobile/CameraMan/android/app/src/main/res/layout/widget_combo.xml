@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center"
+    android:background="@drawable/widget_background"
+    android:padding="6dp">
+
+    <ImageView
+        android:id="@+id/cb_front_photo"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_margin="3dp"
+        android:background="@drawable/widget_button_front"
+        android:padding="9dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_photo_camera"
+        android:contentDescription="@string/widget_front_photo" />
+
+    <ImageView
+        android:id="@+id/cb_front_video"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_margin="3dp"
+        android:background="@drawable/widget_button_front"
+        android:padding="9dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_videocam"
+        android:contentDescription="@string/widget_front_video" />
+
+    <ImageView
+        android:id="@+id/cb_back_photo"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_margin="3dp"
+        android:background="@drawable/widget_button_back"
+        android:padding="9dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_photo_camera"
+        android:contentDescription="@string/widget_back_photo" />
+
+    <ImageView
+        android:id="@+id/cb_back_video"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_margin="3dp"
+        android:background="@drawable/widget_button_back"
+        android:padding="9dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_videocam"
+        android:contentDescription="@string/widget_back_video" />
+
+    <ImageView
+        android:id="@+id/cb_motion"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_margin="3dp"
+        android:background="@drawable/widget_button_motion"
+        android:padding="9dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_sensors"
+        android:contentDescription="@string/widget_motion" />
+</LinearLayout>

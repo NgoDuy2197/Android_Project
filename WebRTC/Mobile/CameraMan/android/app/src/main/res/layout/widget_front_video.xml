@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="6dp">
+
+    <TextView
+        android:id="@+id/widget_button"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_button_front"
+        android:drawableTop="@drawable/ic_videocam"
+        android:drawablePadding="2dp"
+        android:gravity="center"
+        android:text="@string/widget_front_video"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp" />
+</FrameLayout>
