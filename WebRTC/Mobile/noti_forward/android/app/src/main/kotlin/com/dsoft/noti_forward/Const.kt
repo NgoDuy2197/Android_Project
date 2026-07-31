@@ -18,18 +18,29 @@ object Const {
     const val MODE_DISCORD = 1  // send to Discord webhook
     const val MODE_BOTH = 2     // both
 
+    // App filter modes (must match the Dart FilterMode enum order).
+    const val FILTER_ALL = 0    // forward every app
+    const val FILTER_ALLOW = 1  // only selected packages
+    const val FILTER_DENY = 2   // every app except selected
+
     // Config keys (without the "flutter." prefix the plugin adds on Android).
     const val KEY_ENABLED = "enabled"          // bool
     const val KEY_MODE = "mode"                // int (see MODE_*)
     const val KEY_READ_CONTENT = "readContent" // bool — read body too, not just title
     const val KEY_RATE_PCT = "rate_pct"        // int 20..100 — TTS speech rate percent
     const val KEY_WEBHOOK = "webhook"          // String — Discord webhook url
-    const val KEY_FILTER = "filter"            // String — comma-separated package fragments
+    const val KEY_DISCORD_USERNAME = "discordUsername" // String — webhook display name
+    const val KEY_FILTER = "filter"            // String — legacy comma-separated package fragments
+    const val KEY_SELECTED_APPS = "selectedApps" // String — JSON array of package names
+    const val KEY_FILTER_MODE = "filterMode"   // int (see FILTER_*)
+    const val KEY_KEYWORD_FILTER = "keywordFilter" // String — title/body must match (comma OR)
+    const val KEY_SKIP_ONGOING = "skipOngoing" // bool — skip ongoing/media notifications
     const val KEY_MIN_INTERVAL = "minInterval" // int seconds — anti-repeat gap
     const val KEY_TTS_LANG = "ttsLang"         // String BCP-47 tag, "" = auto
     const val KEY_TTS_VOICE = "ttsVoice"       // String voice name, "" = auto
     const val KEY_TTS_VOICE_LOCALE = "ttsVoiceLocale" // String, paired with the voice
     const val KEY_KEEP_ALIVE = "keepAlive"     // bool — keep a foreground service alive
+    const val KEY_SPEAK_APP_NAME = "speakAppName" // bool — prefix TTS with app label
 
     const val PREFS_FILE = "FlutterSharedPreferences"
 

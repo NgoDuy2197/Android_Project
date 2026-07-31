@@ -4,6 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
@@ -12,11 +14,14 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.util.Locale
+import java.util.concurrent.Executors
 
 /**
  * Hosts the Flutter config UI and bridges to the native side:
  *  - notification-access permission check + opening its settings screen;
+ *  - listing installed apps for the app picker;
  *  - listing the device's installed TTS languages/voices and a test utterance;
+ *  - Discord webhook test;
  *  - toggling the keep-alive foreground service and the battery-optimisation
  *    exemption so reading keeps working in the background;
  *  - an EventChannel that streams captured notifications to the on-screen log.
@@ -25,6 +30,8 @@ class MainActivity : FlutterActivity() {
 
     // A short-lived engine used for the "test voice" button.
     private var testTts: TextToSpeech? = null
+    private val io = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -36,6 +43,24 @@ class MainActivity : FlutterActivity() {
                     "requestPermission", "openSettings" -> {
                         openNotificationAccessSettings()
                         result.success(null)
+                    }
+
+                    // Installed launchable apps for the picker (icons optional).
+                    "listInstalledApps" -> {
+                        val includeIcons = call.argument<Boolean>("includeIcons") ?: true
+                        io.execute {
+                            try {
+                                val apps = AppCatalog.listLaunchableApps(
+                                    packageManager,
+                                    includeIcons = includeIcons,
+                                )
+                                main.post { result.success(apps) }
+                            } catch (e: Exception) {
+                                main.post {
+                                    result.error("list_apps", e.message, null)
+                                }
+                            }
+                        }
                     }
 
                     // Installed languages + voices for the pickers.
@@ -56,6 +81,26 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
 
+                    // Discord webhook smoke test.
+                    "testWebhook" -> {
+                        val url = call.argument<String>("webhook") ?: ""
+                        val username = call.argument<String>("username") ?: ""
+                        DiscordNotifier.send(
+                            url,
+                            "✅ Noti Forward — webhook hoạt động tốt.",
+                            username,
+                        ) { ok, err ->
+                            main.post {
+                                result.success(
+                                    mapOf(
+                                        "ok" to ok,
+                                        "error" to (err ?: ""),
+                                    )
+                                )
+                            }
+                        }
+                    }
+
                     // Background reliability.
                     "applyBackground" -> {
                         val on = call.argument<Boolean>("enabled") ?: false
@@ -65,6 +110,10 @@ class MainActivity : FlutterActivity() {
                     "isIgnoringBattery" -> result.success(isIgnoringBattery())
                     "requestIgnoreBattery" -> {
                         requestIgnoreBattery()
+                        result.success(null)
+                    }
+                    "openAppDetails" -> {
+                        openAppDetails()
                         result.success(null)
                     }
 
@@ -102,6 +151,17 @@ class MainActivity : FlutterActivity() {
             Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
+    }
+
+    private fun openAppDetails() {
+        try {
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.parse("package:$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (_: Exception) {
+        }
     }
 
     // ---- TTS test ------------------------------------------------------------

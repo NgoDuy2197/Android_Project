@@ -1,6 +1,7 @@
 package com.dsoft.noti_forward
 
 import android.content.Context
+import org.json.JSONArray
 
 /**
  * Read-only view of the user's settings, backed by the same SharedPreferences
@@ -33,9 +34,28 @@ class AppConfig(context: Context) {
     val webhook: String
         get() = prefs.getString(Const.prefKey(Const.KEY_WEBHOOK), "") ?: ""
 
-    /** Comma-separated package-name fragments; empty means allow everything. */
+    val discordUsername: String
+        get() = prefs.getString(Const.prefKey(Const.KEY_DISCORD_USERNAME), "") ?: ""
+
+    /** Legacy comma-separated package-name fragments; empty means unused. */
     val filter: String
         get() = prefs.getString(Const.prefKey(Const.KEY_FILTER), "") ?: ""
+
+    /** Exact package names chosen in the app picker. */
+    val selectedApps: Set<String>
+        get() = parseSelectedApps(
+            prefs.getString(Const.prefKey(Const.KEY_SELECTED_APPS), "") ?: ""
+        )
+
+    val filterMode: Int
+        get() = getLong(Const.KEY_FILTER_MODE, Const.FILTER_ALL.toLong()).toInt()
+
+    /** Comma-separated keywords; empty = no keyword filter. Match is OR. */
+    val keywordFilter: String
+        get() = prefs.getString(Const.prefKey(Const.KEY_KEYWORD_FILTER), "") ?: ""
+
+    val skipOngoing: Boolean
+        get() = prefs.getBoolean(Const.prefKey(Const.KEY_SKIP_ONGOING), true)
 
     val minIntervalSec: Int
         get() = getLong(Const.KEY_MIN_INTERVAL, 0L).toInt()
@@ -55,6 +75,9 @@ class AppConfig(context: Context) {
     val keepAlive: Boolean
         get() = prefs.getBoolean(Const.prefKey(Const.KEY_KEEP_ALIVE), true)
 
+    val speakAppName: Boolean
+        get() = prefs.getBoolean(Const.prefKey(Const.KEY_SPEAK_APP_NAME), false)
+
     private fun getLong(key: String, def: Long): Long {
         val full = Const.prefKey(key)
         if (!prefs.contains(full)) return def
@@ -62,6 +85,32 @@ class AppConfig(context: Context) {
             prefs.getLong(full, def)
         } catch (_: ClassCastException) {
             def
+        }
+    }
+
+    companion object {
+        fun parseSelectedApps(raw: String): Set<String> {
+            val s = raw.trim()
+            if (s.isEmpty()) return emptySet()
+            return try {
+                if (s.startsWith("[")) {
+                    val arr = JSONArray(s)
+                    buildSet {
+                        for (i in 0 until arr.length()) {
+                            val pkg = arr.optString(i).trim()
+                            if (pkg.isNotEmpty()) add(pkg)
+                        }
+                    }
+                } else {
+                    // Comma-separated fallback.
+                    s.split(',')
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .toSet()
+                }
+            } catch (_: Exception) {
+                emptySet()
+            }
         }
     }
 }
