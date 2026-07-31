@@ -298,9 +298,13 @@ class HomeScreenState extends State<HomeScreen> {
 
   // Auto-dialogue (loop) state.
   bool _loopActive = false;
-  bool _loopSeeding = false; // waiting for the user's opening line
+  bool _loopSeeding = false; // waiting for the user's topic command
   int _loopTurn = 0;
-  List<String> _loopLines = [];
+  /// Spoken AI lines in the auto-dialogue. `second == false` → A (voice 1).
+  final List<({bool second, String text})> _loopLines = [];
+  /// Topic / tone set by the user's first command when starting auto-dialogue.
+  /// Injected into every system prompt so both AIs stay on the same trend.
+  String _loopTopic = '';
   // Clears buffered speech after configured silence (see silenceClearSec).
   Timer? _silenceTimer;
 
@@ -319,18 +323,18 @@ class HomeScreenState extends State<HomeScreen> {
   // reuse voice 1.
   String ttsVoice2Name = '';
   String ttsVoice2Locale = '';
-  // Auto-dialogue (loop) personas — one prompt per speaker (A = voice 1, B =
-  // voice 2). Each turn uses its own persona.
+  // Auto-dialogue speaking styles — system prompt per speaker (A = voice 1,
+  // B = voice 2). Always injected every turn to force the AI to comply.
   String loopPromptA =
-      'Bạn là NGƯỜI A trong cuộc trò chuyện tiếng Việt vui vẻ. Mỗi lượt nói một '
-      'câu ngắn, nối tiếp tự nhiên chủ đề đang nói.';
+      'Bạn là NGƯỜI A. Cách nói: vui vẻ, thân mật, câu ngắn bằng tiếng Việt. '
+      'Mỗi lượt chỉ nói một câu.';
   String loopPromptB =
-      'Bạn là NGƯỜI B trong cuộc trò chuyện tiếng Việt vui vẻ. Mỗi lượt nói một '
-      'câu ngắn, nối tiếp tự nhiên chủ đề đang nói.';
+      'Bạn là NGƯỜI B. Cách nói: dí dỏm, hay nối ý, câu ngắn bằng tiếng Việt. '
+      'Mỗi lượt chỉ nói một câu.';
   int maxMessages = 20;
-  // Auto-dialogue: how many previous lines to feed back as context when an AI
-  // generates its next turn. 1 = only the partner's last sentence (+ its own
-  // prompt). Higher = more of the recent conversation for continuity.
+  // Auto-dialogue: how many of the *opponent's* recent sentences to feed as
+  // the user-message input (not mixed with own lines). 1 = only the last
+  // opponent sentence.
   int loopContextCount = 1;
   // If no start-word is set: after this many seconds of silence without the
   // stop-word, drop what was heard (0 = off).
@@ -965,7 +969,7 @@ class HomeScreenState extends State<HomeScreen> {
       if (q.isNotEmpty) {
         _silenceTimer?.cancel();
         _finalizeLiveUser(q);
-        // In loop seeding, the first finished utterance is the opening line.
+        // In loop seeding, the first finished utterance sets the topic/trend.
         if (_loopSeeding) {
           _seedLoop(q);
           return;
@@ -1075,9 +1079,10 @@ class HomeScreenState extends State<HomeScreen> {
   // ---------- Auto-dialogue loop ----------
 
   /// Start/stop the self-running conversation. Starting listens for the user's
-  /// opening line (ended with the stop word); after that the AI keeps taking
-  /// its own last line to produce the next one, alternating the two voices,
-  /// until stopped.
+  /// topic command (ended with the stop word). That command sets the topic /
+  /// speaking trend for both AIs; then A and B alternate, each turn using its
+  /// own speaking-style system prompt + the opponent's recent sentences as
+  /// input, until stopped.
   Future<void> _toggleLoop() async {
     if (_loopActive) {
       _stopLoop();
@@ -1085,7 +1090,8 @@ class HomeScreenState extends State<HomeScreen> {
     }
     _loopActive = true;
     _loopSeeding = true;
-    _loopLines = [];
+    _loopLines.clear();
+    _loopTopic = '';
     _loopTurn = 0;
     _committed = '';
     _live = '';
@@ -1094,11 +1100,11 @@ class HomeScreenState extends State<HomeScreen> {
     final granted =
         await _nativeChannel.invokeMethod<bool>('requestMic') ?? false;
     if (granted) {
-      _setStatus('Nói câu mở đầu rồi nói "$stopWord"…');
-      _snack('Tự thoại: nói câu mở đầu, kết thúc bằng "$stopWord".');
+      _setStatus('Nói chủ đề/xu hướng rồi nói "$stopWord"…');
+      _snack('Tự thoại: nói chủ đề cho 2 bên, kết thúc bằng "$stopWord".');
       await _sttEngineStart();
     } else {
-      _snack('Chưa có quyền mic — AI sẽ tự mở đầu.');
+      _snack('Chưa có quyền mic — AI sẽ tự mở đầu (không có chủ đề).');
       _seedLoop('');
     }
   }
@@ -1106,6 +1112,7 @@ class HomeScreenState extends State<HomeScreen> {
   void _stopLoop() {
     _loopActive = false;
     _loopSeeding = false;
+    _loopTopic = '';
     _silenceTimer?.cancel();
     _sttEngineStop();
     _tts.stop();
@@ -1115,26 +1122,86 @@ class HomeScreenState extends State<HomeScreen> {
     _setStatus('Đã dừng tự thoại');
   }
 
+  /// Capture the user's first command as the shared topic/trend (not as a
+  /// spoken dialogue line), then let speaker A open.
   void _seedLoop(String seed) {
     _loopSeeding = false;
     _sttEngineStop();
     final s = seed.trim();
+    _loopTopic = s;
+    _loopTurn = 0; // A speaks first after the topic is set
     if (s.isNotEmpty) {
       setState(() {
-        _history.add(ChatMsg(fromUser: true, text: s));
+        _history.add(ChatMsg(fromUser: true, text: 'Chủ đề: $s'));
         _trimHistory();
       });
-      _loopLines.add(s);
-      _loopTurn = 1; // next AI line answers with the 2nd voice
       _scrollChat();
     }
     _loopStep();
   }
 
+  /// Build the system prompt that is forced on every auto-dialogue reply:
+  /// speaking style (config) + topic/trend (first user command).
+  String _loopSystemPrompt(bool second) {
+    final style = (second ? loopPromptB : loopPromptA).trim();
+    final who = second ? 'B' : 'A';
+    final buf = StringBuffer();
+    if (style.isNotEmpty) {
+      buf.writeln(style);
+    } else {
+      buf.writeln('Bạn là NGƯỜI $who trong cuộc trò chuyện tiếng Việt.');
+    }
+    buf.writeln();
+    buf.writeln(
+        'BẮT BUỘC: luôn tuân thủ cách nói / phong cách ở trên trong mọi câu '
+        'trả lời. Chỉ nói nội dung thoại, không giải thích meta, không ghi '
+        'tên người nói.');
+    final topic = _loopTopic.trim();
+    if (topic.isNotEmpty) {
+      buf.writeln();
+      buf.writeln('Chủ đề / xu hướng cuộc trò chuyện (bám theo): $topic');
+    }
+    return buf.toString().trim();
+  }
+
+  /// User-message input for one turn: only the opponent's recent sentences
+  /// (count = [loopContextCount]), never own lines or the topic command.
+  String _loopUserInput(bool second) {
+    final n = loopContextCount < 1 ? 1 : loopContextCount;
+    // Opponent of the speaker about to talk.
+    final opponentIsSecond = !second;
+    final opponent = _loopLines
+        .where((l) => l.second == opponentIsSecond)
+        .map((l) => l.text)
+        .toList();
+    final recent = opponent.length > n
+        ? opponent.sublist(opponent.length - n)
+        : opponent;
+
+    if (recent.isEmpty) {
+      final topic = _loopTopic.trim();
+      if (topic.isNotEmpty) {
+        return 'Bắt đầu cuộc trò chuyện theo chủ đề đã cho. '
+            'Nói câu mở đầu (1 câu ngắn, tiếng Việt):';
+      }
+      return 'Bắt đầu một cuộc trò chuyện. '
+          'Nói câu mở đầu (1 câu ngắn, tiếng Việt):';
+    }
+    if (recent.length == 1) {
+      return 'Đối phương vừa nói: "${recent.first}"\n\n'
+          'Dựa vào câu đó, nói lượt tiếp theo (1 câu ngắn, tiếng Việt, '
+          'KHÔNG ghi tên người nói):';
+    }
+    final bullets = recent.map((t) => '- "$t"').join('\n');
+    return 'Đối phương vừa nói (${recent.length} câu gần nhất):\n$bullets\n\n'
+        'Dựa vào các câu đó, nói lượt tiếp theo (1 câu ngắn, tiếng Việt, '
+        'KHÔNG ghi tên người nói):';
+  }
+
   Future<String> _loopGenerate(String context, bool second) async {
-    final persona = (second ? loopPromptB : loopPromptA).trim();
     final saved = _ai.systemPrompt;
-    if (persona.isNotEmpty) _ai.systemPrompt = persona;
+    // Always overwrite system prompt so the speaking style is enforced.
+    _ai.systemPrompt = _loopSystemPrompt(second);
     try {
       return await _ai.ask(context);
     } finally {
@@ -1147,21 +1214,7 @@ class HomeScreenState extends State<HomeScreen> {
     setState(() => _state = AiState.thinking);
     // No "beep" during auto-dialogue.
     final second = _loopTurn.isOdd; // alternate speaker/voice each turn
-    // Feed back only the last [loopContextCount] lines (default 1 = just the
-    // partner's last sentence) so each AI builds on the partner + its own
-    // prompt, not the whole transcript.
-    final n = loopContextCount < 1 ? 1 : loopContextCount;
-    final recent = _loopLines.length > n
-        ? _loopLines.sublist(_loopLines.length - n)
-        : List<String>.from(_loopLines);
-    final ctx = recent.isEmpty
-        ? 'Bắt đầu một cuộc trò chuyện. Nói câu mở đầu (1 câu ngắn, tiếng Việt).'
-        : (recent.length == 1
-            ? 'Đối phương vừa nói: "${recent.first}"\n\n'
-                'Dựa vào câu đó, nói lượt tiếp theo (1 câu ngắn, tiếng Việt, '
-                'KHÔNG ghi tên người nói):'
-            : 'Hội thoại gần đây:\n${recent.join("\n")}\n\n'
-                'Nói lượt tiếp theo (1 câu ngắn, tiếng Việt, KHÔNG ghi tên người nói):');
+    final ctx = _loopUserInput(second);
     String line;
     try {
       line = (await _loopGenerate(ctx, second)).trim();
@@ -1180,7 +1233,7 @@ class HomeScreenState extends State<HomeScreen> {
       _state = AiState.speaking;
     });
     _scrollChat();
-    _loopLines.add(line);
+    _loopLines.add((second: second, text: line));
     if (_loopLines.length > 40) _loopLines.removeAt(0);
     _loopTurn++;
     await _speak(line, second: second);
@@ -2625,15 +2678,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
           const Divider(height: 24),
           _hdr('AI tự thoại (AI nói với AI)'),
-          _field(_loopPromptA, 'Prompt người A (giọng 1)',
-              'VD: Bạn là người A, vui tính, nói tiếng Việt…',
-              maxLines: 3),
-          _field(_loopPromptB, 'Prompt người B (giọng 2)',
-              'VD: Bạn là người B, hay phản biện, nói tiếng Việt…',
-              maxLines: 3),
-          _field(_loopCtx, 'Số câu trước đó làm ngữ cảnh', '1',
-              helper: '1 = chỉ lấy câu của đối phương + prompt của nó. '
-                  'Lớn hơn = lấy thêm các câu gần đây để nối ý.'),
+          const Text(
+            'Câu mở đầu khi bấm Tự thoại = chủ đề/xu hướng cho cả 2 bên. '
+            'Cách nói A/B luôn đưa vào system mỗi lượt. Input mỗi lượt = '
+            'câu đối phương vừa nói.',
+            style: TextStyle(color: Colors.white54, fontSize: 12.5),
+          ),
+          const SizedBox(height: 10),
+          _field(_loopPromptA, 'Cách nói người A (system, giọng 1)',
+              'VD: vui tính, thân mật, câu ngắn tiếng Việt…',
+              maxLines: 3,
+              helper: 'Luôn inject vào system để ép AI tuân thủ mỗi câu trả lời.'),
+          _field(_loopPromptB, 'Cách nói người B (system, giọng 2)',
+              'VD: hay phản biện, dí dỏm, câu ngắn tiếng Việt…',
+              maxLines: 3,
+              helper: 'Luôn inject vào system để ép AI tuân thủ mỗi câu trả lời.'),
+          _field(_loopCtx, 'Số câu đối phương làm input', '1',
+              helper: '1 = chỉ câu đối phương vừa nói. '
+                  'Lớn hơn = lấy thêm các câu gần nhất của đối phương (không lấy câu của chính nó).'),
           const SizedBox(height: 4),
           const Text('Giọng đọc & tốc độ',
               style: TextStyle(fontWeight: FontWeight.w600)),
@@ -2848,7 +2910,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           labelText: label,
           hintText: hint,
           helperText: helper,
-          helperMaxLines: 2,
+          helperMaxLines: 3,
           border: const OutlineInputBorder(),
         ),
       ),
