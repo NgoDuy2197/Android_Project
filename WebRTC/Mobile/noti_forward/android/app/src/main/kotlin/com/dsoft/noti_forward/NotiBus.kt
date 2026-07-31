@@ -20,12 +20,13 @@ object NotiBus {
         sink = s
     }
 
-    fun emit(pkg: String, title: String, content: String) {
+    fun emit(pkg: String, title: String, content: String, appLabel: String = "") {
         val s = sink ?: return
         val payload = mapOf(
             "package" to pkg,
             "title" to title,
             "content" to content,
+            "appLabel" to appLabel,
         )
         main.post {
             try {
