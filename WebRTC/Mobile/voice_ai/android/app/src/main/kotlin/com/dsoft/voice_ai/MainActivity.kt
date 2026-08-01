@@ -38,6 +38,7 @@ class MainActivity : FlutterActivity() {
 
     private val channelName = "voice_ai/native"
     private val REQ_MIC = 4919
+    private val REQ_CAMERA = 4920
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -77,6 +78,8 @@ class MainActivity : FlutterActivity() {
                     // system has no *default* recognizer set.
                     "micGranted" -> result.success(hasMic())
                     "requestMic" -> requestMic(result)
+                    "cameraGranted" -> result.success(hasCamera())
+                    "requestCamera" -> requestCamera(result)
                     "sttStart" -> {
                         sttStart(call.argument<String>("locale") ?: "vi-VN")
                         result.success(true)
@@ -267,6 +270,7 @@ class MainActivity : FlutterActivity() {
     private var sttRestart: Runnable? = null
 
     private var micResult: MethodChannel.Result? = null
+    private var cameraResult: MethodChannel.Result? = null
 
     private fun hasMic(): Boolean =
         ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
@@ -278,15 +282,31 @@ class MainActivity : FlutterActivity() {
         ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
     }
 
+    private fun hasCamera(): Boolean =
+        ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun requestCamera(result: MethodChannel.Result) {
+        if (hasCamera()) { result.success(true); return }
+        cameraResult = result
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQ_CAMERA)
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_MIC) {
-            val granted = grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED
-            micResult?.success(granted)
-            micResult = null
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        when (requestCode) {
+            REQ_MIC -> {
+                micResult?.success(granted)
+                micResult = null
+            }
+            REQ_CAMERA -> {
+                cameraResult?.success(granted)
+                cameraResult = null
+            }
         }
     }
 

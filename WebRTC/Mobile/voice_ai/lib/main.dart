@@ -70,6 +70,9 @@ ThemeData appThemeData(AppTheme t) {
         scaffoldBackgroundColor: const Color(0xFF0F1115),
         colorScheme: ColorScheme.fromSeed(
             seedColor: const Color(0xFF8E4EC6), brightness: Brightness.dark),
+        filledButtonTheme: _pillFilled(),
+        elevatedButtonTheme: _pillElevated(),
+        outlinedButtonTheme: _pillOutlined(),
       );
     case AppTheme.light:
       // Facebook style: brand blue on a light grey background, white surfaces.
@@ -89,6 +92,9 @@ ThemeData appThemeData(AppTheme t) {
           backgroundColor: fb,
           foregroundColor: Colors.white,
         ),
+        filledButtonTheme: _pillFilled(),
+        elevatedButtonTheme: _pillElevated(),
+        outlinedButtonTheme: _pillOutlined(),
       );
     case AppTheme.amoled:
       // Pure black (OLED) with a neon cyan accent.
@@ -104,6 +110,9 @@ ThemeData appThemeData(AppTheme t) {
           surfaceContainerHighest: const Color(0xFF161616),
         ),
         appBarTheme: const AppBarTheme(backgroundColor: Colors.black),
+        filledButtonTheme: _pillFilled(),
+        elevatedButtonTheme: _pillElevated(),
+        outlinedButtonTheme: _pillOutlined(),
       );
     case AppTheme.rose:
       // Soft pastel pink, light.
@@ -119,53 +128,63 @@ ThemeData appThemeData(AppTheme t) {
           backgroundColor: rose,
           foregroundColor: Colors.white,
         ),
+        filledButtonTheme: _pillFilled(),
+        elevatedButtonTheme: _pillElevated(),
+        outlinedButtonTheme: _pillOutlined(),
       );
     case AppTheme.win7:
-      // Windows 7 Aero / old-web nostalgia: glossy blue chrome, silver-blue
-      // background, softly ROUNDED corners (like Win7 windows), Material-2 shapes.
-      const aero = Color(0xFF2E7BD6);
-      const yahoo = Color(0xFF6B2FA0); // Yahoo purple accent
-      const frame = Color(0xFF2C5A8C);
-      const edge = Color(0xFF8AAAD0);
-      const square =
-          RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(7)));
+      // Classic Windows 7 Aero / Yahoo Messenger: Luna desktop blue-green,
+      // glossy title-bar chrome, beveled window frames, pill (stadium) buttons.
+      const aero = Color(0xFF1F6FD6);
+      const yahoo = Color(0xFF6B2FA0);
+      const frame = Color(0xFF24558C);
+      const edge = Color(0xFF7BA3CC);
+      const pill = StadiumBorder();
       return ThemeData(
         useMaterial3: false,
         brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFDCE7F5), // silver-blue Luna
+        // Default Win7 wallpaper-ish teal-blue desktop.
+        scaffoldBackgroundColor: const Color(0xFF8EB8D8),
         primaryColor: aero,
-        fontFamily: 'serif', // a touch of old-web feel
         colorScheme: const ColorScheme.light(
           primary: aero,
           secondary: yahoo,
-          surface: Color(0xFFF3F7FC),
+          tertiary: Color(0xFF3D8B40),
+          surface: Color(0xFFF5F9FD),
+          onPrimary: Colors.white,
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: aero,
           foregroundColor: Colors.white,
-          elevation: 3,
+          elevation: 4,
           centerTitle: false,
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            shadows: [Shadow(color: Colors.black38, blurRadius: 2)],
+          ),
         ),
         cardTheme: const CardThemeData(
-          color: Colors.white,
-          elevation: 2,
+          color: Color(0xFFF8FBFF),
+          elevation: 3,
           shape: RoundedRectangleBorder(
-            side: BorderSide(color: Color(0xFFA9C3E0)),
-            borderRadius: BorderRadius.all(Radius.circular(8)),
+            side: BorderSide(color: Color(0xFF5A8ABB), width: 1.4),
+            borderRadius: BorderRadius.all(Radius.circular(6)),
           ),
         ),
         dialogTheme: const DialogThemeData(
           backgroundColor: Color(0xFFEFF5FC),
           shape: RoundedRectangleBorder(
-            side: BorderSide(color: frame),
-            borderRadius: BorderRadius.all(Radius.circular(10)),
+            side: BorderSide(color: frame, width: 1.6),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
         ),
         inputDecorationTheme: const InputDecorationTheme(
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(7)),
+            borderRadius: BorderRadius.all(Radius.circular(4)),
             borderSide: BorderSide(color: edge),
           ),
         ),
@@ -173,31 +192,96 @@ ThemeData appThemeData(AppTheme t) {
           style: ElevatedButton.styleFrom(
             backgroundColor: aero,
             foregroundColor: Colors.white,
-            elevation: 1,
-            shape: square,
+            elevation: 2,
+            shape: pill,
             side: const BorderSide(color: frame),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           ),
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
             backgroundColor: aero,
             foregroundColor: Colors.white,
-            shape: square,
+            shape: pill,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: aero,
-            shape: square,
+            shape: pill,
             side: const BorderSide(color: edge),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(foregroundColor: aero, shape: square),
+          style: TextButton.styleFrom(foregroundColor: aero, shape: pill),
         ),
         dividerColor: const Color(0xFFAFC4DE),
       );
   }
+}
+
+FilledButtonThemeData _pillFilled() => FilledButtonThemeData(
+      style: FilledButton.styleFrom(shape: const StadiumBorder()),
+    );
+ElevatedButtonThemeData _pillElevated() => ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+    );
+OutlinedButtonThemeData _pillOutlined() => OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+    );
+
+/// Accent colour + icon for the "thả tim" button, per theme.
+({IconData icon, Color color, Color light}) themeHeartStyle(AppTheme t) {
+  switch (t) {
+    case AppTheme.dark:
+      return (
+        icon: Icons.favorite_rounded,
+        color: const Color(0xFF9B5DE5),
+        light: const Color(0xFFC9A7F5),
+      );
+    case AppTheme.light:
+      // Facebook-style like.
+      return (
+        icon: Icons.thumb_up_alt_rounded,
+        color: const Color(0xFF1877F2),
+        light: const Color(0xFF5AA8FF),
+      );
+    case AppTheme.win7:
+      // Classic Yahoo purple heart.
+      return (
+        icon: Icons.favorite_rounded,
+        color: const Color(0xFF6B2FA0),
+        light: const Color(0xFFC080E8),
+      );
+    case AppTheme.amoled:
+      return (
+        icon: Icons.favorite_rounded,
+        color: const Color(0xFF00E5C7),
+        light: const Color(0xFF7AFFF0),
+      );
+    case AppTheme.rose:
+      return (
+        icon: Icons.favorite_rounded,
+        color: const Color(0xFFE84C88),
+        light: const Color(0xFFFF9AC1),
+      );
+  }
+}
+
+/// Compact corner toast that pops in, then flies upward and fades out —
+/// instead of the full-width black SnackBar bar at the bottom.
+void showAppToast(BuildContext context, String message) {
+  final overlay = Overlay.maybeOf(context);
+  if (overlay == null) return;
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => _FlyingToast(
+      message: message,
+      onDone: () => entry.remove(),
+    ),
+  );
+  overlay.insert(entry);
 }
 
 class VoiceAiApp extends StatelessWidget {
@@ -864,7 +948,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   void _snack(String s) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
+    showAppToast(context, s);
   }
 
   /// Trigger the system to download the on-device Vietnamese recognition pack
@@ -1379,7 +1463,6 @@ class HomeScreenState extends State<HomeScreen> {
     final cs = Theme.of(context).colorScheme;
     final win7 = widget.theme.isWin7;
     return Scaffold(
-      floatingActionButton: _heartButton(),
       appBar: AppBar(
         title: const Text('Voice AI'),
         flexibleSpace: widget.theme.isWin7
@@ -1388,7 +1471,13 @@ class HomeScreenState extends State<HomeScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0xFF5AA7EA), Color(0xFF1F6FD6)],
+                    // Classic Aero title-bar: bright glass → deep Luna blue.
+                    colors: [
+                      Color(0xFFA8D4F5),
+                      Color(0xFF4A9BE0),
+                      Color(0xFF1A5EB5),
+                    ],
+                    stops: [0.0, 0.45, 1.0],
                   ),
                 ),
               )
@@ -1411,97 +1500,171 @@ class HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Conversation window — the whole screen above the toggle.
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: win7
-                    ? BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: const Color(0xFF8AAAD0), width: 1.5),
-                      )
-                    : BoxDecoration(
-                        color: cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: cs.outlineVariant),
+      body: Container(
+        decoration: win7
+            ? const BoxDecoration(
+                // Classic Win7 desktop wash.
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFB7D4EA),
+                    Color(0xFF7EAFD4),
+                    Color(0xFF5E9AC4),
+                  ],
+                ),
+              )
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Column(
+            children: [
+              // Conversation window — the whole screen above the toggle.
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: win7
+                      ? BoxDecoration(
+                          color: const Color(0xFFF8FBFF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                              color: const Color(0xFF3A6EA5), width: 2),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x55000000),
+                              blurRadius: 8,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                        )
+                      : BoxDecoration(
+                          color: cs.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: cs.outlineVariant),
+                        ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      if (win7)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0xFF9ECFF3),
+                                Color(0xFF3A86D0),
+                                Color(0xFF1F5EAE),
+                              ],
+                            ),
+                          ),
+                          child: const Text(
+                            'Hội thoại',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              shadows: [
+                                Shadow(color: Colors.black38, blurRadius: 1)
+                              ],
+                            ),
+                          ),
+                        ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 8),
+                          child: _history.isEmpty
+                              ? Center(
+                                  child: Text('Hội thoại sẽ hiện ở đây…',
+                                      style: TextStyle(
+                                          color: cs.onSurfaceVariant)),
+                                )
+                              : ListView.builder(
+                                  controller: _chatScroll,
+                                  itemCount: _history.length,
+                                  itemBuilder: (_, i) => _bubble(_history[i]),
+                                ),
+                        ),
                       ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: _history.isEmpty
-                    ? Center(
-                        child: Text('Hội thoại sẽ hiện ở đây…',
-                            style: TextStyle(color: cs.onSurfaceVariant)),
-                      )
-                    : ListView.builder(
-                        controller: _chatScroll,
-                        itemCount: _history.length,
-                        itemBuilder: (_, i) => _bubble(_history[i]),
-                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            // Two controls side by side: record (mic) and type (opens a popup).
-            Row(
-              children: [
-                Expanded(
-                  child: _controlButton(
-                    onTap: _loopActive
-                        ? null
-                        : (running ? _stop : _start),
-                    icon: running ? Icons.stop_rounded : Icons.mic_rounded,
-                    label: running ? 'Dừng' : 'Nói',
-                    color: running ? const Color(0xFFE5484D) : cs.primary,
-                    win7: win7,
+              const SizedBox(height: 10),
+              // Two controls side by side: record (mic) and type (opens a popup).
+              Row(
+                children: [
+                  Expanded(
+                    child: _controlButton(
+                      onTap: _loopActive
+                          ? null
+                          : (running ? _stop : _start),
+                      icon: running ? Icons.stop_rounded : Icons.mic_rounded,
+                      label: running ? 'Dừng' : 'Nói',
+                      color: running ? const Color(0xFFE5484D) : cs.primary,
+                      win7: win7,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _controlButton(
-                    onTap: _loopActive ? null : _showTextDialog,
-                    icon: Icons.keyboard_rounded,
-                    label: 'Nhắn chữ',
-                    color: win7 ? const Color(0xFF5B7CA6) : cs.secondary,
-                    win7: win7,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _controlButton(
+                      onTap: _loopActive ? null : _showTextDialog,
+                      icon: Icons.keyboard_rounded,
+                      label: 'Nhắn chữ',
+                      color: win7 ? const Color(0xFF5B7CA6) : cs.secondary,
+                      win7: win7,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // Self-running AI ↔ AI conversation.
-            _controlButton(
-              onTap: _toggleLoop,
-              icon: _loopActive ? Icons.stop_rounded : Icons.forum_rounded,
-              label: _loopActive ? 'Dừng tự thoại' : 'Tự thoại (AI nói với AI)',
-              color: _loopActive
-                  ? const Color(0xFFE5484D)
-                  : (win7 ? const Color(0xFF6B2FA0) : cs.tertiary),
-              win7: win7,
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Auto-talk (shrunk) + heart side-by-side so they don't overlap.
+              Row(
+                children: [
+                  Expanded(
+                    child: _controlButton(
+                      onTap: _toggleLoop,
+                      icon: _loopActive
+                          ? Icons.stop_rounded
+                          : Icons.forum_rounded,
+                      label: _loopActive ? 'Dừng tự thoại' : 'Tự thoại',
+                      color: _loopActive
+                          ? const Color(0xFFE5484D)
+                          : (win7 ? const Color(0xFF6B2FA0) : cs.tertiary),
+                      win7: win7,
+                      height: 54,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _heartButton(),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// One of the big bottom controls. Rounded glossy for dark/light themes;
-  /// square, bordered and beveled (classic Win7/Yahoo) for the win7 theme.
-  /// A null [onTap] renders it dimmed & disabled. Springs down when pressed for
-  /// a satisfying tactile feel.
+  /// One of the big bottom controls — pill-shaped (stadium) for every theme.
+  /// Win7 keeps the classic hard gloss split + blue border. A null [onTap]
+  /// renders it dimmed & disabled. Springs down when pressed.
   Widget _controlButton({
     required VoidCallback? onTap,
     required IconData icon,
     required String label,
     required Color color,
     required bool win7,
+    double height = 58,
   }) {
-    final light = Color.lerp(color, Colors.white, win7 ? 0.4 : 0.35)!;
+    final light = Color.lerp(color, Colors.white, win7 ? 0.42 : 0.35)!;
     final dark = Color.lerp(color, Colors.black, 0.22)!;
-    final radius = BorderRadius.circular(win7 ? 8 : 20);
+    // Fully pill / "viên thuốc" rounding on every theme.
+    final radius = BorderRadius.circular(height);
     return _PressPop(
       onTap: onTap,
       radius: radius,
@@ -1516,13 +1679,17 @@ class HomeScreenState extends State<HomeScreen> {
             stops: win7 ? const [0.0, 0.5, 0.5, 1.0] : const [0.0, 0.55, 1.0],
           ),
           border: win7
-              ? Border.all(color: const Color(0xFF2C5A8C), width: 1.4)
+              ? Border.all(color: const Color(0xFF24558C), width: 1.5)
               : Border.all(color: Colors.white.withValues(alpha: 0.25)),
           boxShadow: win7
-              ? null
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: pressed ? 0.18 : 0.28),
+                    blurRadius: pressed ? 2 : 5,
+                    offset: Offset(0, pressed ? 1 : 3),
+                  ),
+                ]
               : [
-                  // Coloured glow + a soft drop shadow; both shrink when pressed
-                  // so the button reads as sinking into the surface.
                   BoxShadow(
                     color: color.withValues(alpha: pressed ? 0.25 : 0.45),
                     blurRadius: pressed ? 6 : 16,
@@ -1532,20 +1699,25 @@ class HomeScreenState extends State<HomeScreen> {
                 ],
         ),
         child: SizedBox(
-          height: 62,
+          height: height,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: Colors.white, size: 26),
+              Icon(icon, color: Colors.white, size: 24),
               const SizedBox(width: 8),
-              Text(label,
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       shadows: [
                         Shadow(color: Colors.black26, blurRadius: 2)
-                      ])),
+                      ]),
+                ),
+              ),
             ],
           ),
         ),
@@ -1553,41 +1725,40 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Round pink heart button — every tap pops a heart that floats up from the
-  /// bottom of the screen.
+  /// Theme-coloured reaction button — every tap pops that same icon flying up.
   Widget _heartButton() {
-    const pink = Color(0xFFE84C88);
-    const pinkLight = Color(0xFFFF9AC1);
+    final style = themeHeartStyle(widget.theme.theme);
     return _PressPop(
       onTap: _popHeart,
       radius: BorderRadius.circular(40),
       child: Container(
-        width: 62,
-        height: 62,
+        width: 54,
+        height: 54,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [pinkLight, pink],
+            colors: [style.light, style.color],
           ),
           border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
           boxShadow: [
             BoxShadow(
-                color: pink.withValues(alpha: 0.55),
-                blurRadius: 16,
-                offset: const Offset(0, 6)),
+                color: style.color.withValues(alpha: 0.55),
+                blurRadius: 14,
+                offset: const Offset(0, 5)),
           ],
         ),
-        child: const Icon(Icons.favorite, color: Colors.white, size: 30),
+        child: Icon(style.icon, color: Colors.white, size: 26),
       ),
     );
   }
 
-  /// Spawns one floating heart via the overlay so it rises above everything.
+  /// Spawns one floating icon (matching the heart button) via the overlay.
   void _popHeart() {
     final overlay = Overlay.of(context);
     final media = MediaQuery.of(context);
+    final style = themeHeartStyle(widget.theme.theme);
     // Start near the bottom-right (where the button lives), with a little spread.
     final startX = media.size.width -
         70 -
@@ -1599,6 +1770,8 @@ class HomeScreenState extends State<HomeScreen> {
         startX: startX,
         screenHeight: media.size.height,
         seed: _rnd.nextInt(1 << 31),
+        icon: style.icon,
+        baseColor: style.color,
         onDone: () => entry.remove(),
       ),
     );
@@ -1654,19 +1827,27 @@ class HomeScreenState extends State<HomeScreen> {
           } else {
             content = TextField(
               controller: ctrl,
-              minLines: 1,
-              maxLines: 4,
+              minLines: 2,
+              maxLines: 6,
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: 'Nhập text để tạo QR…',
                 border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
             );
           }
           final showActions = qrData == null && scanned == null;
+          final screenW = MediaQuery.of(ctx).size.width;
           return AlertDialog(
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
             title: const Text('QR code'),
-            content: SingleChildScrollView(child: content),
+            content: SizedBox(
+              width: screenW * 0.92,
+              child: SingleChildScrollView(child: content),
+            ),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx),
@@ -1710,7 +1891,20 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   /// Full-screen camera scanner; returns the first decoded QR text (or null).
-  Future<String?> _scanQr() {
+  /// Requests CAMERA via the native bridge first — mobile_scanner alone often
+  /// reports "permission denied" even after the user already granted it.
+  Future<String?> _scanQr() async {
+    try {
+      final granted =
+          await _nativeChannel.invokeMethod<bool>('requestCamera') ?? false;
+      if (!granted) {
+        _snack('Chưa cấp quyền Camera — mở Cài đặt ứng dụng để bật.');
+        return null;
+      }
+    } catch (e) {
+      AppLog.instance.log('requestCamera lỗi: $e');
+    }
+    if (!mounted) return null;
     return Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => const QrScannerPage()),
     );
@@ -1720,29 +1914,37 @@ class HomeScreenState extends State<HomeScreen> {
   Future<void> _showTextDialog() async {
     final ctrl = TextEditingController();
     final win7 = widget.theme.isWin7;
+    final screenW = MediaQuery.of(context).size.width;
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
+        // Wider dialog so the text field uses most of the screen width.
+        insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
         shape: win7
             ? const RoundedRectangleBorder(
                 borderRadius: BorderRadius.all(Radius.circular(10)))
             : null,
         title: const Text('Nhắn chữ cho AI'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          minLines: 1,
-          maxLines: 6,
-          textInputAction: TextInputAction.send,
-          decoration: const InputDecoration(
-            hintText: 'Nhập nội dung…',
-            border: OutlineInputBorder(),
+        content: SizedBox(
+          width: screenW * 0.92,
+          child: TextField(
+            controller: ctrl,
+            autofocus: true,
+            minLines: 2,
+            maxLines: 8,
+            textInputAction: TextInputAction.send,
+            decoration: const InputDecoration(
+              hintText: 'Nhập nội dung…',
+              border: OutlineInputBorder(),
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+            onSubmitted: (_) {
+              final t = ctrl.text;
+              Navigator.pop(ctx);
+              _submitTyped(t);
+            },
           ),
-          onSubmitted: (_) {
-            final t = ctrl.text;
-            Navigator.pop(ctx);
-            _submitTyped(t);
-          },
         ),
         actions: [
           TextButton(
@@ -2088,8 +2290,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _snack(String s) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(s)));
+    showAppToast(context, s);
   }
 
   /// Small speaker button to hear a voice sample.
@@ -3292,9 +3493,7 @@ class LogScreen extends StatelessWidget {
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: log.dump()));
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đã sao chép log')),
-                );
+                showAppToast(context, 'Đã sao chép log');
               }
             },
           ),
@@ -3400,17 +3599,21 @@ class _PressPopState extends State<_PressPop> {
   }
 }
 
-/// A single heart that rises from the bottom of the screen, sways gently,
-/// scales in, fades out near the top, then calls [onDone] to remove itself.
+/// A single reaction icon that rises from the bottom, sways gently, scales in,
+/// fades out near the top, then calls [onDone] to remove itself.
 class _FloatingHeart extends StatefulWidget {
   final double startX;
   final double screenHeight;
   final int seed;
+  final IconData icon;
+  final Color baseColor;
   final VoidCallback onDone;
   const _FloatingHeart({
     required this.startX,
     required this.screenHeight,
     required this.seed,
+    required this.icon,
+    required this.baseColor,
     required this.onDone,
   });
 
@@ -3433,14 +3636,14 @@ class _FloatingHeartState extends State<_FloatingHeart>
     _sway = (r.nextDouble() * 60) + 20;
     _size = 30 + r.nextDouble() * 24;
     _swayPhase = r.nextDouble() * pi * 2;
-    const palette = [
-      Color(0xFFE84C88),
-      Color(0xFFFF4D6D),
-      Color(0xFFFF6B9A),
-      Color(0xFFEF476F),
-      Color(0xFFFF85A1),
+    // Slight shade variants of the theme colour so bursts feel lively.
+    final variants = [
+      widget.baseColor,
+      Color.lerp(widget.baseColor, Colors.white, 0.25)!,
+      Color.lerp(widget.baseColor, Colors.pinkAccent, 0.2)!,
+      Color.lerp(widget.baseColor, Colors.white, 0.1)!,
     ];
-    _color = palette[r.nextInt(palette.length)];
+    _color = variants[r.nextInt(variants.length)];
     _c = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: 1500 + r.nextInt(700)),
@@ -3482,7 +3685,7 @@ class _FloatingHeartState extends State<_FloatingHeart>
               child: Transform.scale(
                 scale: scale,
                 child: Icon(
-                  Icons.favorite,
+                  widget.icon,
                   color: _color,
                   size: _size,
                   shadows: [
@@ -3499,7 +3702,102 @@ class _FloatingHeartState extends State<_FloatingHeart>
   }
 }
 
+/// Corner popup toast: slides in at the top-right, holds, then flies upward
+/// while fading — no full-width black bottom bar.
+class _FlyingToast extends StatefulWidget {
+  final String message;
+  final VoidCallback onDone;
+  const _FlyingToast({required this.message, required this.onDone});
+
+  @override
+  State<_FlyingToast> createState() => _FlyingToastState();
+}
+
+class _FlyingToastState extends State<_FlyingToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )
+      ..addStatusListener((s) {
+        if (s == AnimationStatus.completed) widget.onDone();
+      })
+      ..forward();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top + 12;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, _) {
+        final t = _c.value;
+        // 0–0.12: pop in from slightly below; 0.12–0.62: hold; 0.62–1: fly up + fade.
+        double opacity;
+        double dy;
+        if (t < 0.12) {
+          final p = Curves.easeOut.transform(t / 0.12);
+          opacity = p;
+          dy = 18 * (1 - p);
+        } else if (t < 0.62) {
+          opacity = 1;
+          dy = 0;
+        } else {
+          final p = Curves.easeIn.transform((t - 0.62) / 0.38);
+          opacity = 1 - p;
+          dy = -56 * p;
+        }
+        return Positioned(
+          top: topPad + dy,
+          right: 12,
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: opacity.clamp(0.0, 1.0),
+              child: Material(
+                elevation: 6,
+                borderRadius: BorderRadius.circular(14),
+                color: const Color(0xEE2B2F36),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.78,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    child: Text(
+                      widget.message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Full-screen QR scanner. Pops with the first decoded value.
+/// Starts the camera only after the page is mounted (and after the native
+/// permission grant in [HomeScreenState._scanQr]) to avoid a false
+/// "permission denied" from auto-start racing the permission check.
 class QrScannerPage extends StatefulWidget {
   const QrScannerPage({super.key});
   @override
@@ -3507,15 +3805,34 @@ class QrScannerPage extends StatefulWidget {
 }
 
 class _QrScannerPageState extends State<QrScannerPage> {
-  final _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    facing: CameraFacing.back,
-    formats: const [BarcodeFormat.qrCode],
-  );
+  late final MobileScannerController _controller;
   bool _done = false;
+  String? _error;
 
-  // Note: the MobileScanner widget auto-starts the controller itself — calling
-  // start() again here causes a double-start (genericError).
+  @override
+  void initState() {
+    super.initState();
+    _controller = MobileScannerController(
+      autoStart: false,
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      formats: const [BarcodeFormat.qrCode],
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startCam());
+  }
+
+  Future<void> _startCam() async {
+    try {
+      await _controller.start();
+      if (mounted) setState(() => _error = null);
+    } catch (e) {
+      AppLog.instance.log('QR camera start lỗi: $e');
+      if (mounted) {
+        setState(() => _error =
+            'Không mở được camera.\nThử đóng app rồi mở lại, hoặc kiểm tra quyền Camera.');
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -3536,28 +3853,63 @@ class _QrScannerPageState extends State<QrScannerPage> {
           ),
         ],
       ),
-      body: MobileScanner(
-        controller: _controller,
-        errorBuilder: (context, error, child) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Lỗi camera: ${error.errorCode}\n'
-              'Kiểm tra đã cấp quyền Camera cho app.',
-              textAlign: TextAlign.center,
+      body: _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_error!, textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () {
+                        setState(() => _error = null);
+                        _startCam();
+                      },
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : MobileScanner(
+              controller: _controller,
+              errorBuilder: (context, error, child) {
+                final code = error.errorCode.toString();
+                final isPerm = code.toLowerCase().contains('permission');
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isPerm
+                              ? 'Camera chưa sẵn sàng.\nNếu đã cấp quyền, bấm Thử lại.'
+                              : 'Lỗi camera: ${error.errorCode}',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: _startCam,
+                          child: const Text('Thử lại'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              onDetect: (capture) {
+                if (_done) return;
+                final codes = capture.barcodes;
+                final v = codes.isNotEmpty ? codes.first.rawValue : null;
+                if (v != null && v.isNotEmpty) {
+                  _done = true;
+                  Navigator.of(context).pop(v);
+                }
+              },
             ),
-          ),
-        ),
-        onDetect: (capture) {
-          if (_done) return;
-          final codes = capture.barcodes;
-          final v = codes.isNotEmpty ? codes.first.rawValue : null;
-          if (v != null && v.isNotEmpty) {
-            _done = true;
-            Navigator.of(context).pop(v);
-          }
-        },
-      ),
     );
   }
 }
