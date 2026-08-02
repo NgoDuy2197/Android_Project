@@ -356,7 +356,16 @@ class ChatMsg {
   final bool fromUser;
   String text;
   bool live; // still updating (user speaking / AI thinking)
-  ChatMsg({required this.fromUser, this.text = '', this.live = false});
+  /// Placeholder turn: the speaker is composing, so the bubble shows the
+  /// animated three dots instead of text. Set on the side that will speak, so
+  /// the dots appear exactly where the line lands.
+  bool thinking;
+  ChatMsg({
+    required this.fromUser,
+    this.text = '',
+    this.live = false,
+    this.thinking = false,
+  });
 }
 
 class HomeScreen extends StatefulWidget {
@@ -428,10 +437,15 @@ class HomeScreenState extends State<HomeScreen> {
   final List<ChatMsg> _history = [];
   final ScrollController _chatScroll = ScrollController();
 
-  ChatMsg? get _liveUser =>
-      (_history.isNotEmpty && _history.last.fromUser && _history.last.live)
-          ? _history.last
-          : null;
+  /// The bubble currently tracking the user's speech, if any. An auto-dialogue
+  /// placeholder for speaker B is also `fromUser && live`, so `thinking` bubbles
+  /// are excluded — the STT path must never overwrite one.
+  ChatMsg? get _liveUser => (_history.isNotEmpty &&
+          _history.last.fromUser &&
+          _history.last.live &&
+          !_history.last.thinking)
+      ? _history.last
+      : null;
 
   void _updateLiveUser(String text) {
     final m = _liveUser;
@@ -532,6 +546,10 @@ class HomeScreenState extends State<HomeScreen> {
     await p.setInt('maxMessages', maxMessages);
     await p.setInt('loopContextCount', loopContextCount);
     await p.setInt('silenceClearSec', silenceClearSec);
+    // Remember what was just committed so it can be re-picked from the history
+    // buttons in Settings instead of retyped.
+    await pushRecent('model', _ai.model, provider: _ai.provider);
+    await pushRecent('endpoint', _ai.endpoint);
     await applyTts();
     if (mounted) _trimHistory();
   }
@@ -709,6 +727,42 @@ class HomeScreenState extends State<HomeScreen> {
     all.remove(name);
     final p = await SharedPreferences.getInstance();
     await p.setString('configProfiles', jsonEncode(all));
+  }
+
+  // ---------- Recently-saved values (model / endpoint) --------------------
+
+  /// How many entries each history list keeps.
+  static const mruMax = 5;
+
+  /// Models are stored per provider — a Gemini model name is never a valid
+  /// local model name, so mixing them in one list would only add noise.
+  static String mruKey(String kind, String provider) =>
+      provider.isEmpty ? 'recent_$kind' : 'recent_${kind}_$provider';
+
+  Future<List<String>> loadRecent(String kind, {String provider = ''}) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getStringList(mruKey(kind, provider)) ?? const <String>[];
+  }
+
+  /// Moves [value] to the front of its history list and keeps at most [mruMax]
+  /// entries. Re-saving a value already in the list just promotes it instead of
+  /// duplicating it.
+  Future<void> pushRecent(String kind, String value,
+      {String provider = ''}) async {
+    final v = value.trim();
+    if (v.isEmpty) return;
+    final p = await SharedPreferences.getInstance();
+    final key = mruKey(kind, provider);
+    final list = List<String>.from(p.getStringList(key) ?? const <String>[]);
+    list.removeWhere((e) => e == v);
+    list.insert(0, v);
+    if (list.length > mruMax) list.removeRange(mruMax, list.length);
+    await p.setStringList(key, list);
+  }
+
+  Future<void> clearRecent(String kind, {String provider = ''}) async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove(mruKey(kind, provider));
   }
 
   /// TTS engines installed on the device (package ids).
@@ -1197,6 +1251,7 @@ class HomeScreenState extends State<HomeScreen> {
     _loopActive = false;
     _loopSeeding = false;
     _loopTopic = '';
+    _dropThinkingBubbles();
     _silenceTimer?.cancel();
     _sttEngineStop();
     _tts.stop();
@@ -1204,6 +1259,42 @@ class HomeScreenState extends State<HomeScreen> {
     _setBackground(false);
     setState(() => _state = AiState.idle);
     _setStatus('Đã dừng tự thoại');
+  }
+
+  /// Remove a placeholder bubble whose line never arrived (AI error, or the
+  /// loop was stopped mid-request).
+  void _dropPending(ChatMsg m) {
+    if (!_history.remove(m)) return;
+    if (mounted) setState(() {});
+  }
+
+  void _dropThinkingBubbles() {
+    if (!_history.any((m) => m.thinking)) return;
+    _history.removeWhere((m) => m.thinking);
+    if (mounted) setState(() {});
+  }
+
+  /// Silent 3-second firework over the side that just spoke. Decoration only —
+  /// deliberately no [Sfx] call, auto-dialogue stays quiet apart from the TTS.
+  void _popFirework(bool second) {
+    if (!mounted) return;
+    final overlay = Overlay.of(context);
+    final size = MediaQuery.of(context).size;
+    // Roughly the middle of the speaker's column, in the upper chat area.
+    final center = Offset(
+      second ? size.width * 0.72 : size.width * 0.28,
+      size.height * 0.34,
+    );
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _FireworkBurst(
+        center: center,
+        baseColor: themeHeartStyle(widget.theme.theme).color,
+        seed: _rnd.nextInt(1 << 31),
+        onDone: entry.remove,
+      ),
+    );
+    overlay.insert(entry);
   }
 
   /// Capture the user's first command as the shared topic/trend (not as a
@@ -1295,28 +1386,48 @@ class HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loopStep() async {
     if (!_loopActive) return;
-    setState(() => _state = AiState.thinking);
     // No "beep" during auto-dialogue.
     final second = _loopTurn.isOdd; // alternate speaker/voice each turn
+    // Show the three dots on the speaker's own side while the line is composed,
+    // then fill this same bubble in so nothing jumps around.
+    final pending = ChatMsg(fromUser: second, live: true, thinking: true);
+    setState(() {
+      _state = AiState.thinking;
+      _history.add(pending);
+      _trimHistory();
+    });
+    _scrollChat();
     final ctx = _loopUserInput(second);
     String line;
     try {
       line = (await _loopGenerate(ctx, second)).trim();
     } catch (e) {
+      _dropPending(pending);
       if (!_loopActive) return;
       AppLog.instance.log('Loop AI lỗi: $e');
       _snack('Lỗi AI khi tự thoại: $e');
       _stopLoop();
       return;
     }
-    if (!_loopActive) return;
+    if (!_loopActive) {
+      _dropPending(pending);
+      return;
+    }
     if (line.isEmpty) line = '…';
     setState(() {
-      _history.add(ChatMsg(fromUser: second, text: line));
-      _trimHistory();
+      pending
+        ..text = line
+        ..live = false
+        ..thinking = false;
+      // A tight maxMessages may have trimmed the placeholder away already.
+      if (!_history.contains(pending)) {
+        _history.add(pending);
+        _trimHistory();
+      }
       _state = AiState.speaking;
     });
     _scrollChat();
+    _popFirework(second);
     _loopLines.add((second: second, text: line));
     if (_loopLines.length > 40) _loopLines.removeAt(0);
     _loopTurn++;
@@ -1895,8 +2006,11 @@ class HomeScreenState extends State<HomeScreen> {
   /// reports "permission denied" even after the user already granted it.
   Future<String?> _scanQr() async {
     try {
+      final had = await _nativeChannel.invokeMethod<bool>('cameraGranted');
+      AppLog.instance.log('QR: mở scanner, cameraGranted=$had');
       final granted =
           await _nativeChannel.invokeMethod<bool>('requestCamera') ?? false;
+      AppLog.instance.log('QR: requestCamera → $granted');
       if (!granted) {
         _snack('Chưa cấp quyền Camera — mở Cài đặt ứng dụng để bật.');
         return null;
@@ -2012,7 +2126,11 @@ class HomeScreenState extends State<HomeScreen> {
         constraints:
             BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
         decoration: deco,
-        child: thinking
+        child: m.thinking
+            // Auto-dialogue: dots only, no label — the bubble's side already
+            // says who is composing.
+            ? _TypingDots(color: fg)
+            : thinking
             ? Row(mainAxisSize: MainAxisSize.min, children: [
                 const SizedBox(
                     width: 14,
@@ -2102,6 +2220,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<String> _profileNames = [];
   bool _dlBusy = false; // downloading the on-device recognition pack
 
+  /// Recently-saved model / endpoint values, keyed by [HomeScreenState.mruKey].
+  Map<String, List<String>> _recent = {};
+
   // TTS (giọng đọc) — detected from the device.
   List<String> _ttsLangs = [];
   List<({String name, String locale})> _ttsVoices = [];
@@ -2133,6 +2254,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadLocales();
     _loadTts();
     _loadProfileNames();
+    _loadRecents();
+  }
+
+  Future<void> _loadRecents() async {
+    final r = <String, List<String>>{};
+    for (final p in AiClient.providers) {
+      r[HomeScreenState.mruKey('model', p)] =
+          await widget.home.loadRecent('model', provider: p);
+    }
+    r[HomeScreenState.mruKey('endpoint', '')] =
+        await widget.home.loadRecent('endpoint');
+    if (mounted) setState(() => _recent = r);
   }
 
   /// Ask the system to download the on-device Vietnamese recognition pack
@@ -2735,8 +2868,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           if (_provider == 'local') ...[
-            _field(_endpoint, 'Địa chỉ máy chủ AI (OpenAI-compatible)',
-                'http://192.168.1.10:11434/v1/chat/completions'),
+            _mruField(_endpoint, 'Địa chỉ máy chủ AI (OpenAI-compatible)',
+                'http://192.168.1.10:11434/v1/chat/completions',
+                kind: 'endpoint'),
             Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: DropdownButtonFormField<String>(
@@ -2754,8 +2888,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ],
-          _field(_model, _provider == 'gemini' ? 'Model Gemini' : 'Tên model',
-              _provider == 'gemini' ? 'gemini-1.5-flash' : 'qwen2.5:0.5b'),
+          _mruField(_model, _provider == 'gemini' ? 'Model Gemini' : 'Tên model',
+              _provider == 'gemini' ? 'gemini-1.5-flash' : 'qwen2.5:0.5b',
+              kind: 'model', provider: _provider),
           _field(
               _apiKey,
               _provider == 'gemini'
@@ -3113,6 +3248,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
           helperText: helper,
           helperMaxLines: 3,
           border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  /// Sentinel [PopupMenuItem] value for "wipe this history list". It can't
+  /// collide with a real entry: [HomeScreenState.pushRecent] trims before
+  /// storing, so no stored value starts with a space.
+  static const _mruClear = ' clear';
+
+  /// A [_field] with a history button holding the last
+  /// [HomeScreenState.mruMax] values saved for it. Tapping an entry fills the
+  /// field (it still needs "Lưu" to take effect).
+  Widget _mruField(
+    TextEditingController c,
+    String label,
+    String hint, {
+    String? helper,
+    required String kind,
+    String provider = '',
+  }) {
+    final items = _recent[HomeScreenState.mruKey(kind, provider)] ??
+        const <String>[];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextField(
+        controller: c,
+        autocorrect: false,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          helperText: helper,
+          helperMaxLines: 3,
+          border: const OutlineInputBorder(),
+          suffixIcon: items.isEmpty
+              ? null
+              : PopupMenuButton<String>(
+                  tooltip: '${items.length} giá trị đã lưu gần nhất',
+                  icon: const Icon(Icons.history),
+                  onSelected: (v) async {
+                    if (v == _mruClear) {
+                      await widget.home
+                          .clearRecent(kind, provider: provider);
+                      await _loadRecents();
+                      return;
+                    }
+                    setState(() => c.text = v);
+                  },
+                  itemBuilder: (_) => [
+                    for (final v in items)
+                      PopupMenuItem<String>(
+                        value: v,
+                        child: Text(v,
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem<String>(
+                      value: _mruClear,
+                      child: Text('Xoá danh sách'),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
@@ -3805,43 +4002,179 @@ class QrScannerPage extends StatefulWidget {
 }
 
 class _QrScannerPageState extends State<QrScannerPage> {
-  late final MobileScannerController _controller;
+  /// Recreated on every (re)start attempt: a failed native `start` can leave
+  /// the plugin half-initialized, and reusing the same controller then only
+  /// yields "Called start() while already started".
+  MobileScannerController? _controller;
   bool _done = false;
+  bool _starting = false;
+  int _attempt = 0;
   String? _error;
+  String? _lastState;
 
   @override
   void initState() {
     super.initState();
-    _controller = MobileScannerController(
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startCam());
+  }
+
+  /// Formats a [MobileScannerException] with everything the native side sent.
+  /// `errorCode` alone is almost always `genericError` — the real reason is in
+  /// `errorDetails.message` (e.g. "No camera found or failed to open camera!",
+  /// "Called start() while already started", "Called start before
+  /// initializing.").
+  static String _fmtErr(MobileScannerException? e) {
+    if (e == null) return '-';
+    final d = e.errorDetails;
+    final parts = <String>['code=${e.errorCode.name}'];
+    if (d?.code != null) parts.add('platformCode=${d!.code}');
+    if (d?.message != null) parts.add('msg=${d!.message}');
+    if (d?.details != null) parts.add('details=${d!.details}');
+    return parts.join(' | ');
+  }
+
+  /// Human-readable text for the error box, including the native message so it
+  /// can be read on the device without opening the log screen.
+  static String _errText(MobileScannerException? e) {
+    final d = e?.errorDetails;
+    final detail = d?.message ?? d?.code;
+    final base = e == null
+        ? 'Không mở được camera.'
+        : e.errorCode == MobileScannerErrorCode.permissionDenied
+            ? 'Chưa cấp quyền Camera — mở Cài đặt ứng dụng để bật.'
+            : 'Lỗi camera: ${e.errorCode.name}';
+    return detail == null ? base : '$base\n($detail)';
+  }
+
+  void _logState(MobileScannerController c) {
+    final v = c.value;
+    final line = 'QR state: init=${v.isInitialized} running=${v.isRunning} '
+        'cams=${v.availableCameras} dir=${v.cameraDirection.name} '
+        'size=${v.size.width.toInt()}x${v.size.height.toInt()} '
+        'torch=${v.torchState.name} err=${_fmtErr(v.error)}';
+    if (line == _lastState) return;
+    _lastState = line;
+    AppLog.instance.log(line);
+  }
+
+  Future<void> _startCam() async {
+    if (_starting) {
+      AppLog.instance.log('QR: bỏ qua start (đang start)');
+      return;
+    }
+    _starting = true;
+    _attempt++;
+    AppLog.instance.log('QR: === start lần $_attempt ===');
+
+    // Tear down the previous attempt before starting a new one.
+    final old = _controller;
+    if (old != null) {
+      _controller = null;
+      if (mounted) setState(() {});
+      try {
+        await old.dispose();
+        AppLog.instance.log('QR: đã dispose controller cũ');
+      } catch (e) {
+        AppLog.instance.log('QR: dispose controller cũ lỗi: $e');
+      }
+    }
+
+    // Our own permission snapshot — mobile_scanner does its own check too, so
+    // a mismatch here points straight at the permission path.
+    try {
+      final granted = await _nativeChannel.invokeMethod<bool>('cameraGranted');
+      AppLog.instance.log('QR: cameraGranted(native)=$granted');
+    } catch (e) {
+      AppLog.instance.log('QR: cameraGranted lỗi: $e');
+    }
+
+    if (!mounted) {
+      _starting = false;
+      return;
+    }
+
+    final c = MobileScannerController(
       autoStart: false,
       detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
       formats: const [BarcodeFormat.qrCode],
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startCam());
-  }
+    c.addListener(() => _logState(c));
+    setState(() {
+      _controller = c;
+      _error = null;
+    });
 
-  Future<void> _startCam() async {
     try {
-      await _controller.start();
-      if (mounted) setState(() => _error = null);
-    } catch (e) {
-      AppLog.instance.log('QR camera start lỗi: $e');
-      if (mounted) {
-        setState(() => _error =
-            'Không mở được camera.\nThử đóng app rồi mở lại, hoặc kiểm tra quyền Camera.');
+      // `start()` swallows MobileScannerException into `value.error` instead of
+      // throwing it, so the result has to be read back from `value`.
+      await c.start();
+      final err = c.value.error;
+      AppLog.instance.log('QR: start xong → ${_fmtErr(err)} '
+          'running=${c.value.isRunning} cams=${c.value.availableCameras}');
+      if (err != null && mounted) {
+        setState(() => _error = _errText(err));
+      } else if (!c.value.isRunning && mounted) {
+        AppLog.instance.log('QR: start không lỗi nhưng camera không chạy');
+        setState(() => _error = _errText(null));
       }
+    } catch (e, st) {
+      AppLog.instance.log('QR: start ném lỗi: ${e.runtimeType} $e');
+      AppLog.instance
+          .log('QR: stack: ${st.toString().split('\n').take(4).join(' ‹ ')}');
+      if (mounted) {
+        setState(() => _error = e is MobileScannerException
+            ? _errText(e)
+            : 'Không mở được camera.\n($e)');
+      }
+    } finally {
+      _starting = false;
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    AppLog.instance.log('QR: đóng trang scanner');
+    _controller?.dispose();
     super.dispose();
+  }
+
+  /// The error box: message + retry, plus a shortcut into the log screen so a
+  /// failure can be reported without hunting through Settings.
+  Widget _errorBox(String text) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(text, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilledButton(
+                  onPressed: _startCam,
+                  child: const Text('Thử lại'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LogScreen()),
+                  ),
+                  child: const Text('Xem log'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = _controller;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quét QR code'),
@@ -3849,67 +4182,239 @@ class _QrScannerPageState extends State<QrScannerPage> {
           IconButton(
             tooltip: 'Đèn',
             icon: const Icon(Icons.flashlight_on),
-            onPressed: () => _controller.toggleTorch(),
+            onPressed: c == null ? null : () => c.toggleTorch(),
           ),
         ],
       ),
       body: _error != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_error!, textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: () {
-                        setState(() => _error = null);
-                        _startCam();
-                      },
-                      child: const Text('Thử lại'),
-                    ),
-                  ],
+          ? _errorBox(_error!)
+          : c == null
+              ? const Center(child: CircularProgressIndicator())
+              : MobileScanner(
+                  controller: c,
+                  errorBuilder: (context, error, child) {
+                    AppLog.instance
+                        .log('QR errorBuilder: ${_fmtErr(error)}');
+                    return _errorBox(_errText(error));
+                  },
+                  onDetect: (capture) {
+                    if (_done) return;
+                    final codes = capture.barcodes;
+                    final v = codes.isNotEmpty ? codes.first.rawValue : null;
+                    AppLog.instance
+                        .log('QR: onDetect ${codes.length} mã, len=${v?.length}');
+                    if (v != null && v.isNotEmpty) {
+                      _done = true;
+                      Navigator.of(context).pop(v);
+                    }
+                  },
                 ),
-              ),
-            )
-          : MobileScanner(
-              controller: _controller,
-              errorBuilder: (context, error, child) {
-                final code = error.errorCode.toString();
-                final isPerm = code.toLowerCase().contains('permission');
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          isPerm
-                              ? 'Camera chưa sẵn sàng.\nNếu đã cấp quyền, bấm Thử lại.'
-                              : 'Lỗi camera: ${error.errorCode}',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          onPressed: _startCam,
-                          child: const Text('Thử lại'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-              onDetect: (capture) {
-                if (_done) return;
-                final codes = capture.barcodes;
-                final v = codes.isNotEmpty ? codes.first.rawValue : null;
-                if (v != null && v.isNotEmpty) {
-                  _done = true;
-                  Navigator.of(context).pop(v);
-                }
-              },
-            ),
     );
   }
+}
+
+/// Three dots that lift and brighten in sequence — the "composing" indicator
+/// inside an auto-dialogue bubble.
+class _TypingDots extends StatefulWidget {
+  final Color color;
+  const _TypingDots({required this.color});
+
+  /// Dot diameter in logical pixels.
+  static const dot = 8.0;
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  /// Same curve for every dot, staggered by a third of the cycle.
+  Widget _dotAt(int i, double d) {
+    final phase = (_c.value + i / 3) % 1.0;
+    final wave = sin(phase * pi * 2);
+    final up = wave > 0 ? wave : 0.0;
+    return Transform.translate(
+      offset: Offset(0, -up * d * 0.55),
+      child: Opacity(
+        opacity: 0.35 + 0.65 * up,
+        child: Container(
+          width: d,
+          height: d,
+          decoration:
+              BoxDecoration(color: widget.color, shape: BoxShape.circle),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const d = _TypingDots.dot;
+    return SizedBox(
+      height: d * 2.4,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (_, _) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) SizedBox(width: d * 0.6),
+              _dotAt(i, d),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One spark of a firework shell.
+class _Spark {
+  final double angle;
+  final double spread;
+  final double size;
+  final Color color;
+  const _Spark(this.angle, this.spread, this.size, this.color);
+}
+
+/// A ring of sparks that expands, sags under gravity and fades. Several
+/// staggered shells fill the 3-second burst.
+class _Shell {
+  final double start; // when it fires, 0..1 of the burst
+  final double life; // how long it lives, in the same 0..1 scale
+  final Offset origin;
+  final List<_Spark> sparks;
+  const _Shell({
+    required this.start,
+    required this.life,
+    required this.origin,
+    required this.sparks,
+  });
+}
+
+/// Silent 3-second firework drawn over the chat. Purely decorative: it plays no
+/// sound, ignores pointers, and calls [onDone] to remove its overlay entry.
+class _FireworkBurst extends StatefulWidget {
+  final Offset center;
+  final Color baseColor;
+  final int seed;
+  final VoidCallback onDone;
+  const _FireworkBurst({
+    required this.center,
+    required this.baseColor,
+    required this.seed,
+    required this.onDone,
+  });
+
+  @override
+  State<_FireworkBurst> createState() => _FireworkBurstState();
+}
+
+class _FireworkBurstState extends State<_FireworkBurst>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  late final List<_Shell> _shells;
+
+  @override
+  void initState() {
+    super.initState();
+    final r = Random(widget.seed);
+    final palette = [
+      widget.baseColor,
+      Color.lerp(widget.baseColor, Colors.white, 0.45)!,
+      const Color(0xFFFFD54F), // gold
+      const Color(0xFFFF7043), // ember
+      Color.lerp(widget.baseColor, Colors.cyanAccent, 0.35)!,
+    ];
+    // Fired in sequence so something is always in the air for the full 3s.
+    const starts = [0.0, 0.28, 0.56];
+    _shells = [
+      for (final start in starts)
+        _Shell(
+          start: start,
+          life: 0.44,
+          origin: widget.center +
+              Offset((r.nextDouble() - 0.5) * 90, (r.nextDouble() - 0.5) * 70),
+          sparks: [
+            for (var i = 0; i < 24; i++)
+              _Spark(
+                // Even ring plus jitter, so it reads as a burst not a dial.
+                (i / 24) * pi * 2 + (r.nextDouble() - 0.5) * 0.22,
+                58 + r.nextDouble() * 46,
+                1.8 + r.nextDouble() * 2.0,
+                palette[r.nextInt(palette.length)],
+              ),
+          ],
+        ),
+    ];
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 3))
+      ..addStatusListener((s) {
+        if (s == AnimationStatus.completed) widget.onDone();
+      })
+      ..forward();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (_, _) =>
+                CustomPaint(painter: _FireworkPainter(_c.value, _shells)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FireworkPainter extends CustomPainter {
+  final double t; // 0..1 across the whole burst
+  final List<_Shell> shells;
+  const _FireworkPainter(this.t, this.shells);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    for (final shell in shells) {
+      final u = (t - shell.start) / shell.life;
+      if (u <= 0 || u >= 1) continue;
+      // Decelerating expansion, a quick fade-in then a long fade-out.
+      final ease = 1 - pow(1 - u, 2.4).toDouble();
+      final fade = u < 0.08 ? u / 0.08 : 1 - (u - 0.08) / 0.92;
+      final alpha = fade.clamp(0.0, 1.0);
+      for (final s in shell.sparks) {
+        final r = s.spread * ease;
+        final p = Offset(
+          shell.origin.dx + cos(s.angle) * r,
+          // Gravity sag grows with the square of the spark's age.
+          shell.origin.dy + sin(s.angle) * r + 46 * u * u,
+        );
+        paint.color = s.color.withValues(alpha: alpha);
+        canvas.drawCircle(p, s.size * (1 - 0.45 * u), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FireworkPainter old) => old.t != t;
 }
