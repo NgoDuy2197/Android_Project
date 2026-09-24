@@ -34,12 +34,15 @@ dev_dependencies:
   # Sinh icon app từ icon.png (được build_apk.bat gọi).
   flutter_launcher_icons: ^0.14.4
 
-# Cấu hình icon app. Sinh bằng:
+# Cấu hình icon app. Ảnh nguồn sinh bằng `python tools/make_icon.py`, rồi:
 #   dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: "icon.png"
+  # Adaptive icon (Android 8+): launcher tự cắt nền theo hình dạng của máy.
+  adaptive_icon_background: "icon_background.png"
+  adaptive_icon_foreground: "icon_foreground.png"
   min_sdk_android: 24
 
 flutter:

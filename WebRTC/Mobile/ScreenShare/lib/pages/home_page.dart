@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -14,6 +15,17 @@ const _green = Color(0xFF30A46C);
 const _blue = Color(0xFF3B6EF0);
 const _red = Color(0xFFE5484D);
 const _amber = Color(0xFFF5A623);
+
+/// Ẩn/hiện thanh trạng thái + thanh điều hướng cho chế độ toàn màn hình.
+void _applyImmersive(bool on) {
+  SystemChrome.setEnabledSystemUIMode(
+    on ? SystemUiMode.immersiveSticky : SystemUiMode.manual,
+    overlays: on ? null : SystemUiOverlay.values,
+  );
+}
+
+/// Màn hình ngang (vd chạy trên TV) → dùng bố cục chia cột.
+bool _isLandscape(BoxConstraints box) => box.maxWidth > box.maxHeight;
 
 /// Màn hình chính: chọn vai trò cho máy này.
 /// - **Server**: máy nhận. Hiện QR để client quét, xem màn hình các client.
@@ -34,6 +46,7 @@ class _HomePageState extends State<HomePage> {
   ScreenServer? _server;
   ScreenClient? _client;
   bool _ready = false;
+  bool _fullscreen = false;
   String _saveLabel = 'Thư viện ảnh của máy';
 
   @override
@@ -53,6 +66,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    if (_fullscreen) _applyImmersive(false);
     _server?.dispose();
     _client?.dispose();
     _nameCtrl.dispose();
@@ -65,6 +79,8 @@ class _HomePageState extends State<HomePage> {
     _client = null;
     final server = ScreenServer();
     server.saveTreeUri = _config.serverSaveTreeUri;
+    server.quality = _config.streamQuality;
+    server.audioFromMic = _config.audioFromMic;
     _server = server;
     setState(() => _role = _Role.server);
     await server.start();
@@ -143,7 +159,14 @@ class _HomePageState extends State<HomePage> {
     setState(() => _role = _Role.client);
   }
 
+  void _setFullscreen(bool on) {
+    if (_fullscreen == on) return;
+    _applyImmersive(on);
+    setState(() => _fullscreen = on);
+  }
+
   Future<void> _leaveRole() async {
+    _setFullscreen(false);
     await _server?.stop();
     _server?.dispose();
     _server = null;
@@ -164,23 +187,59 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('ScreenShare'),
-        centerTitle: true,
-        leading: _role == _Role.none
+    final isServer = _role == _Role.server;
+    final body = !_ready
+        ? const Center(child: CircularProgressIndicator())
+        : switch (_role) {
+            _Role.none => _roleChooser(),
+            _Role.server => _serverView(),
+            _Role.client => _clientView(),
+          };
+    // Nút Back (điện thoại / remote TV) khi đang toàn màn hình → chỉ thoát
+    // toàn màn hình, không rời màn hình hiện tại.
+    return PopScope(
+      canPop: !_fullscreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _fullscreen) _setFullscreen(false);
+      },
+      child: Scaffold(
+        appBar: _fullscreen
             ? null
-            : IconButton(
-                icon: const Icon(Icons.arrow_back), onPressed: _leaveRole),
-      ),
-      body: SafeArea(
-        child: !_ready
-            ? const Center(child: CircularProgressIndicator())
-            : switch (_role) {
-                _Role.none => _roleChooser(),
-                _Role.server => _serverView(),
-                _Role.client => _clientView(),
-              },
+            : AppBar(
+                title: const Text('ScreenShare'),
+                centerTitle: true,
+                leading: _role == _Role.none
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: _leaveRole),
+                actions: [
+                  if (isServer)
+                    IconButton(
+                      tooltip: 'Toàn màn hình',
+                      icon: const Icon(Icons.fullscreen),
+                      onPressed: () => _setFullscreen(true),
+                    ),
+                ],
+              ),
+        body: SafeArea(
+          child: _fullscreen && isServer
+              ? Stack(
+                  children: [
+                    Positioned.fill(child: body),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton.filledTonal(
+                        tooltip: 'Thoát toàn màn hình',
+                        icon: const Icon(Icons.fullscreen_exit),
+                        onPressed: () => _setFullscreen(false),
+                      ),
+                    ),
+                  ],
+                )
+              : body,
+        ),
       ),
     );
   }
@@ -188,34 +247,63 @@ class _HomePageState extends State<HomePage> {
   // --- Chọn vai trò -------------------------------------------------------
 
   Widget _roleChooser() {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.screen_share, size: 64, color: _green),
-          const SizedBox(height: 12),
-          const Text('Chọn vai trò cho máy này',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 24),
-          _roleButton(
-            icon: Icons.dns,
-            color: _green,
-            title: 'Server (máy nhận)',
-            subtitle:
-                'Hiển thị QR để máy khác quét, xem màn hình các máy đã kết nối.',
-            onTap: _enterServer,
+    final server = _roleButton(
+      icon: Icons.dns,
+      color: _green,
+      title: 'Server (máy nhận)',
+      subtitle:
+          'Hiển thị QR để máy khác quét, xem màn hình các máy đã kết nối.',
+      onTap: _enterServer,
+    );
+    final client = _roleButton(
+      icon: Icons.smartphone,
+      color: _blue,
+      title: 'Client (máy chia sẻ)',
+      subtitle: 'Quét QR và chia sẻ toàn bộ màn hình của máy này.',
+      onTap: _enterClient,
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        final landscape = _isLandscape(box);
+        // Cuộn được + căn giữa khi đủ chỗ → không tràn trên màn hình thấp.
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight - 48),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.screen_share,
+                    size: landscape ? 48 : 64, color: _green),
+                const SizedBox(height: 12),
+                const Text('Chọn vai trò cho máy này',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                SizedBox(height: landscape ? 16 : 24),
+                if (landscape)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1000),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: server),
+                          const SizedBox(width: 14),
+                          Expanded(child: client),
+                        ],
+                      ),
+                    ),
+                  )
+                else ...[
+                  server,
+                  const SizedBox(height: 14),
+                  client,
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          _roleButton(
-            icon: Icons.smartphone,
-            color: _blue,
-            title: 'Client (máy chia sẻ)',
-            subtitle: 'Quét QR và chia sẻ toàn bộ màn hình của máy này.',
-            onTap: _enterClient,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -262,7 +350,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   // --- Giao diện Server ---------------------------------------------------
-
   Widget _serverView() {
     final server = _server;
     if (server == null) return const SizedBox.shrink();
@@ -276,93 +363,174 @@ class _HomePageState extends State<HomePage> {
             _toast(err, error: true);
           });
         }
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    if (server.address != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        color: Colors.white,
-                        child: QrImageView(
-                          data: server.address!,
-                          version: QrVersions.auto,
-                          size: 180,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SelectableText(
-                        server.address!,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      const Text(
-                        'Trên máy Client: chọn Client → quét QR hoặc nhập địa chỉ này.',
-                        style: TextStyle(fontSize: 12, color: Colors.white54),
-                        textAlign: TextAlign.center,
-                      ),
-                    ] else
-                      const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Text(
-                          'Không lấy được địa chỉ IP LAN. Hãy bật Wi-Fi và thử lại.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: _red),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _saveLocationCard(),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text('Máy đã kết nối',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                Text('${server.clients.length}',
-                    style: const TextStyle(color: Colors.white54)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (server.clients.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Text('Chưa có máy nào kết nối.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white54)),
-              )
-            else
-              ...server.clients.map((c) => Card(
-                    child: ListTile(
-                      leading: Icon(
-                        c.sharing ? Icons.screen_share : Icons.smartphone,
-                        color: c.sharing ? _green : Colors.white54,
-                      ),
-                      title: Text(c.name),
-                      subtitle: Text(
-                        c.sharing ? '● đang chia sẻ màn hình' : 'đã kết nối',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => _ClientControlScreen(
-                              server: server, clientId: c.id),
-                        ),
-                      ),
-                    ),
-                  )),
-          ],
+        return LayoutBuilder(
+          builder: (context, box) => _isLandscape(box)
+              ? _serverLandscape(server, box)
+              : _serverPortrait(server),
         );
       },
+    );
+  }
+
+  /// Bố cục dọc (điện thoại): một cột cuộn.
+  Widget _serverPortrait(ScreenServer server) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _qrCard(server, qrSize: 180),
+        const SizedBox(height: 12),
+        _saveLocationCard(),
+        const SizedBox(height: 12),
+        _clientsHeader(server),
+        const SizedBox(height: 8),
+        if (server.clients.isEmpty)
+          _noClients()
+        else
+          ...server.clients.map((c) => _clientCard(server, c)),
+      ],
+    );
+  }
+
+  /// Bố cục ngang (TV / máy tính bảng xoay ngang): QR + nơi lưu bên trái,
+  /// lưới các máy đã kết nối bên phải.
+  Widget _serverLandscape(ScreenServer server, BoxConstraints box) {
+    final leftWidth = (box.maxWidth * 0.38).clamp(300.0, 460.0);
+    final qrSize = (box.maxHeight * 0.45).clamp(160.0, 320.0);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: leftWidth,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _qrCard(server, qrSize: qrSize),
+              const SizedBox(height: 12),
+              _saveLocationCard(),
+            ],
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Chừa chỗ cho nút thoát toàn màn hình ở góc phải trên.
+                Padding(
+                  padding: EdgeInsets.only(right: _fullscreen ? 56 : 0),
+                  child: _clientsHeader(server),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: server.clients.isEmpty
+                      ? Center(child: _noClients())
+                      : GridView.builder(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 380,
+                            mainAxisExtent: 80,
+                            mainAxisSpacing: 4,
+                            crossAxisSpacing: 4,
+                          ),
+                          itemCount: server.clients.length,
+                          itemBuilder: (context, i) =>
+                              _clientCard(server, server.clients[i]),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _qrCard(ScreenServer server, {required double qrSize}) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            if (server.address != null) ...[
+              Container(
+                padding: const EdgeInsets.all(10),
+                color: Colors.white,
+                child: QrImageView(
+                  data: server.address!,
+                  version: QrVersions.auto,
+                  size: qrSize,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SelectableText(
+                server.address!,
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const Text(
+                'Trên máy Client: chọn Client → quét QR hoặc nhập địa chỉ này.',
+                style: TextStyle(fontSize: 12, color: Colors.white54),
+                textAlign: TextAlign.center,
+              ),
+            ] else
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: Text(
+                  'Không lấy được địa chỉ IP LAN. Hãy bật Wi-Fi và thử lại.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _red),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _clientsHeader(ScreenServer server) {
+    return Row(
+      children: [
+        const Text('Máy đã kết nối',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        const Spacer(),
+        Text('${server.clients.length}',
+            style: const TextStyle(color: Colors.white54)),
+      ],
+    );
+  }
+
+  Widget _noClients() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
+      child: Text('Chưa có máy nào kết nối.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white54)),
+    );
+  }
+
+  Widget _clientCard(ScreenServer server, RemoteClientConn c) {
+    return Card(
+      child: ListTile(
+        leading: Icon(
+          c.sharing ? Icons.screen_share : Icons.smartphone,
+          color: c.sharing ? _green : Colors.white54,
+        ),
+        title: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          c.sharing ? '● đang chia sẻ màn hình' : 'đã kết nối',
+          style: const TextStyle(fontSize: 12),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _ClientControlScreen(
+                server: server, config: _config, clientId: c.id),
+          ),
+        ),
+      ),
     );
   }
 
@@ -509,124 +677,283 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-/// Bảng điều khiển cho một client cụ thể: xem màn hình trực tiếp, kích hoạt
-/// chia sẻ, chụp ảnh trước/sau.
-class _ClientControlScreen extends StatelessWidget {
-  const _ClientControlScreen({required this.server, required this.clientId});
+/// Bảng điều khiển cho một client cụ thể: xem màn hình trực tiếp (kèm âm
+/// thanh), chọn chất lượng đường truyền, kích hoạt chia sẻ, chụp ảnh trước/sau.
+/// - Dọc: video ở trên, nút điều khiển bên dưới.
+/// - Ngang (TV): video chiếm phần lớn bên trái, bảng điều khiển bên phải.
+/// - Toàn màn hình: chỉ còn video; nút Back để thoát toàn màn hình.
+class _ClientControlScreen extends StatefulWidget {
+  const _ClientControlScreen({
+    required this.server,
+    required this.config,
+    required this.clientId,
+  });
 
   final ScreenServer server;
+  final ConfigStore config;
   final int clientId;
 
   @override
+  State<_ClientControlScreen> createState() => _ClientControlScreenState();
+}
+
+class _ClientControlScreenState extends State<_ClientControlScreen> {
+  bool _fullscreen = false;
+
+  ScreenServer get server => widget.server;
+  int get clientId => widget.clientId;
+
+  void _setFullscreen(bool on) {
+    if (_fullscreen == on) return;
+    _applyImmersive(on);
+    setState(() => _fullscreen = on);
+  }
+
+  @override
+  void dispose() {
+    if (_fullscreen) _applyImmersive(false);
+    super.dispose();
+  }
+
+  void _setQuality(String mode) {
+    server.setQuality(mode);
+    widget.config.setStreamQuality(mode);
+  }
+
+  void _setAudioFromMic(bool mic) {
+    server.setAudioFromMic(mic);
+    widget.config.setAudioFromMic(mic);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: server,
-      builder: (context, _) {
-        RemoteClientConn? conn;
-        for (final c in server.clients) {
-          if (c.id == clientId) conn = c;
-        }
-        if (conn == null) {
-          // Client đã ngắt kết nối trong lúc đang điều khiển.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-          });
-          return const Scaffold(
-            body: Center(child: Text('Máy đã ngắt kết nối.')),
-          );
-        }
-        final c = conn;
-        final viewing = server.viewingClientId == clientId;
-        return Scaffold(
-          appBar: AppBar(title: Text(c.name)),
-          body: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Khu vực xem màn hình trực tiếp.
-              AspectRatio(
-                aspectRatio: 9 / 16,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: viewing && server.hasLiveView
-                      ? RTCVideoView(
-                          server.renderer,
-                          objectFit: RTCVideoViewObjectFit
-                              .RTCVideoViewObjectFitContain,
-                        )
-                      : Center(
-                          child: Text(
-                            viewing
-                                ? 'Đang chờ hình ảnh…'
-                                : 'Chưa xem trực tiếp',
-                            style: const TextStyle(color: Colors.white38),
-                          ),
+    return PopScope(
+      canPop: !_fullscreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _fullscreen) _setFullscreen(false);
+      },
+      child: ListenableBuilder(
+        listenable: server,
+        builder: (context, _) {
+          RemoteClientConn? conn;
+          for (final c in server.clients) {
+            if (c.id == clientId) conn = c;
+          }
+          if (conn == null) {
+            // Client đã ngắt kết nối trong lúc đang điều khiển.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _setFullscreen(false);
+              if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+            });
+            return const Scaffold(
+              body: Center(child: Text('Máy đã ngắt kết nối.')),
+            );
+          }
+          final c = conn;
+          final viewing = server.viewingClientId == clientId;
+          if (_fullscreen) {
+            return Scaffold(
+              backgroundColor: Colors.black,
+              body: _video(viewing, rounded: false),
+            );
+          }
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(c.name),
+              actions: [
+                IconButton(
+                  tooltip: server.audioMuted ? 'Bật tiếng' : 'Tắt tiếng',
+                  icon: Icon(server.audioMuted
+                      ? Icons.volume_off
+                      : Icons.volume_up),
+                  onPressed: () => server.setAudioMuted(!server.audioMuted),
+                ),
+                IconButton(
+                  tooltip: 'Toàn màn hình',
+                  icon: const Icon(Icons.fullscreen),
+                  onPressed: () => _setFullscreen(true),
+                ),
+              ],
+            ),
+            body: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final controls = _controls(context, c, viewing);
+                  if (!_isLandscape(box)) {
+                    return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        AspectRatio(
+                          aspectRatio: 9 / 16,
+                          child: _video(viewing),
                         ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => viewing
-                    ? server.stopLiveView()
-                    : server.startLiveView(clientId),
-                icon: Icon(viewing ? Icons.stop : Icons.live_tv),
-                label: Text(viewing ? 'Dừng xem' : 'Xem màn hình'),
-              ),
-              const SizedBox(height: 16),
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 2.4,
-                children: [
-                  _cmd(
-                    c.sharing ? Icons.stop_screen_share : Icons.screen_share,
-                    c.sharing ? 'Dừng chia sẻ' : 'Kích hoạt chia sẻ',
-                    c.sharing ? _red : _green,
-                    () => c.sharing
-                        ? server.requestShareStop(clientId)
-                        : server.requestShareStart(clientId),
-                  ),
-                  _cmd(Icons.camera_front, 'Chụp ảnh trước', _blue,
-                      () => server.requestPhoto(clientId, front: true)),
-                  _cmd(Icons.camera_rear, 'Chụp ảnh sau', _amber,
-                      () => server.requestPhoto(clientId, front: false)),
-                  _cmd(Icons.image, 'Xem ảnh đã nhận', const Color(0xFF8E4EC6),
-                      () => _openPhoto(context, c)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (c.lastPhoto != null)
-                _PhotoThumb(conn: c, onTap: () => _openPhoto(context, c)),
-              if (c.lastMessage.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(top: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white10,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
+                        const SizedBox(height: 12),
+                        ...controls,
+                      ],
+                    );
+                  }
+                  final panelWidth = (box.maxWidth * 0.32).clamp(300.0, 400.0);
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Icon(Icons.info_outline,
-                          size: 18, color: Colors.white54),
-                      const SizedBox(width: 8),
                       Expanded(
-                          child: Text(c.lastMessage,
-                              style: const TextStyle(fontSize: 13))),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: _video(viewing),
+                        ),
+                      ),
+                      SizedBox(
+                        width: panelWidth,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
+                          children: controls,
+                        ),
+                      ),
                     ],
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Khu vực video; nút toàn màn hình / thoát toàn màn hình ở góc dưới phải.
+  Widget _video(bool viewing, {bool rounded = true}) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: rounded ? BorderRadius.circular(12) : null,
+          ),
+          clipBehavior: rounded ? Clip.antiAlias : Clip.none,
+          child: viewing && server.hasLiveView
+              ? RTCVideoView(
+                  server.renderer,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                )
+              : Center(
+                  child: Text(
+                    viewing ? 'Đang chờ hình ảnh…' : 'Chưa xem trực tiếp',
+                    style: const TextStyle(color: Colors.white38),
                   ),
                 ),
+        ),
+        Positioned(
+          right: 8,
+          bottom: 8,
+          child: IconButton.filledTonal(
+            tooltip: _fullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình',
+            icon: Icon(_fullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
+            onPressed: () => _setFullscreen(!_fullscreen),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _controls(
+      BuildContext context, RemoteClientConn c, bool viewing) {
+    return [
+      FilledButton.icon(
+        onPressed: () =>
+            viewing ? server.stopLiveView() : server.startLiveView(clientId),
+        icon: Icon(viewing ? Icons.stop : Icons.live_tv),
+        label: Text(viewing ? 'Dừng xem' : 'Xem màn hình'),
+      ),
+      const SizedBox(height: 12),
+      const Text('Đường truyền',
+          style: TextStyle(fontSize: 13, color: Colors.white70)),
+      const SizedBox(height: 6),
+      SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(
+            value: 'sharp',
+            icon: Icon(Icons.hd),
+            label: Text('Sắc nét'),
+          ),
+          ButtonSegment(
+            value: 'speed',
+            icon: Icon(Icons.speed),
+            label: Text('Tốc độ'),
+          ),
+        ],
+        selected: {server.quality},
+        onSelectionChanged: (s) => _setQuality(s.first),
+        showSelectedIcon: false,
+      ),
+      const SizedBox(height: 4),
+      Text(
+        server.quality == 'sharp'
+            ? 'Giữ độ phân giải gốc, âm thanh stereo. Cần mạng khoẻ.'
+            : 'Giảm độ phân giải, giữ khung hình mượt, trễ thấp.',
+        style: const TextStyle(fontSize: 11, color: Colors.white54),
+      ),
+      const SizedBox(height: 4),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        secondary: const Icon(Icons.mic),
+        title: const Text('Thu âm bằng micro'),
+        subtitle: const Text(
+          'Dùng khi game/app chặn thu âm (không có tiếng). Sẽ lẫn tiếng '
+          'xung quanh.',
+          style: TextStyle(fontSize: 11, color: Colors.white54),
+        ),
+        value: server.audioFromMic,
+        onChanged: _setAudioFromMic,
+      ),
+      const SizedBox(height: 8),
+      GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 2.4,
+        children: [
+          _cmd(
+            c.sharing ? Icons.stop_screen_share : Icons.screen_share,
+            c.sharing ? 'Dừng chia sẻ' : 'Kích hoạt chia sẻ',
+            c.sharing ? _red : _green,
+            () => c.sharing
+                ? server.requestShareStop(clientId)
+                : server.requestShareStart(clientId),
+          ),
+          _cmd(Icons.camera_front, 'Chụp ảnh trước', _blue,
+              () => server.requestPhoto(clientId, front: true)),
+          _cmd(Icons.camera_rear, 'Chụp ảnh sau', _amber,
+              () => server.requestPhoto(clientId, front: false)),
+          _cmd(Icons.image, 'Xem ảnh đã nhận', const Color(0xFF8E4EC6),
+              () => _openPhoto(context, c)),
+        ],
+      ),
+      const SizedBox(height: 16),
+      if (c.lastPhoto != null)
+        _PhotoThumb(conn: c, onTap: () => _openPhoto(context, c)),
+      if (c.lastMessage.isNotEmpty)
+        Container(
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white10,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline, size: 18, color: Colors.white54),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: Text(c.lastMessage,
+                      style: const TextStyle(fontSize: 13))),
             ],
           ),
-        );
-      },
-    );
+        ),
+    ];
   }
 
   void _openPhoto(BuildContext context, RemoteClientConn c) {

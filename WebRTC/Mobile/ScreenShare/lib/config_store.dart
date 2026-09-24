@@ -9,6 +9,8 @@ class ConfigStore {
   static const _kClientName = 'client_name';
   static const _kServerAddress = 'server_address';
   static const _kSaveTreeUri = 'server_save_tree_uri';
+  static const _kQuality = 'server_stream_quality';
+  static const _kAudioMic = 'server_audio_mic';
 
   late SharedPreferences _prefs;
 
@@ -30,4 +32,14 @@ class ConfigStore {
   Future<void> setServerSaveTreeUri(String v) =>
       _prefs.setString(_kSaveTreeUri, v);
   Future<void> clearServerSaveTreeUri() => _prefs.remove(_kSaveTreeUri);
+
+  /// Chế độ đường truyền khi Server xem trực tiếp: `sharp` (ưu tiên hình ảnh
+  /// sắc nét) hoặc `speed` (ưu tiên tốc độ / độ trễ thấp).
+  String get streamQuality => _prefs.getString(_kQuality) ?? 'sharp';
+  Future<void> setStreamQuality(String v) => _prefs.setString(_kQuality, v);
+
+  /// Server yêu cầu client thu âm bằng micro thay vì âm thanh hệ thống (cho
+  /// game/app chặn thu âm).
+  bool get audioFromMic => _prefs.getBool(_kAudioMic) ?? false;
+  Future<void> setAudioFromMic(bool v) => _prefs.setBool(_kAudioMic, v);
 }

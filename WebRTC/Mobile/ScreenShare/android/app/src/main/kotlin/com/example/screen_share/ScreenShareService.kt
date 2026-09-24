@@ -43,24 +43,32 @@ class ScreenShareService : Service() {
     }
 
     /**
-     * Cố gắng chạy foreground với kiểu mediaProjection + camera (để chụp ảnh
-     * khi app ở nền). Nếu thiếu quyền camera hoặc hệ thống từ chối kiểu kết hợp,
-     * lùi về chỉ mediaProjection, rồi cuối cùng là không kèm kiểu — tránh crash.
+     * Cố gắng chạy foreground với kiểu mediaProjection + camera (chụp ảnh khi app
+     * ở nền) + microphone (thu âm bằng micro khi app ở nền). Nếu thiếu quyền
+     * camera/ghi âm hoặc hệ thống từ chối kiểu kết hợp, lần lượt bỏ bớt kiểu, cuối
+     * cùng là không kèm kiểu — tránh crash.
      */
     private fun startForegroundResilient(notification: Notification) {
         val projection = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-        val withCamera = projection or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-        try {
-            startForeground(NOTIFICATION_ID, notification, withCamera)
-            return
-        } catch (_: Throwable) {
-            // Thiếu quyền camera hoặc thiết bị không cho — thử không kèm camera.
+        val camera = ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+        val mic = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        } else {
+            0
         }
-        try {
-            startForeground(NOTIFICATION_ID, notification, projection)
-            return
-        } catch (_: Throwable) {
-            // Trường hợp hiếm — vẫn cố chạy foreground tối thiểu.
+        val attempts = listOf(
+            projection or camera or mic,
+            projection or mic,
+            projection or camera,
+            projection,
+        ).distinct()
+        for (type in attempts) {
+            try {
+                startForeground(NOTIFICATION_ID, notification, type)
+                return
+            } catch (_: Throwable) {
+                // Thiếu quyền cho một kiểu nào đó — thử tổ hợp tiếp theo.
+            }
         }
         try {
             startForeground(NOTIFICATION_ID, notification)

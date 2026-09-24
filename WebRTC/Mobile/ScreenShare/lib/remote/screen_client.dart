@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../native_bridge.dart';
@@ -44,6 +45,12 @@ class ScreenClient extends ChangeNotifier {
   bool _wantShare = false;
   int _reshareAttempts = 0;
   bool _viewerWaiting = false; // server đã yêu cầu xem, chờ có luồng để offer
+
+  // Chế độ đường truyền do server chọn: 'sharp' hoặc 'speed'.
+  String _quality = 'sharp';
+  bool _audioFromMic = false; // server yêu cầu thu bằng micro
+  RTCRtpSender? _videoSender;
+  StreamSubscription<Uint8List>? _audioSub;
 
   bool get connected => status == ClientStatus.connected;
 
@@ -89,12 +96,14 @@ class ScreenClient extends ChangeNotifier {
           _sendStatus();
           break;
         case 'command':
-          await _onCommand(msg['action'] as String?);
+          await _onCommand(msg['action'] as String?, msg);
           break;
         case 'answer':
           await _pc?.setRemoteDescription(
             RTCSessionDescription(msg['sdp'] as String?, 'answer'),
           );
+          await _applyQuality();
+          await _startAudio();
           break;
         case 'candidate':
           final c = msg['candidate'] as Map<String, dynamic>?;
@@ -112,8 +121,14 @@ class ScreenClient extends ChangeNotifier {
 
   // --- Xử lý lệnh ---------------------------------------------------------
 
-  Future<void> _onCommand(String? action) async {
+  Future<void> _onCommand(String? action, Map<String, dynamic> msg) async {
     switch (action) {
+      case 'quality':
+        await _setQuality(msg['mode'] as String? ?? 'sharp');
+        break;
+      case 'audio-source':
+        await _setAudioSource(msg['mic'] as bool? ?? false);
+        break;
       case 'share-start':
         await startShare();
         break;
@@ -145,6 +160,11 @@ class ScreenClient extends ChangeNotifier {
       _report('share-start', true, 'Đang chia sẻ màn hình.');
       return;
     }
+    // Quyền ghi âm để thu âm thanh hệ thống kèm màn hình. Từ chối → vẫn chia
+    // sẻ hình, chỉ không có tiếng.
+    try {
+      await Permission.microphone.request();
+    } catch (_) {}
     // Foreground service phải chạy trước getDisplayMedia (Android 14+).
     await NativeBridge.instance.startProjectionService();
     try {
@@ -225,7 +245,8 @@ class ScreenClient extends ChangeNotifier {
       final pc = await createPeerConnection(_iceConfig);
       _pc = pc;
       for (final track in stream.getTracks()) {
-        await pc.addTrack(track, stream);
+        final sender = await pc.addTrack(track, stream);
+        if (track.kind == 'video') _videoSender = sender;
       }
       pc.onIceCandidate = (candidate) {
         _send({'type': 'candidate', 'candidate': candidate.toMap()});
@@ -245,6 +266,8 @@ class ScreenClient extends ChangeNotifier {
   }
 
   Future<void> _closePc() async {
+    await _stopAudio();
+    _videoSender = null;
     final pc = _pc;
     _pc = null;
     if (pc != null) {
@@ -252,6 +275,92 @@ class ScreenClient extends ChangeNotifier {
         await pc.close();
       } catch (_) {}
     }
+  }
+
+  // --- Chất lượng đường truyền --------------------------------------------
+
+  Future<void> _setQuality(String mode) async {
+    if (mode != 'sharp' && mode != 'speed') return;
+    if (mode == _quality) return;
+    _quality = mode;
+    await _applyQuality();
+    // Định dạng âm thanh theo chế độ → khởi động lại luồng âm thanh nếu đang chạy.
+    if (_audioSub != null) {
+      await _stopAudio();
+      await _startAudio();
+    }
+  }
+
+  Future<void> _setAudioSource(bool mic) async {
+    if (mic == _audioFromMic) return;
+    _audioFromMic = mic;
+    if (_audioSub != null) {
+      await _stopAudio();
+      await _startAudio();
+    }
+  }
+
+  /// - sharp: giữ nguyên độ phân giải, bitrate cao, chấp nhận giảm fps khi
+  ///   mạng yếu.
+  /// - speed: giảm một nửa độ phân giải, bitrate thấp, giữ fps mượt / trễ thấp.
+  Future<void> _applyQuality() async {
+    final sender = _videoSender;
+    if (sender == null) return;
+    final sharp = _quality == 'sharp';
+    try {
+      await sender.setParameters(RTCRtpParameters(
+        encodings: [
+          RTCRtpEncoding(
+            maxBitrate: sharp ? 8000000 : 1500000,
+            maxFramerate: 30,
+            scaleResolutionDownBy: sharp ? 1.0 : 2.0,
+            priority: RTCPriorityType.high,
+          ),
+        ],
+        degradationPreference: sharp
+            ? RTCDegradationPreference.MAINTAIN_RESOLUTION
+            : RTCDegradationPreference.MAINTAIN_FRAMERATE,
+      ));
+    } catch (e) {
+      _report('quality', false, 'Không đổi được chất lượng: $e');
+    }
+  }
+
+  // --- Âm thanh hệ thống --------------------------------------------------
+
+  /// Thu âm thanh đang phát trên máy (hoặc micro nếu server yêu cầu) và gửi
+  /// về server dạng khung nhị phân (PCM 16-bit). Chỉ chạy khi server đang xem.
+  Future<void> _startAudio() async {
+    if (_audioSub != null || _pc == null) return;
+    final sharp = _quality == 'sharp';
+    final mic = _audioFromMic;
+    final rate = sharp ? 48000 : 24000;
+    // Micro trên điện thoại thường chỉ có một kênh → luôn mono.
+    final channels = sharp && !mic ? 2 : 1;
+    final err = await NativeBridge.instance
+        .startSystemAudio(rate: rate, channels: channels, mic: mic);
+    if (err != null) {
+      _report('audio', false, 'Không thu được âm thanh: $err');
+      return;
+    }
+    _send({'type': 'audio-start', 'rate': rate, 'channels': channels});
+    _report('audio', true,
+        'Đang gửi kèm âm thanh ${mic ? 'từ micro' : 'hệ thống'} '
+        '(${rate ~/ 1000}kHz ${channels == 2 ? 'stereo' : 'mono'}).');
+    _audioSub = NativeBridge.instance.systemAudio.listen((bytes) {
+      try {
+        _channel?.sink.add(bytes);
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _stopAudio() async {
+    final sub = _audioSub;
+    if (sub == null) return;
+    _audioSub = null;
+    await sub.cancel();
+    await NativeBridge.instance.stopSystemAudio();
+    _send({'type': 'audio-stop'});
   }
 
   Future<void> _disposeScreenStream() async {

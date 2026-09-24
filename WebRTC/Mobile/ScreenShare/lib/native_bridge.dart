@@ -21,6 +21,12 @@ class NativeBridge {
   static final NativeBridge instance = NativeBridge._();
 
   static const _method = MethodChannel('screenshare/native');
+  static const _audioEvents = EventChannel('screenshare/audio');
+
+  /// Các khối PCM 16-bit (20ms) của âm thanh hệ thống khi đang thu.
+  late final Stream<Uint8List> systemAudio = _audioEvents
+      .receiveBroadcastStream()
+      .map((e) => e as Uint8List);
 
   /// Bật foreground service (kiểu mediaProjection, kèm camera nếu có thể) để
   /// giữ tiến trình sống và cho phép quay màn hình khi app ở nền.
@@ -95,5 +101,72 @@ class NativeBridge {
     } catch (_) {
       return treeUri.isEmpty ? 'Thư viện ảnh của máy' : treeUri;
     }
+  }
+
+  // --- Âm thanh -----------------------------------------------------------
+
+  /// Client: bắt đầu thu âm thanh hệ thống (cần đang quay màn hình), hoặc thu
+  /// bằng micro nếu [mic]. Trả về null nếu thành công, ngược lại là lý do lỗi.
+  Future<String?> startSystemAudio(
+      {required int rate, required int channels, bool mic = false}) async {
+    try {
+      return await _method.invokeMethod<String>('audioCaptureStart', {
+        'rate': rate,
+        'channels': channels,
+        'mic': mic,
+      });
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  Future<void> stopSystemAudio() async {
+    try {
+      await _method.invokeMethod('audioCaptureStop');
+    } catch (_) {}
+  }
+
+  /// Server: mở luồng phát PCM ra loa. [howlGuard] bật tự phát hiện tiếng hú
+  /// (vòng lặp loa → micro) và tạm ngắt loa để phá vòng lặp.
+  Future<void> startAudioPlayback({
+    required int rate,
+    required int channels,
+    bool muted = false,
+    bool howlGuard = false,
+  }) async {
+    try {
+      await _method.invokeMethod('audioPlayStart', {
+        'rate': rate,
+        'channels': channels,
+        'muted': muted,
+        'howlGuard': howlGuard,
+      });
+    } catch (_) {}
+  }
+
+  /// Server: [onHowl] được gọi mỗi lần phần native phát hiện tiếng hú và tạm
+  /// ngắt loa.
+  void setHowlHandler(void Function()? onHowl) {
+    _method.setMethodCallHandler(onHowl == null
+        ? null
+        : (call) async {
+            if (call.method == 'onHowl') onHowl();
+          });
+  }
+
+  void writeAudio(Uint8List bytes) {
+    _method.invokeMethod('audioPlayWrite', {'bytes': bytes}).catchError((_) {});
+  }
+
+  Future<void> setAudioMuted(bool muted) async {
+    try {
+      await _method.invokeMethod('audioPlayMute', {'muted': muted});
+    } catch (_) {}
+  }
+
+  Future<void> stopAudioPlayback() async {
+    try {
+      await _method.invokeMethod('audioPlayStop');
+    } catch (_) {}
   }
 }

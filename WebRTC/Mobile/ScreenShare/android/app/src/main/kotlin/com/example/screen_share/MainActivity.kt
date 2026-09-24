@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
@@ -13,13 +14,33 @@ class MainActivity : FlutterActivity() {
     private val storage by lazy { PhotoStorage(this) }
     private var pendingFolderResult: MethodChannel.Result? = null
 
+    // Âm thanh: client thu âm thanh hệ thống → Dart (EventChannel);
+    // server nhận PCM từ Dart → phát ra loa.
+    private var audioSink: EventChannel.EventSink? = null
+    private val audioCapture = SystemAudioCapture { audioSink?.success(it) }
+    private var methodChannel: MethodChannel? = null
+    private val audioPlayer = AudioStreamPlayer {
+        methodChannel?.invokeMethod("onHowl", null)
+    }
+
     private companion object {
         const val REQ_PICK_FOLDER = 71
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "screenshare/audio")
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    audioSink = events
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    audioSink = null
+                }
+            })
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+        methodChannel!!
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "startService" -> {
@@ -45,9 +66,44 @@ class MainActivity : FlutterActivity() {
                         val treeUri = call.argument<String>("treeUri") ?: ""
                         result.success(storage.describe(treeUri))
                     }
+                    "audioCaptureStart" -> {
+                        val rate = call.argument<Int>("rate") ?: 48000
+                        val ch = call.argument<Int>("channels") ?: 2
+                        val mic = call.argument<Boolean>("mic") ?: false
+                        result.success(audioCapture.start(applicationContext, rate, ch, mic))
+                    }
+                    "audioCaptureStop" -> {
+                        audioCapture.stop()
+                        result.success(true)
+                    }
+                    "audioPlayStart" -> {
+                        val rate = call.argument<Int>("rate") ?: 48000
+                        val ch = call.argument<Int>("channels") ?: 2
+                        audioPlayer.start(rate, ch, call.argument<Boolean>("howlGuard") ?: false)
+                        audioPlayer.setMuted(call.argument<Boolean>("muted") ?: false)
+                        result.success(true)
+                    }
+                    "audioPlayWrite" -> {
+                        call.argument<ByteArray>("bytes")?.let { audioPlayer.write(it) }
+                        result.success(null)
+                    }
+                    "audioPlayMute" -> {
+                        audioPlayer.setMuted(call.argument<Boolean>("muted") ?: false)
+                        result.success(true)
+                    }
+                    "audioPlayStop" -> {
+                        audioPlayer.stop()
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onDestroy() {
+        audioCapture.stop()
+        audioPlayer.stop()
+        super.onDestroy()
     }
 
     private fun saveImage(

@@ -56,6 +56,17 @@ class ScreenServer extends ChangeNotifier {
   /// Do UI đặt từ [ConfigStore].
   String saveTreeUri = '';
 
+  /// Chế độ đường truyền khi xem trực tiếp: `sharp` (ưu tiên sắc nét) hoặc
+  /// `speed` (ưu tiên tốc độ). Do UI đặt từ [ConfigStore].
+  String quality = 'sharp';
+
+  /// Tắt tiếng âm thanh của client đang xem.
+  bool audioMuted = false;
+
+  /// Yêu cầu client thu bằng micro thay vì âm thanh hệ thống. Do UI đặt từ
+  /// [ConfigStore].
+  bool audioFromMic = false;
+
   // Trạng thái xem trực tiếp.
   final RTCVideoRenderer renderer = RTCVideoRenderer();
   bool _rendererReady = false;
@@ -72,6 +83,7 @@ class ScreenServer extends ChangeNotifier {
   Future<void> start({int port = 8080}) async {
     if (running) return;
     error = null;
+    NativeBridge.instance.setHowlHandler(_onHowl);
     try {
       if (!_rendererReady) {
         await renderer.initialize();
@@ -90,6 +102,14 @@ class ScreenServer extends ChangeNotifier {
       error = 'Không khởi động được server: $e';
       await stop();
     }
+    notifyListeners();
+  }
+
+  void _onHowl() {
+    final c = _clients[viewingClientId];
+    if (c == null) return;
+    c.lastMessage = 'Phát hiện tiếng hú (loa server lọt vào micro client) — '
+        'đã tạm ngắt tiếng 1.5 giây. Nên để 2 máy xa nhau hoặc dùng tai nghe.';
     notifyListeners();
   }
 
@@ -117,6 +137,7 @@ class ScreenServer extends ChangeNotifier {
   }
 
   Future<void> _shutdown() async {
+    NativeBridge.instance.setHowlHandler(null);
     await stop();
     if (_rendererReady) {
       try {
@@ -153,6 +174,11 @@ class ScreenServer extends ChangeNotifier {
     ws.listen(
       (raw) {
         try {
+          if (raw is List<int>) {
+            // Khung nhị phân = âm thanh PCM của client đang được xem.
+            _onAudio(conn, raw);
+            return;
+          }
           final msg = jsonDecode(raw as String) as Map<String, dynamic>;
           conn = _onMessage(conn, ws, msg);
         } catch (_) {
@@ -202,6 +228,21 @@ class ScreenServer extends ChangeNotifier {
         break;
       case 'candidate':
         _onRemoteCandidate(conn, msg);
+        break;
+      case 'audio-start':
+        if (conn != null && conn.id == viewingClientId) {
+          NativeBridge.instance.startAudioPlayback(
+            rate: (msg['rate'] as num?)?.toInt() ?? 48000,
+            channels: (msg['channels'] as num?)?.toInt() ?? 2,
+            muted: audioMuted,
+            howlGuard: audioFromMic,
+          );
+        }
+        break;
+      case 'audio-stop':
+        if (conn != null && conn.id == viewingClientId) {
+          NativeBridge.instance.stopAudioPlayback();
+        }
         break;
     }
     return conn;
@@ -253,10 +294,41 @@ class ScreenServer extends ChangeNotifier {
 
   // --- Lệnh ----------------------------------------------------------------
 
-  void sendCommand(int clientId, String action) {
+  void sendCommand(int clientId, String action,
+      [Map<String, dynamic> extra = const {}]) {
     final c = _clients[clientId];
     if (c == null) return;
-    _sendTo(c, {'type': 'command', 'action': action});
+    _sendTo(c, {'type': 'command', 'action': action, ...extra});
+  }
+
+  /// Đổi chế độ đường truyền; áp dụng ngay nếu đang xem trực tiếp.
+  void setQuality(String mode) {
+    quality = mode;
+    final id = viewingClientId;
+    if (id != null) sendCommand(id, 'quality', {'mode': mode});
+    notifyListeners();
+  }
+
+  /// Bật/tắt thu âm bằng micro ở client; áp dụng ngay nếu đang xem trực tiếp.
+  void setAudioFromMic(bool mic) {
+    audioFromMic = mic;
+    final id = viewingClientId;
+    if (id != null) {
+      sendCommand(id, 'audio-source', {'mic': mic});
+    }
+    notifyListeners();
+  }
+
+  void setAudioMuted(bool muted) {
+    audioMuted = muted;
+    NativeBridge.instance.setAudioMuted(muted);
+    notifyListeners();
+  }
+
+  void _onAudio(RemoteClientConn? conn, List<int> data) {
+    if (conn == null || conn.id != viewingClientId) return;
+    NativeBridge.instance.writeAudio(
+        data is Uint8List ? data : Uint8List.fromList(data));
   }
 
   /// Yêu cầu client bắt đầu chia sẻ màn hình (client sẽ hiện hộp thoại xin phép
@@ -281,7 +353,9 @@ class ScreenServer extends ChangeNotifier {
     await _closeView();
     viewingClientId = clientId;
     notifyListeners();
-    // Yêu cầu client bắt đầu tạo offer chia sẻ màn hình cho mình.
+    // Báo chế độ đường truyền trước, rồi yêu cầu client tạo offer.
+    sendCommand(clientId, 'quality', {'mode': quality});
+    sendCommand(clientId, 'audio-source', {'mic': audioFromMic});
     sendCommand(clientId, 'view-start');
   }
 
@@ -336,6 +410,7 @@ class ScreenServer extends ChangeNotifier {
 
   Future<void> _closeView() async {
     viewingClientId = null;
+    await NativeBridge.instance.stopAudioPlayback();
     try {
       renderer.srcObject = null;
     } catch (_) {}
