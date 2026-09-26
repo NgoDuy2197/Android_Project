@@ -46,7 +46,9 @@ echo.
 REM --- 4. Build APK release ---
 echo [4/4] Dang build APK (release)... Lan dau co the mat vai phut.
 echo.
-call flutter build apk --release
+REM Chi build cho may that (ARM 32/64-bit: dien thoai + Android TV); bo x86_64
+REM (chi dung cho may ao) de build nhanh hon va APK nhe hon.
+call flutter build apk --release --target-platform android-arm,android-arm64
 if errorlevel 1 (
     echo.
     echo [LOI] Build APK that bai. Xem log o tren.
