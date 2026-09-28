@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- handset (Material "call"), scaled x2 and shifted down-left -->
+    <group android:translateX="25" android:translateY="31" android:scaleX="2" android:scaleY="2">
+        <path android:fillColor="#26000000"
+            android:pathData="M20.01,16.08c-1.23,0 -2.42,-0.2 -3.53,-0.56 -0.35,-0.12 -0.74,-0.03 -1.01,0.24l-1.57,1.97c-2.83,-1.35 -5.48,-3.9 -6.89,-6.83l1.95,-1.66c0.27,-0.28 0.35,-0.67 0.24,-1.02 -0.37,-1.11 -0.56,-2.3 -0.56,-3.53 0,-0.54 -0.45,-0.99 -0.99,-0.99H4.19C3.65,3.7 3,3.94 3,4.69 3,13.98 10.73,21.7 20.01,21.7c0.71,0 0.99,-0.63 0.99,-1.18v-3.45c0,-0.54 -0.45,-0.99 -0.99,-0.99z" />
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M20.01,15.38c-1.23,0 -2.42,-0.2 -3.53,-0.56 -0.35,-0.12 -0.74,-0.03 -1.01,0.24l-1.57,1.97c-2.83,-1.35 -5.48,-3.9 -6.89,-6.83l1.95,-1.66c0.27,-0.28 0.35,-0.67 0.24,-1.02 -0.37,-1.11 -0.56,-2.3 -0.56,-3.53 0,-0.54 -0.45,-0.99 -0.99,-0.99H4.19C3.65,3 3,3.24 3,3.99 3,13.28 10.73,21 20.01,21c0.71,0 0.99,-0.63 0.99,-1.18v-3.45c0,-0.54 -0.45,-0.99 -0.99,-0.99z" />
+    </group>
+    <!-- "HD" badge, top-right -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M63,30h18a5,5 0,0 1,5 5v8a5,5 0,0 1,-5 5h-18a5,5 0,0 1,-5 -5v-8a5,5 0,0 1,5 -5z" />
+    <path android:strokeColor="#FF0A9E57" android:strokeWidth="2.4"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M63.5,34.5V43.5M63.5,39H69M69,34.5V43.5" />
+    <path android:strokeColor="#FF0A9E57" android:strokeWidth="2.4"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M73.5,34.5H76.5A4.5,4.5 0,0 1,76.5 43.5H73.5Z" />
+</vector>

@@ -1,0 +1,20 @@
+# Gradle / Android Studio
+.gradle/
+build/
+app/build/
+captures/
+.cxx/
+.externalNativeBuild/
+.idea/
+*.iml
+local.properties
+output.json
+
+# Signing
+*.jks
+*.keystore
+key.properties
+
+# Build output copied to root by build.bat
+*.apk
+*.aab
