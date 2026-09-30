@@ -144,6 +144,105 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Manual test of each recovery method -->
+        <com.google.android.material.card.MaterialCardView style="@style/Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView style="@style/CardTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Test thủ công (cần Shizuku)" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="Bấm để thử ngay từng cách, xem cách nào lấy lại HD Call. Kết quả xem ở Nhật ký."
+                    android:textColor="@color/text2"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnTestRestore"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="1. Bật lại VoLTE (restore) — thử trước" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestSwitch"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:text="2. Nháy VoLTE" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestCarrier"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="3. Carrier cfg" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestResetIms"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:text="4. Reset IMS" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestData"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="5. Data on/off" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnTestModem"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="6. Khởi động lại modem (mạnh tay)" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnReboot"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="🔁 Khởi động lại máy (reboot)"
+                    android:textColor="@color/bad"
+                    app:strokeColor="@color/bad" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- Monitor + config -->
         <com.google.android.material.card.MaterialCardView style="@style/Card"
             android:layout_width="match_parent"
@@ -250,7 +349,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginEnd="6dp"
                         android:layout_weight="1"
-                        android:hint="Chờ sau mỗi bước (s)">
+                        android:hint="Chờ bước chậm (s)">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etSettle"
@@ -284,34 +383,34 @@
                     android:text="Các bước khắc phục (theo thứ tự)" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/swCarrier"
+                    android:id="@+id/swVolteRestore"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="1. Áp lại carrier config VoLTE (nếu bị mất)" />
+                    android:text="1. Bật lại công tắc VoLTE (restore) — nhanh &amp; ổn định nhất" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/swSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="2. Bật lại công tắc VoLTE (nếu bị tắt)" />
+                    android:text="2. Nháy công tắc VoLTE (tắt→bật, ~3s)" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/swCarrier"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="3. Áp lại carrier config VoLTE (chỉ khi bị mất)" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/swResetIms"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="3. Reset IMS stack" />
+                    android:text="4. Reset IMS stack (~5s)" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/swData"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="4. Tắt/bật mobile data (svc data)" />
-
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/swAirplane"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="5. Bật/tắt chế độ máy bay" />
+                    android:text="5. Tắt/bật mobile data (~5s)" />
 
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/swModem"
@@ -420,6 +519,59 @@
                     android:textColor="@color/text"
                     android:textIsSelectable="true"
                     android:textSize="11sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Manual setup note -->
+        <com.google.android.material.card.MaterialCardView style="@style/Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView style="@style/CardTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginBottom="0dp"
+                        android:text="Hướng dẫn cài đặt thủ công" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCopyNote"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Copy" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnToggleNote"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Ẩn/hiện" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/code_bg"
+                    android:lineSpacingExtra="3dp"
+                    android:padding="12dp"
+                    android:text="@string/setup_note"
+                    android:textColor="@color/text"
+                    android:textIsSelectable="true"
+                    android:textSize="13sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

@@ -76,6 +76,11 @@ object PhoneHidden {
         ShizukuShell.call(it, "setAdvancedCallingSettingEnabled", subId, on); Unit
     }
 
+    /** ITelephony binder transaction code, for `service call phone <code>`. */
+    fun transactionCode(method: String): Int? = runCatching {
+        Class.forName(ITELEPHONY).getDeclaredField("TRANSACTION_$method").apply { isAccessible = true }.getInt(null)
+    }.getOrNull()
+
     /** Tear down and re-bind the IMS service of the slot (forces re-registration). */
     fun resetIms(slot: Int): R<Unit>? = viaShizuku { ShizukuShell.call(it, "resetIms", slot); Unit }
 
@@ -85,16 +90,18 @@ object PhoneHidden {
      * Re-apply the VoLTE carrier-config override (what Pixel IMS does). Overrides can be
      * dropped after reboot / SIM refresh / carrier config update, which removes the HD icon.
      */
-    fun overrideVolteConfig(subId: Int): R<Unit>? {
+    fun overrideVolteConfig(subId: Int, enabled: Boolean = true, persistent: Boolean = true): R<Unit>? {
         val b = ShizukuShell.binder("carrier_config")?.let { ShizukuShell.asInterface(ICARRIER, it) } ?: return null
         val bundle = PersistableBundle().apply {
-            putBoolean("carrier_volte_available_bool", true)
-            putBoolean("editable_enhanced_4g_lte_bool", true)
-            putBoolean("hide_enhanced_4g_lte_bool", false)
+            putBoolean("carrier_volte_available_bool", enabled)
+            if (enabled) {
+                putBoolean("editable_enhanced_4g_lte_bool", true)
+                putBoolean("hide_enhanced_4g_lte_bool", false)
+            }
         }
         return try {
             try {
-                ShizukuShell.call(b, "overrideConfig", subId, bundle, true)
+                ShizukuShell.call(b, "overrideConfig", subId, bundle, persistent)
             } catch (e: NoSuchMethodException) {
                 ShizukuShell.call(b, "overrideConfig", subId, bundle)
             }

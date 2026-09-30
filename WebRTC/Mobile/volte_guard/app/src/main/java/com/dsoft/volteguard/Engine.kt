@@ -32,6 +32,8 @@ object Engine {
     @Volatile var lastRecoveryAt = 0L
         private set
     private var failStreak = 0
+    private var lastBeat = 0L
+    private const val HEARTBEAT_MS = 15 * 60 * 1000L
     private var lastHealth: Health? = null
 
     val isRecovering get() = recoverLock.isLocked
@@ -61,13 +63,18 @@ object Engine {
         if (isRecovering) return false
         val p = Prefs(ctx)
         val r = check(ctx)
+        val now = System.currentTimeMillis()
+        if (now - lastBeat > HEARTBEAT_MS) {
+            lastBeat = now
+            LogStore.i("♥ đang giám sát · ${r.health} · ${r.summary}")
+        }
         if (r.health != Health.UNHEALTHY) {
             failStreak = 0
             return false
         }
         failStreak++
         if (failStreak < p.confirmCount) {
-            LogStore.i("Phát hiện lỗi (${failStreak}/${p.confirmCount}), chờ xác nhận…")
+            LogStore.throttled("failstreak", 60_000, "Phát hiện lỗi (${failStreak}/${p.confirmCount}), chờ xác nhận…")
             return true
         }
         val since = (System.currentTimeMillis() - lastRecoveryAt) / 1000
@@ -96,10 +103,13 @@ object Engine {
             val ok = Recovery.run(ctx, r) { _phase.value = it }
             failStreak = 0
             lastHealth = if (ok) Health.HEALTHY else lastHealth
+            // Cooldown only protects against looping on a ladder that does not work.
+            if (ok) lastRecoveryAt = 0
             notifyEvent(
                 ctx,
                 if (ok) "Đã khôi phục HD Call" else "Chưa khôi phục được HD Call",
-                _report.value?.summary ?: ""
+                if (!ok && !ShizukuShell.hasPermission()) "Shizuku chưa chạy → mở Shizuku để app tự khắc phục được"
+                else _report.value?.summary ?: ""
             )
             return ok
         } finally {

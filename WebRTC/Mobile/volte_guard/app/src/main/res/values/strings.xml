@@ -1,4 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">VoLTE Guard</string>
+
+    <string name="setup_note">Shizuku &gt; Wifi debug &gt; bấm vào bên cạnh nút bật để vào mode cài đặt &gt; kết nối lấy mã rồi vào Shizuku nhập mã kết nối
+(if) need extra step -&gt; Developer options -&gt; turn on \"not restrict permission\" (Disable permission monitoring)
+
+
+Xong vào Pixel IMS (file APK đính kèm) để chọn SIM &gt; bật LTE
+
+• Viettel: soạn HDCALL gửi 191
+
+Vào Kỹ sư mode (Engineering mode):
+#*#3646633#*#
+Telephony &gt; tìm mục IMS
+Set VoLTE Setting &gt; CMW500
+
+Restart máy
+
+
+---
+Note:
+- #*#4636#*# để xem trạng thái (không quan trọng lắm, xem cho vui)</string>
 </resources>

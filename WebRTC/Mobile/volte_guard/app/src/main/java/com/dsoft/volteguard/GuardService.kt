@@ -36,6 +36,7 @@ class GuardService : Service() {
     private var uiJob: Job? = null
     private var tmCallback: TelephonyCallback? = null
     private var watchedSub = SubscriptionManager.INVALID_SUBSCRIPTION_ID
+    private var watchdogSeen = false
     private lateinit var wake: PowerManager.WakeLock
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -49,6 +50,7 @@ class GuardService : Service() {
         LogStore.i("Service bắt đầu giám sát SIM ${Prefs(this).simSlot + 1}")
 
         loopJob = Engine.scope.launch { loop() }
+        Engine.scope.launch { LogStore.i("Watchdog (shell): ${Watchdog.start(this@GuardService)}") }
         uiJob = Engine.scope.launch {
             Engine.report.combine(Engine.phase) { r, ph -> r to ph }.collect { (r, ph) ->
                 runCatching {
@@ -59,6 +61,15 @@ class GuardService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!Prefs(this).enabled && intent?.action != ACTION_RECOVER) {
+            // Started by the watchdog / alarm after the user turned monitoring off.
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_WATCHDOG && !watchdogSeen) {
+            watchdogSeen = true
+            LogStore.i("Được watchdog đánh thức / khởi động lại")
+        }
         when (intent?.action) {
             ACTION_STOP -> {
                 stopSelf()
@@ -90,8 +101,11 @@ class GuardService : Service() {
             } }
             val waitMs = if (recheckSoon) FAIL_RECHECK_MS else p.intervalSec.coerceAtLeast(10) * 1000L
             scheduleAlarm(this, waitMs)
+            // Kicks queued while ticking are stale; without this an unconfirmed failure is
+            // re-checked immediately and the confirm-count window is skipped.
+            while (kick.tryReceive().isSuccess) Unit
             val reason = withTimeoutOrNull(waitMs) { kick.receive() }
-            if (reason != null && reason != ACTION_ALARM) {
+            if (reason != null && reason != ACTION_ALARM && reason != ACTION_WATCHDOG) {
                 // Event-driven: let the radio settle a bit before probing.
                 delay(EVENT_DEBOUNCE_MS)
                 while (kick.tryReceive().isSuccess) Unit
@@ -190,12 +204,13 @@ class GuardService : Service() {
 
     companion object {
         private const val NOTIF_ID = 1
-        private const val FAIL_RECHECK_MS = 10_000L
-        private const val EVENT_DEBOUNCE_MS = 5_000L
+        private const val FAIL_RECHECK_MS = 5_000L
+        private const val EVENT_DEBOUNCE_MS = 3_000L
         const val ACTION_ALARM = "com.dsoft.volteguard.ALARM"
         const val ACTION_STOP = "com.dsoft.volteguard.STOP"
         const val ACTION_RECOVER = "com.dsoft.volteguard.RECOVER"
         const val ACTION_KICK = "com.dsoft.volteguard.KICK"
+        const val ACTION_WATCHDOG = "com.dsoft.volteguard.WATCHDOG"
 
         fun start(ctx: Context, action: String? = null) {
             ctx.startForegroundService(Intent(ctx, GuardService::class.java).setAction(action))
@@ -209,10 +224,13 @@ class GuardService : Service() {
             ctx, 0, Intent(ctx, AlarmReceiver::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        fun scheduleAlarm(ctx: Context, inMs: Long) {
+        /**
+         * Exact alarm slightly after [inMs]. Besides Doze, this is what un-freezes the process on
+         * ColorOS (OplusHansManager freezes background apps even with a foreground service).
+         */
+        fun scheduleAlarm(ctx: Context, inMs: Long, padMs: Long = 5_000) {
             val am = ctx.getSystemService(AlarmManager::class.java)
-            // Fire slightly after the coroutine timer; it only matters when Doze froze that timer.
-            val at = SystemClock.elapsedRealtime() + inMs + 5_000
+            val at = SystemClock.elapsedRealtime() + inMs + padMs
             runCatching {
                 if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()) {
                     am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, alarmPi(ctx))

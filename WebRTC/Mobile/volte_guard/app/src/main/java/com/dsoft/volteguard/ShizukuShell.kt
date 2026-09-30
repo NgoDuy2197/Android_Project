@@ -8,7 +8,6 @@ import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
 import java.lang.reflect.InvocationTargetException
-import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
@@ -62,13 +61,17 @@ object ShizukuShell {
             val sb = StringBuffer()
             val t1 = thread { runCatching { p.inputStream.bufferedReader().forEachLine { sb.append(it).append('\n') } } }
             val t2 = thread { runCatching { p.errorStream.bufferedReader().forEachLine { sb.append(it).append('\n') } } }
-            val done = p.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
-            if (!done) {
+            // ShizukuRemoteProcess breaks Process.waitFor(timeout) (its exitValue() throws
+            // IllegalArgumentException, not IllegalThreadStateException), so wait on a thread.
+            var code: Int? = null
+            val w = thread { code = runCatching { p.waitFor() }.getOrNull() }
+            w.join(timeoutMs)
+            if (w.isAlive) {
                 runCatching { p.destroy() }
                 return ExecResult(-2, "timeout. $sb")
             }
             t1.join(1000); t2.join(1000)
-            ExecResult(p.exitValue(), sb.toString())
+            ExecResult(code ?: -3, sb.toString())
         } catch (e: Throwable) {
             val c = if (e is InvocationTargetException) e.targetException else e
             ExecResult(-1, "${c.javaClass.simpleName}: ${c.message}")

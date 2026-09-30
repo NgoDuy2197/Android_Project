@@ -84,11 +84,11 @@ class MainActivity : AppCompatActivity() {
         bindNumber(b.etSettle, prefs.settleSec, 5..600) { prefs.settleSec = it }
         bindNumber(b.etCooldown, prefs.cooldownSec, 0..86_400) { prefs.cooldownSec = it }
 
-        bindSwitch(b.swCarrier, prefs.stepCarrierConfig) { prefs.stepCarrierConfig = it }
+        bindSwitch(b.swVolteRestore, prefs.stepVolteRestore) { prefs.stepVolteRestore = it }
         bindSwitch(b.swSwitch, prefs.stepVolteSwitch) { prefs.stepVolteSwitch = it }
+        bindSwitch(b.swCarrier, prefs.stepCarrierConfig) { prefs.stepCarrierConfig = it }
         bindSwitch(b.swResetIms, prefs.stepResetIms) { prefs.stepResetIms = it }
         bindSwitch(b.swData, prefs.stepData) { prefs.stepData = it }
-        bindSwitch(b.swAirplane, prefs.stepAirplane) { prefs.stepAirplane = it }
         bindSwitch(b.swModem, prefs.stepModem) { prefs.stepModem = it }
         bindSwitch(b.swHeuristic, prefs.heuristicTrigger) { prefs.heuristicTrigger = it; checkNow() }
         bindSwitch(b.swNotify, prefs.notifyEvents) { prefs.notifyEvents = it }
@@ -101,6 +101,7 @@ class MainActivity : AppCompatActivity() {
                 GuardService.start(this)
             } else {
                 GuardService.stop(this)
+                Engine.scope.launch { LogStore.i("Watchdog: ${Watchdog.stop()}") }
             }
         }
     }
@@ -136,12 +137,28 @@ class MainActivity : AppCompatActivity() {
         b.btnAutoGrant.setOnClickListener { autoGrant() }
         b.btnRuntime.setOnClickListener { requestRuntime() }
         b.btnBattery.setOnClickListener { requestBatteryExemption() }
+
+        b.btnTestRestore.setOnClickListener { runTest(Recovery.StepId.VOLTE_RESTORE, "Bật lại VoLTE (restore)") }
+        b.btnTestSwitch.setOnClickListener { runTest(Recovery.StepId.VOLTE_SWITCH, "Nháy công tắc VoLTE") }
+        b.btnTestCarrier.setOnClickListener { runTest(Recovery.StepId.CARRIER_CONFIG, "Áp lại carrier config") }
+        b.btnTestResetIms.setOnClickListener { runTest(Recovery.StepId.RESET_IMS, "Reset IMS stack") }
+        b.btnTestData.setOnClickListener { runTest(Recovery.StepId.DATA, "Tắt/bật mobile data") }
+        b.btnTestModem.setOnClickListener { runTest(Recovery.StepId.MODEM, "Khởi động lại modem") }
+        b.btnReboot.setOnClickListener { confirmReboot() }
         b.btnCopyLog.setOnClickListener {
             getSystemService(ClipboardManager::class.java)
                 .setPrimaryClip(ClipData.newPlainText("log", LogStore.lines.value.joinToString("\n")))
             toast("Đã copy log")
         }
         b.btnClearLog.setOnClickListener { LogStore.clear() }
+        b.btnCopyNote.setOnClickListener {
+            getSystemService(ClipboardManager::class.java)
+                .setPrimaryClip(ClipData.newPlainText("note", getString(R.string.setup_note)))
+            toast("Đã copy hướng dẫn")
+        }
+        b.btnToggleNote.setOnClickListener {
+            b.tvNote.visibility = if (b.tvNote.visibility == View.GONE) View.VISIBLE else View.GONE
+        }
     }
 
     private fun checkNow(log: Boolean = false) {
@@ -156,6 +173,41 @@ class MainActivity : AppCompatActivity() {
 
     private fun kickService() {
         if (Engine.serviceRunning.value) GuardService.start(this, GuardService.ACTION_KICK)
+    }
+
+    /** Reboot the whole phone via Shizuku (shell uid holds REBOOT), after a confirmation. */
+    private fun confirmReboot() {
+        if (!ShizukuShell.hasPermission()) {
+            toast("Cần cấp quyền Shizuku trước"); return
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Khởi động lại máy?")
+            .setMessage("Máy sẽ tắt và bật lại ngay bây giờ.\n\nLưu ý: sau khi reboot, Shizuku (chạy qua ADB) sẽ tắt — cần bật lại Shizuku thì app mới tự khắc phục được tiếp.")
+            .setPositiveButton("Khởi động lại") { _, _ ->
+                LogStore.i("🔁 Yêu cầu khởi động lại máy…")
+                lifecycleScope.launch {
+                    val res = withContext(Dispatchers.IO) { ShizukuShell.exec("svc power reboot") }
+                    // Only reached if the reboot did not happen (still alive).
+                    LogStore.i("reboot không thực hiện được: $res")
+                    toast("Không reboot được: ${res.out.take(60)}")
+                }
+            }
+            .setNegativeButton("Huỷ", null)
+            .show()
+    }
+
+    /** Manually fire one recovery method so the user can see which one restores HD Call. */
+    private fun runTest(id: Recovery.StepId, label: String) {
+        if (!ShizukuShell.hasPermission()) {
+            toast("Cần cấp quyền Shizuku trước"); return
+        }
+        LogStore.i("🧪 Test thủ công: $label…")
+        lifecycleScope.launch {
+            val res = withContext(Dispatchers.IO) { Recovery.runManualStep(applicationContext, id) }
+            LogStore.i("🧪 $label → $res")
+            toast(res.take(80))
+            checkNow()
+        }
     }
 
     private fun requestRuntime() {
@@ -288,7 +340,7 @@ class MainActivity : AppCompatActivity() {
             appendLine("${mark(ShizukuShell.hasPermission())} ${ShizukuShell.describe()}")
             appendLine("${mark(phone)} READ_PHONE_STATE")
             appendLine("${mark(notif)} Thông báo")
-            appendLine("${mark(wss)} WRITE_SECURE_SETTINGS (máy bay khi không có Shizuku)")
+            appendLine("${mark(wss)} WRITE_SECURE_SETTINGS (dự phòng)")
             append("${mark(battery)} Bỏ tối ưu pin (chạy nền ổn định)")
         }
         b.btnShizuku.text = when {

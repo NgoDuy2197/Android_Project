@@ -3,6 +3,7 @@ package com.dsoft.volteguard
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 class App : Application() {
@@ -13,6 +14,13 @@ class App : Application() {
         runCatching { HiddenApiBypass.addHiddenApiExemptions("") }
         LogStore.init(this)
         ShizukuShell.init()
+        // Shizuku started after boot (or restarted): bring the service + shell watchdog back.
+        rikka.shizuku.Shizuku.addBinderReceivedListenerSticky {
+            if (Prefs(this).enabled && ShizukuShell.hasPermission()) {
+                runCatching { GuardService.start(this, GuardService.ACTION_KICK) }
+                Engine.scope.launch { LogStore.i("Shizuku sẵn sàng → watchdog: ${Watchdog.start(this@App)}") }
+            }
+        }
 
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(

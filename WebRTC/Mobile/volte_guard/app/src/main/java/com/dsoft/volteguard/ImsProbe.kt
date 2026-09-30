@@ -71,6 +71,12 @@ object ImsProbe {
             ShizukuShell.describe() + if (!ShizukuShell.hasPermission()) " → chỉ còn kiểm tra heuristic" else ""
         )
 
+        if (ShizukuShell.hasPermission()) {
+            val wd = Watchdog.isRunning()
+            items += CheckItem("watchdog", "Watchdog (shell)", if (wd) St.PASS else St.WARN,
+                if (wd) "Đang chạy · tự hồi sinh app khi bị tắt" else "Chưa chạy")
+        }
+
         if (ctx.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
             items += CheckItem("perm", "Quyền READ_PHONE_STATE", St.FAIL, "Chưa cấp quyền đọc trạng thái điện thoại")
             return done(Health.UNKNOWN, "Thiếu quyền READ_PHONE_STATE", "Thiếu quyền")
@@ -161,14 +167,15 @@ object ImsProbe {
             K_IMS, "IMS registered", tri(ims.value),
             (ims.error ?: if (ims.value == true) "Đã đăng ký IMS" else "MẤT đăng ký IMS") +
                 " [${ims.via}]" + (regTech?.let { " · ${PhoneHidden.regTechName(it)}" } ?: ""),
-            required = true
+            // Unreadable checks are informational; at least one of ims/volte must be known (hiddenKnown).
+            required = ims.value != null
         )
 
         val volte = PhoneHidden.isVolteAvailable(tm, subId, regTech)
         items += CheckItem(
             K_VOLTE, "VoLTE (HD) khả dụng", tri(volte.value),
             (volte.error ?: if (volte.value == true) "MMTEL voice sẵn sàng" else "Không có VoLTE") + " [${volte.via}]",
-            required = true
+            required = volte.value != null
         )
 
         // ---- Heuristic when hidden APIs are unavailable ----------------------------------
