@@ -9,6 +9,7 @@
     <string name="tab_gb">GB/GBC</string>
     <string name="tab_gba">GBA</string>
     <string name="tab_genesis">Genesis</string>
+    <string name="tab_gg">Game Gear</string>
     <string name="tab_arcade">Arcade</string>
     <string name="tab_pico8">PICO-8</string>
     <string name="import_skipped"> • skipped %1$d non-%2$s file(s)</string>
@@ -27,6 +28,14 @@
     <string name="action_play">Play</string>
     <string name="action_rename">Rename</string>
     <string name="action_delete">Delete</string>
+    <string name="delete_confirm_title">Delete “%1$s”?</string>
+    <string name="delete_confirm_msg">Removes the game, its save states and SRAM from JGamer.</string>
+    <string name="delete_original">Also delete the original file on the device</string>
+    <string name="delete_original_unknown">Original file location unknown (imported with an older version) — only the library copy will be removed.</string>
+    <string name="deleted_with_original">Deleted (original file removed too)</string>
+    <string name="deleted_original_failed">Removed from library — couldn\'t delete the original file</string>
+    <string name="deleted_library_only">Removed from library</string>
+    <string name="menu_delete_rom">🗑️ Delete this ROM</string>
 
     <string name="game_not_found">Game not found.</string>
     <string name="core_failed">Failed to start the emulator core.</string>
@@ -82,5 +91,5 @@
     <string name="opt_auto_save_sum">Automatically snapshot progress so resume restores exactly.</string>
     <string name="opt_vibrate">Vibrate on button press</string>
     <string name="opt_vibrate_sum">Haptic feedback for the on-screen gamepad.</string>
-    <string name="settings_info">Import ROMs with the + button (per tab). NES: .nes • SNES: .sfc/.smc • GBA: .gba • Arcade: .zip romset (kept as-is; try FinalBurn Neo, switch to MAME if it fails) • PICO-8: .p8/.p8.png. ROMs are your own; none are bundled.</string>
+    <string name="settings_info">Import ROMs with the + button (per tab). NES: .nes • SNES: .sfc/.smc • GBA: .gba • Game Gear: .gg • Arcade: .zip romset (kept as-is; try FinalBurn Neo, switch to MAME if it fails) • PICO-8: .p8/.p8.png. ROMs are your own; none are bundled.</string>
 </resources>

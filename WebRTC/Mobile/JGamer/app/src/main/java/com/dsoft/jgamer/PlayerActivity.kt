@@ -28,6 +28,7 @@ import com.dsoft.jgamer.model.GameEntry
 import com.dsoft.jgamer.model.GameRepository
 import com.dsoft.jgamer.model.GameSystem
 import com.dsoft.jgamer.model.Prefs
+import com.dsoft.jgamer.ui.DeleteRomDialog
 import com.dsoft.jgamer.ui.GamepadOverlay
 import com.swordfish.libretrodroid.GLRetroView
 import com.swordfish.libretrodroid.GLRetroViewData
@@ -112,10 +113,10 @@ class PlayerActivity : AppCompatActivity(), GamepadOverlay.PadListener {
 
     /**
      * Portrait: game on top, opaque control panel below (unchanged).
-     * Landscape: game CENTRED with side + bottom margins, and a transparent
-     * overlay on top whose controls sit in the left/right columns so the picture
-     * stays in the middle and nothing is cramped. Reuses the existing overlay and
-     * emulator view, so rotating never restarts the game.
+     * Landscape: 3 columns — the game fills the FULL height in the centre and
+     * the controls live in the left/right side panels, so nothing covers the
+     * picture. Reuses the existing overlay and emulator view, so rotating never
+     * restarts the game.
      */
     private fun applyLayout() {
         val landscape = isLandscape()
@@ -130,20 +131,23 @@ class PlayerActivity : AppCompatActivity(), GamepadOverlay.PadListener {
 
         if (landscape) {
             val dm = resources.displayMetrics
-            val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
-            val lp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
-            ).apply {
-                leftMargin = (dm.widthPixels * 0.24f).toInt()
-                rightMargin = leftMargin
-                topMargin = (dm.heightPixels * 0.03f).toInt()
-                bottomMargin = (dm.heightPixels * 0.14f).toInt()
-            }
-            root.addView(gameArea, lp)
+            // Size from the real root once laid out (cutouts / nav bar change it);
+            // display metrics are only the first guess.
+            val root = object : FrameLayout(this) {
+                override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
+                    super.onSizeChanged(w, h, ow, oh)
+                    post { fitLandscape(gameArea, w, h) }
+                }
+            }.apply { setBackgroundColor(Color.BLACK) }
+            root.addView(gameArea, FrameLayout.LayoutParams(
+                landscapeGameWidth(dm.widthPixels, dm.heightPixels),
+                FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER))
             root.addView(overlay, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            overlay.landscapeSide = (dm.widthPixels - landscapeGameWidth(dm.widthPixels, dm.heightPixels)) / 2f
             setContentView(root)
         } else {
+            overlay.landscapeSide = 0f
             val root = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(Color.BLACK)
@@ -160,6 +164,19 @@ class PlayerActivity : AppCompatActivity(), GamepadOverlay.PadListener {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
             ).apply { gravity = Gravity.CENTER })
         }
+    }
+
+    /** Centre column width: full-height picture at the system's aspect, but
+     *  always leave each side panel at least [MIN_SIDE] of the width. */
+    private fun landscapeGameWidth(w: Int, h: Int): Int =
+        minOf(h * system.aspect, w * (1f - 2f * MIN_SIDE)).toInt().coerceAtLeast(1)
+
+    private fun fitLandscape(gameArea: View, w: Int, h: Int) {
+        if (!isLandscape() || w <= 0 || h <= 0) return
+        val gw = landscapeGameWidth(w, h)
+        val lp = gameArea.layoutParams as? FrameLayout.LayoutParams ?: return
+        if (lp.width != gw) { lp.width = gw; gameArea.layoutParams = lp }
+        overlay.landscapeSide = (w - gw) / 2f
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -240,10 +257,16 @@ class PlayerActivity : AppCompatActivity(), GamepadOverlay.PadListener {
                     .setMessage(getString(R.string.load_failed_all,
                         system.cores.joinToString(", ") { it.label }))
                     .setPositiveButton(R.string.menu_switch_engine) { _, _ -> switchEngineDialog() }
+                    .setNeutralButton(R.string.action_delete) { _, _ -> confirmDelete() }
                     .setNegativeButton(android.R.string.cancel, null)
                     .show()
             } else {
-                toast(getString(R.string.core_failed))
+                AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.load_failed_title))
+                    .setMessage(getString(R.string.core_failed))
+                    .setPositiveButton(R.string.action_delete) { _, _ -> confirmDelete() }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
             }
         }
     }
@@ -314,12 +337,21 @@ class PlayerActivity : AppCompatActivity(), GamepadOverlay.PadListener {
             prefs.resetOverlay(system.id)
             overlay.configure(system, 1f, 1f, emptyMap(), prefs.getDpadJoystick(system.id), prefs.controlTheme)
         }
+        item(getString(R.string.menu_delete_rom)) { confirmDelete() }
         item(getString(R.string.menu_quit)) { finish() }
 
         AlertDialog.Builder(this)
             .setTitle(entry.title)
             .setItems(labels.toTypedArray()) { _, which -> actions[which].invoke() }
             .show()
+    }
+
+    /** Bad ROM? Delete it (and optionally the original file) and leave. */
+    private fun confirmDelete() {
+        DeleteRomDialog.show(this, entry) {
+            deleted = true   // don't write SRAM / auto-state for a deleted game
+            finish()
+        }
     }
 
     private fun paletteDialog() {
@@ -438,7 +470,10 @@ class PlayerActivity : AppCompatActivity(), GamepadOverlay.PadListener {
 
     // ---- Lifecycle -----------------------------------------------------------
 
+    private var deleted = false
+
     override fun onPause() {
+        if (deleted) { super.onPause(); return }
         // Persist SRAM and (optionally) an auto save-state for resume-on-launch.
         runCatching {
             val sram = retroView?.serializeSRAM()
@@ -593,6 +628,8 @@ class PlayerActivity : AppCompatActivity(), GamepadOverlay.PadListener {
 
     companion object {
         private const val TAG = "PlayerActivity"
+        /** Min width fraction of each landscape side panel. */
+        private const val MIN_SIDE = 0.17f
         const val EXTRA_GAME_ID = "game_id"
         const val EXTRA_AUTO_LOAD = "auto_load"
         const val EXTRA_CORE_ATTEMPT = "core_attempt"

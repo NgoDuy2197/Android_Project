@@ -1,0 +1,4 @@
+windows/.venv/
+windows/dist/
+windows/*.spec
+windows/*.exe

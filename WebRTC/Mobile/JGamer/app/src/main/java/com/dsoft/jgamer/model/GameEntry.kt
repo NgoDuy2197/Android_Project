@@ -10,7 +10,9 @@ data class GameEntry(
     val localPath: String,
     var addedAt: Long = 0L,
     var lastPlayedAt: Long = 0L,
-    var playCount: Int = 0
+    var playCount: Int = 0,
+    /** SAF uri of the file it was imported from (to delete the original). */
+    var sourceUri: String? = null
 ) {
     val system: GameSystem get() = GameSystem.fromId(systemId)
 
@@ -18,6 +20,7 @@ data class GameEntry(
         put("id", id); put("title", title); put("systemId", systemId)
         put("localPath", localPath); put("addedAt", addedAt)
         put("lastPlayedAt", lastPlayedAt); put("playCount", playCount)
+        sourceUri?.let { put("sourceUri", it) }
     }
 
     companion object {
@@ -28,7 +31,8 @@ data class GameEntry(
             localPath = o.getString("localPath"),
             addedAt = o.optLong("addedAt", 0L),
             lastPlayedAt = o.optLong("lastPlayedAt", 0L),
-            playCount = o.optInt("playCount", 0)
+            playCount = o.optInt("playCount", 0),
+            sourceUri = o.optString("sourceUri", "").ifBlank { null }
         )
     }
 }

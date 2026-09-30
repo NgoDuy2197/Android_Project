@@ -24,7 +24,9 @@ enum class GameSystem(
     val extensions: List<String>,
     val buttons: List<PadButton>,
     val zipIsRom: Boolean = false,
-    val padStyle: PadStyle = PadStyle.STANDARD
+    val padStyle: PadStyle = PadStyle.STANDARD,
+    /** Display aspect (width / height); sizes the centred landscape screen. */
+    val aspect: Float = 4f / 3f
 ) {
     NES("nes", "NES",
         listOf(CoreSpec("fceumm_libretro_android.so", "FCEUmm")),
@@ -59,7 +61,8 @@ enum class GameSystem(
             PadButton(KeyEvent.KEYCODE_BUTTON_A, "A"),
             PadButton(KeyEvent.KEYCODE_BUTTON_SELECT, "SEL"),
             PadButton(KeyEvent.KEYCODE_BUTTON_START, "START")
-        )),
+        ),
+        aspect = 10f / 9f),
     GBA("gba", "GBA",
         listOf(CoreSpec("mgba_libretro_android.so", "mGBA")),
         listOf("gba", "zip"),
@@ -70,7 +73,8 @@ enum class GameSystem(
             PadButton(KeyEvent.KEYCODE_BUTTON_R1, "R"),
             PadButton(KeyEvent.KEYCODE_BUTTON_SELECT, "SEL"),
             PadButton(KeyEvent.KEYCODE_BUTTON_START, "START")
-        )),
+        ),
+        aspect = 3f / 2f),
     GENESIS("genesis", "Genesis",
         listOf(
             CoreSpec("genesis_plus_gx_libretro_android.so", "Genesis Plus GX"),
@@ -90,6 +94,20 @@ enum class GameSystem(
             PadButton(KeyEvent.KEYCODE_BUTTON_START, "START")
         ),
         padStyle = PadStyle.SIXBUTTON),
+    // Sega Game Gear (160x144 LCD). Genesis Plus GX / PicoDrive map RetroPad
+    // B = Button 1, A = Button 2, Start = Start.
+    GG("gg", "Game Gear",
+        listOf(
+            CoreSpec("genesis_plus_gx_libretro_android.so", "Genesis Plus GX"),
+            CoreSpec("picodrive_libretro_android.so", "PicoDrive")
+        ),
+        listOf("gg", "zip"),
+        listOf(
+            PadButton(KeyEvent.KEYCODE_BUTTON_B, "1"),
+            PadButton(KeyEvent.KEYCODE_BUTTON_A, "2"),
+            PadButton(KeyEvent.KEYCODE_BUTTON_START, "START")
+        ),
+        aspect = 10f / 9f),
     ARCADE("arcade", "Arcade",
         listOf(
             CoreSpec("fbneo_libretro_android.so", "FinalBurn Neo"),
@@ -116,7 +134,8 @@ enum class GameSystem(
             PadButton(KeyEvent.KEYCODE_BUTTON_B, "O"),
             PadButton(KeyEvent.KEYCODE_BUTTON_A, "X"),
             PadButton(KeyEvent.KEYCODE_BUTTON_START, "MENU")
-        ));
+        ),
+        aspect = 1f);
 
     /** Default core file. */
     val coreFile: String get() = cores.first().file

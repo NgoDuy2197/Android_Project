@@ -1,5 +1,6 @@
 package com.dsoft.jgamer
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -18,12 +19,13 @@ import com.dsoft.jgamer.model.GameEntry
 import com.dsoft.jgamer.model.GameRepository
 import com.dsoft.jgamer.model.GameSystem
 import com.dsoft.jgamer.model.Prefs
+import com.dsoft.jgamer.ui.DeleteRomDialog
 import com.dsoft.jgamer.ui.GameListAdapter
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
 
 /**
- * Home: tabs for Recent / NES / SNES / PICO-8, a game list, and import. If
+ * Home: tabs for Recent / NES / SNES / GB / GBA / Genesis / Game Gear / Arcade / PICO-8, a game list, and import. If
  * "resume last game on launch" is enabled, jumps straight into the last game.
  */
 class MainActivity : AppCompatActivity() {
@@ -37,7 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fab: FloatingActionButton
 
     // tab 0 = Recent; 1..N = systems
-    private val systemTabs = listOf(null, GameSystem.NES, GameSystem.SNES, GameSystem.GB, GameSystem.GBA, GameSystem.GENESIS, GameSystem.ARCADE, GameSystem.PICO8)
+    private val systemTabs = listOf(null, GameSystem.NES, GameSystem.SNES, GameSystem.GB, GameSystem.GBA, GameSystem.GENESIS, GameSystem.GG, GameSystem.ARCADE, GameSystem.PICO8)
     private var currentTab = 1
 
     private val importLauncher = registerForActivityResult(
@@ -59,7 +61,7 @@ class MainActivity : AppCompatActivity() {
         emptyView = findViewById(R.id.emptyView)
 
         tabs = findViewById(R.id.tabs)
-        listOf(R.string.tab_recent, R.string.tab_nes, R.string.tab_snes, R.string.tab_gb, R.string.tab_gba, R.string.tab_genesis, R.string.tab_arcade, R.string.tab_pico8).forEach {
+        listOf(R.string.tab_recent, R.string.tab_nes, R.string.tab_snes, R.string.tab_gb, R.string.tab_gba, R.string.tab_genesis, R.string.tab_gg, R.string.tab_arcade, R.string.tab_pico8).forEach {
             tabs.addTab(tabs.newTab().setText(it))
         }
         tabs.getTabAt(currentTab)?.select()
@@ -109,12 +111,20 @@ class MainActivity : AppCompatActivity() {
         var ok = 0; var skipped = 0
         val now = System.currentTimeMillis()
         uris.forEachIndexed { i, uri ->
+            keepAccess(uri)
             val name = queryName(uri) ?: "game_$i"
             if (repo.importForSystem(this, uri, name, system, now + i) != null) ok++ else skipped++
         }
         toast(resources.getQuantityString(R.plurals.imported_count, ok, ok) +
             if (skipped > 0) getString(R.string.import_skipped, skipped, system.displayName) else "")
         refresh()
+    }
+
+    /** Keep read+write on the picked file so "delete original" works later. */
+    private fun keepAccess(uri: Uri) {
+        val rw = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { contentResolver.takePersistableUriPermission(uri, rw) }
+            .recoverCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
     }
 
     private fun queryName(uri: Uri): String? = runCatching {
@@ -137,7 +147,7 @@ class MainActivity : AppCompatActivity() {
             when (w) {
                 0 -> play(e)
                 1 -> renameDialog(e)
-                2 -> { repo.remove(e.id); refresh() }
+                2 -> DeleteRomDialog.show(this, e) { refresh() }
             }
         }.show()
     }
@@ -155,7 +165,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == MENU_SETTINGS) { startActivity(android.content.Intent(this, SettingsActivity::class.java)); return true }
+        if (item.itemId == MENU_SETTINGS) { startActivity(Intent(this, SettingsActivity::class.java)); return true }
         return super.onOptionsItemSelected(item)
     }
 

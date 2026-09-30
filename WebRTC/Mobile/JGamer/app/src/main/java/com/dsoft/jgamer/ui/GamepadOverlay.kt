@@ -54,6 +54,10 @@ class GamepadOverlay @JvmOverloads constructor(
     var landscapeMode: Boolean = false
         set(value) { if (field != value) { field = value; rebuild(); invalidate() } }
 
+    /** Landscape: width (px) of each side control column beside the game. */
+    var landscapeSide: Float = 0f
+        set(value) { if (field != value) { field = value; rebuild(); invalidate() } }
+
     private var system: GameSystem = GameSystem.NES
     private var scale = 1f
     private var joystick = false
@@ -107,10 +111,11 @@ class GamepadOverlay @JvmOverloads constructor(
     }
 
     /**
-     * Landscape: game centred with margins, controls in the LEFT column
-     * (D-pad, Select, L) and RIGHT column (action cluster, Start, R), utility
-     * row along the bottom strip. Transparent so the screen shows through, and
-     * nothing overlaps the picture.
+     * Landscape: the game fills the full height in the CENTRE column; the two
+     * side columns (width [landscapeSide], set by the host) hold the controls.
+     *   Left : Menu / Filter / Fast-forward, L, D-pad, Select
+     *   Right: Quick save / Quick load, R, action cluster, Start
+     * Nothing is drawn over the picture.
      */
     private fun rebuildLandscape() {
         setBackgroundColor(Color.TRANSPARENT)
@@ -118,55 +123,55 @@ class GamepadOverlay @JvmOverloads constructor(
         val w = width.toFloat(); val h = height.toFloat()
         if (w <= 0 || h <= 0) return
 
-        val xL = w * 0.12f
-        val xR = w * 0.88f
+        val side = (if (landscapeSide > 0f) landscapeSide else w * 0.2f).coerceAtMost(w * 0.45f)
+        val xL = side / 2f
+        val xR = w - side / 2f
+        val mainCy = h * 0.55f
 
-        // D-pad / joystick — left column, vertically centred.
-        val dpadMax = min(w * 0.11f, h * 0.30f)
-        dpadR = (dpadMax * scale).coerceIn(dp(46f), dpadMax)
-        dpadCx = xL; dpadCy = h * 0.46f
+        // Utility row across the top of each column.
+        val ur = min(side * 0.13f, h * 0.06f).coerceIn(dp(13f), dp(20f))
+        val uy = ur + dp(10f)
+        val ustep = min(side / 3f, ur * 2.7f)
+        add(TOKEN_MENU, 0, "⚙️", theme.util, xL - ustep, uy, ur)
+        add(TOKEN_FILTER, 0, "🎨", theme.util, xL, uy, ur)
+        add(TOKEN_FF, 0, "⏩", theme.util, xL + ustep, uy, ur)
+        add(TOKEN_QSAVE, 0, "💾", theme.util, xR - ustep / 2f, uy, ur)
+        add(TOKEN_QLOAD, 0, "📂", theme.util, xR + ustep / 2f, uy, ur)
 
-        // Action cluster — right column.
-        val ext = min(w * 0.10f, h * 0.24f)
-        val r = (ext / 2.2f * scale).coerceIn(dp(15f), ext / 1.9f)
+        // D-pad / joystick — middle of the left column.
+        val dpadMax = min(side * 0.42f, h * 0.24f)
+        dpadR = (dpadMax * 0.92f * scale).coerceIn(min(dp(40f), dpadMax), dpadMax)
+        dpadCx = xL; dpadCy = mainCy
+
+        // Action cluster — middle of the right column (diamond span ~5.4r).
+        val rMax = min(side * 0.17f, h * 0.11f)
+        val r = (min(side * 0.16f, h * 0.095f) * scale).coerceIn(min(dp(14f), rMax), rMax)
         if (system.padStyle == PadStyle.SIXBUTTON) {
-            placeSixButton(w, h * 0.46f, ext, centerX = xR)
+            placeSixButton(w, mainCy, min(side * 0.44f, h * 0.30f), centerX = xR)
         } else {
             val actions = system.buttons.filter { it.keyCode in ACTION_KEYS }
-            placeActions(actions, xR, h * 0.46f, r)
-            // Shoulders at the top of each column.
+            // 2-button layout is skewed left of cx; nudge it back to the centre.
+            val cx = if (actions.size == 2) xR + r * 1.7f * 0.25f else xR
+            placeActions(actions, cx, mainCy, r)
             val shoulders = system.buttons.filter {
                 it.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || it.keyCode == KeyEvent.KEYCODE_BUTTON_R1
             }
-            val sr = (r * 0.95f).coerceIn(dp(14f), dp(26f))
+            val sr = (r * 0.95f).coerceIn(dp(14f), dp(24f))
             shoulders.forEach {
                 val x = if (it.keyCode == KeyEvent.KEYCODE_BUTTON_L1) xL else xR
-                add(it.keyCode.toString(), it.keyCode, it.label, colorFor(it.label, false), x, h * 0.12f, sr)
+                add(it.keyCode.toString(), it.keyCode, it.label, colorFor(it.label, false), x, h * 0.22f, sr)
             }
         }
 
-        // Start / Select — bottom of the columns (Select left, Start right).
-        val systemBtns = system.buttons.filter {
-            it.keyCode == KeyEvent.KEYCODE_BUTTON_START || it.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT
-        }
+        // Select bottom-left, Start bottom-right.
         val sysR = (r * 0.8f).coerceIn(dp(14f), dp(22f))
-        var leftN = 0; var rightN = 0
-        systemBtns.forEach { b ->
-            if (b.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT) {
-                add(b.keyCode.toString(), b.keyCode, b.label, colorFor(b.label, true), xL, h * 0.76f - leftN * sysR * 2.6f, sysR); leftN++
-            } else {
-                add(b.keyCode.toString(), b.keyCode, b.label, colorFor(b.label, true), xR, h * 0.76f - rightN * sysR * 2.6f, sysR); rightN++
-            }
+        val sysY = h - sysR - dp(10f)
+        system.buttons.filter {
+            it.keyCode == KeyEvent.KEYCODE_BUTTON_START || it.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT
+        }.forEach { b ->
+            val x = if (b.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT) xL else xR
+            add(b.keyCode.toString(), b.keyCode, b.label, colorFor(b.label, true), x, sysY, sysR)
         }
-
-        // Utility row along the bottom strip (below the centred game).
-        val ur = (h * 0.055f).coerceIn(dp(15f), dp(22f))
-        val uy = h * 0.93f; val cx = w * 0.5f; val step = (w * 0.09f).coerceAtMost(ur * 2.8f)
-        add(TOKEN_FILTER, 0, "🎨", theme.util, cx - step * 2, uy, ur)
-        add(TOKEN_QSAVE, 0, "💾", theme.util, cx - step, uy, ur)
-        add(TOKEN_MENU, 0, "⚙️", theme.util, cx, uy, ur)
-        add(TOKEN_QLOAD, 0, "📂", theme.util, cx + step, uy, ur)
-        add(TOKEN_FF, 0, "⏩", theme.util, cx + step * 2, uy, ur)
         // No applyCustom in landscape — the computed split layout is fixed & tidy.
     }
 
@@ -282,8 +287,8 @@ class GamepadOverlay @JvmOverloads constructor(
 
     /** Candy colours from the active theme. */
     private fun colorFor(labelText: String, system: Boolean): Int = when (labelText) {
-        "A", "O" -> theme.a
-        "B" -> theme.b
+        "A", "O", "2" -> theme.a
+        "B", "1" -> theme.b
         "X" -> theme.x
         "Y" -> theme.y
         "L", "R", "C" -> theme.lr
@@ -297,6 +302,15 @@ class GamepadOverlay @JvmOverloads constructor(
         if (!landscapeMode) {
             panelPaint.color = theme.edge
             canvas.drawRect(0f, 0f, w, dp(2f), panelPaint)
+        } else if (landscapeSide > 0f) {
+            // Side control panels; the centre stays clear for the game.
+            val sw = landscapeSide
+            panelPaint.color = theme.panelBg
+            canvas.drawRect(0f, 0f, sw, h, panelPaint)
+            canvas.drawRect(w - sw, 0f, w, h, panelPaint)
+            panelPaint.color = theme.edge
+            canvas.drawRect(sw - dp(2f), 0f, sw, h, panelPaint)
+            canvas.drawRect(w - sw, 0f, w - sw + dp(2f), h, panelPaint)
         }
 
         label.textSize = ((if (landscapeMode) h * 0.05f else h * 0.075f) * scale).coerceIn(dp(12f), dp(22f))

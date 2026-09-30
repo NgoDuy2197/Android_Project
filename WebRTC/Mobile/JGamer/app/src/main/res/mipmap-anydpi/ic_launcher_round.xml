@@ -2,26 +2,86 @@
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
+    <group>
+    <clip-path android:pathData="M54,54 m-50,0 a50,50 0 1,0 100,0 a50,50 0 1,0 -100,0" />
+    <!-- Vivid base: blue -> violet -> pink -->
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
-            <gradient android:startX="0" android:startY="0" android:endX="108" android:endY="108" android:type="linear">
-                <item android:offset="0.0" android:color="#FF1E2A57" />
-                <item android:offset="0.55" android:color="#FF121A2C" />
-                <item android:offset="1.0" android:color="#FF0A0D16" />
+            <gradient android:type="linear"
+                android:startX="0" android:startY="0" android:endX="108" android:endY="108">
+                <item android:offset="0.0" android:color="#FF3A7BFF" />
+                <item android:offset="0.55" android:color="#FF7B5CFF" />
+                <item android:offset="1.0" android:color="#FFE86FD0" />
             </gradient>
         </aapt:attr>
     </path>
-    <path android:pathData="M33,42 h42 a18,18 0 0 1 18,18 a13,13 0 0 1 -13,13 h-6 a9,9 0 0 1 -7.5,-4 l-4,-6 h-19 l-4,6 a9,9 0 0 1 -7.5,4 h-6 a13,13 0 0 1 -13,-13 a18,18 0 0 1 18,-18 z">
+    <!-- Soft colour glows behind the glass (fake blur) -->
+    <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
-            <gradient android:startX="24" android:startY="42" android:endX="84" android:endY="74" android:type="linear">
-                <item android:offset="0.0" android:color="#FF5AA0FF" />
-                <item android:offset="1.0" android:color="#FF3D6FE0" />
+            <gradient android:type="radial" android:centerX="28" android:centerY="24" android:gradientRadius="46">
+                <item android:offset="0.0" android:color="#8069E7FF" />
+                <item android:offset="1.0" android:color="#0069E7FF" />
             </gradient>
         </aapt:attr>
     </path>
-    <path android:fillColor="#FF0E1626" android:pathData="M38,54 h6 v5 h5 v6 h-5 v5 h-6 v-5 h-5 v-6 h5 z" />
-    <path android:fillColor="#FFFF5D6C" android:pathData="M70,53 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
-    <path android:fillColor="#FFFFC24B" android:pathData="M79,60 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
-    <path android:fillColor="#FF57D977" android:pathData="M61,60 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
-    <path android:fillColor="#FF7FE0FF" android:pathData="M70,67 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="84" android:centerY="88" android:gradientRadius="44">
+                <item android:offset="0.0" android:color="#80FFB36B" />
+                <item android:offset="1.0" android:color="#00FFB36B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Top sheen -->
+    <path android:pathData="M0,0h108v54h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="0" android:endY="54">
+                <item android:offset="0.0" android:color="#33FFFFFF" />
+                <item android:offset="1.0" android:color="#00FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Soft drop shadow -->
+    <group android:translateY="3">
+        <path android:fillColor="#2A1A0F4D" android:pathData="M36,38 h36 a14,14 0 0 1 14,14 v6 a12,12 0 0 1 -12,12 a8,8 0 0 1 -6.5,-3.3 l-3.5,-4.7 h-20 l-3.5,4.7 a8,8 0 0 1 -6.5,3.3 a12,12 0 0 1 -12,-12 v-6 a14,14 0 0 1 14,-14 z" />
+    </group>
+    <!-- Frosted glass body -->
+    <path android:pathData="M36,38 h36 a14,14 0 0 1 14,14 v6 a12,12 0 0 1 -12,12 a8,8 0 0 1 -6.5,-3.3 l-3.5,-4.7 h-20 l-3.5,4.7 a8,8 0 0 1 -6.5,3.3 a12,12 0 0 1 -12,-12 v-6 a14,14 0 0 1 14,-14 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="38" android:endX="54" android:endY="70">
+                <item android:offset="0.0" android:color="#8CFFFFFF" />
+                <item android:offset="1.0" android:color="#38FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Glass rim: bright on top, fading down -->
+    <path android:strokeWidth="1.1" android:pathData="M36,38 h36 a14,14 0 0 1 14,14 v6 a12,12 0 0 1 -12,12 a8,8 0 0 1 -6.5,-3.3 l-3.5,-4.7 h-20 l-3.5,4.7 a8,8 0 0 1 -6.5,3.3 a12,12 0 0 1 -12,-12 v-6 a14,14 0 0 1 14,-14 z">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="54" android:startY="38" android:endX="54" android:endY="70">
+                <item android:offset="0.0" android:color="#F2FFFFFF" />
+                <item android:offset="1.0" android:color="#40FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Specular highlight across the top -->
+    <path android:pathData="M37,40.5 h34 a11.5,11.5 0 0 1 10,5.5 h-54 a11.5,11.5 0 0 1 10,-5.5 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="40" android:endX="54" android:endY="46">
+                <item android:offset="0.0" android:color="#99FFFFFF" />
+                <item android:offset="1.0" android:color="#00FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- D-pad (white glass) -->
+    <path android:fillColor="#F2FFFFFF" android:pathData="M35.5,45 h5 v5.5 h5.5 v5 h-5.5 v5.5 h-5 v-5.5 h-5.5 v-5 h5.5 z" />
+    <!-- Face buttons: pastel glass drops -->
+    <path android:fillColor="#F2FF8FB1" android:pathData="M70,46.5 m-3.4,0 a3.4,3.4 0 1,0 6.8,0 a3.4,3.4 0 1,0 -6.8,0" />
+    <path android:fillColor="#F2FFD27A" android:pathData="M76.5,53 m-3.4,0 a3.4,3.4 0 1,0 6.8,0 a3.4,3.4 0 1,0 -6.8,0" />
+    <path android:fillColor="#F28DF0B0" android:pathData="M63.5,53 m-3.4,0 a3.4,3.4 0 1,0 6.8,0 a3.4,3.4 0 1,0 -6.8,0" />
+    <path android:fillColor="#F28AD8FF" android:pathData="M70,59.5 m-3.4,0 a3.4,3.4 0 1,0 6.8,0 a3.4,3.4 0 1,0 -6.8,0" />
+    <!-- Tiny gloss dots on the buttons -->
+    <path android:fillColor="#B3FFFFFF" android:pathData="M69,45.3 m-1.1,0 a1.1,1.1 0 1,0 2.2,0 a1.1,1.1 0 1,0 -2.2,0 M75.5,51.8 m-1.1,0 a1.1,1.1 0 1,0 2.2,0 a1.1,1.1 0 1,0 -2.2,0 M62.5,51.8 m-1.1,0 a1.1,1.1 0 1,0 2.2,0 a1.1,1.1 0 1,0 -2.2,0 M69,58.3 m-1.1,0 a1.1,1.1 0 1,0 2.2,0 a1.1,1.1 0 1,0 -2.2,0" />
+    <!-- Select / Start pills -->
+    <path android:fillColor="#B3FFFFFF" android:pathData="M49,56 h3 a1.2,1.2 0 0 1 0,2.4 h-3 a1.2,1.2 0 0 1 0,-2.4 z M56,56 h3 a1.2,1.2 0 0 1 0,2.4 h-3 a1.2,1.2 0 0 1 0,-2.4 z" />
+    </group>
 </vector>

@@ -2,24 +2,40 @@
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Vivid base: blue -> violet -> pink -->
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="0" android:startY="0"
-                android:endX="108" android:endY="108"
-                android:type="linear">
-                <item android:offset="0.0" android:color="#FF1E2A57" />
-                <item android:offset="0.55" android:color="#FF121A2C" />
-                <item android:offset="1.0" android:color="#FF0A0D16" />
+            <gradient android:type="linear"
+                android:startX="0" android:startY="0" android:endX="108" android:endY="108">
+                <item android:offset="0.0" android:color="#FF3A7BFF" />
+                <item android:offset="0.55" android:color="#FF7B5CFF" />
+                <item android:offset="1.0" android:color="#FFE86FD0" />
             </gradient>
         </aapt:attr>
     </path>
-    <!-- subtle glow blob -->
-    <path android:pathData="M78,26m-26,0a26,26 0 1,0 52,0a26,26 0 1,0 -52,0" android:fillAlpha="0.12">
+    <!-- Soft colour glows behind the glass (fake blur) -->
+    <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="radial" android:centerX="78" android:centerY="26" android:gradientRadius="26">
-                <item android:offset="0.0" android:color="#FF5AA0FF" />
-                <item android:offset="1.0" android:color="#005AA0FF" />
+            <gradient android:type="radial" android:centerX="28" android:centerY="24" android:gradientRadius="46">
+                <item android:offset="0.0" android:color="#8069E7FF" />
+                <item android:offset="1.0" android:color="#0069E7FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="84" android:centerY="88" android:gradientRadius="44">
+                <item android:offset="0.0" android:color="#80FFB36B" />
+                <item android:offset="1.0" android:color="#00FFB36B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Top sheen -->
+    <path android:pathData="M0,0h108v54h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="0" android:endY="54">
+                <item android:offset="0.0" android:color="#33FFFFFF" />
+                <item android:offset="1.0" android:color="#00FFFFFF" />
             </gradient>
         </aapt:attr>
     </path>

@@ -2,6 +2,7 @@ package com.dsoft.jgamer.model
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import org.json.JSONArray
 import java.io.File
@@ -42,14 +43,30 @@ class GameRepository private constructor(context: Context) {
         byId(id)?.let { it.title = title.trim().ifBlank { it.title }; save() }
     }
 
-    fun remove(id: String) {
-        val e = byId(id) ?: return
+    /**
+     * Remove a game: its library copy, save states and SRAM. With
+     * [deleteOriginal], also deletes the file it was imported from on the
+     * device. Returns true only if that original was actually deleted.
+     */
+    fun remove(id: String, deleteOriginal: Boolean = false): Boolean {
+        val e = byId(id) ?: return false
+        val originalDeleted = deleteOriginal && deleteSource(e)
         runCatching { File(e.localPath).takeIf { it.exists() }?.delete() }
+        runCatching { File(app.filesDir, "states/${e.id}").deleteRecursively() }
+        runCatching { File(app.filesDir, "sram/${e.id}.srm").delete() }
         entries.remove(e); save()
+        return originalDeleted
+    }
+
+    private fun deleteSource(e: GameEntry): Boolean {
+        val src = e.sourceUri ?: return false
+        return runCatching {
+            DocumentsContract.deleteDocument(app.contentResolver, Uri.parse(src))
+        }.onFailure { Log.w(TAG, "delete original failed: $src", it) }.getOrDefault(false)
     }
 
     /** Import a ROM stream into a system's folder. Returns entry or null (never throws). */
-    fun import(input: InputStream, displayName: String, system: GameSystem, now: Long): GameEntry? =
+    fun import(input: InputStream, displayName: String, system: GameSystem, now: Long, sourceUri: String? = null): GameEntry? =
         runCatching {
             val clean = displayName.substringAfterLast('/').substringAfterLast('\\')
             val base = clean.substringBeforeLast('.').ifBlank { "game" }
@@ -73,8 +90,11 @@ class GameRepository private constructor(context: Context) {
             dest.outputStream().use { out -> input.copyTo(out) }
 
             // Re-import of the same romset updates in place (keeps play history).
-            entries.firstOrNull { it.id == id }?.let { save(); return@runCatching it }
-            val entry = GameEntry(id, prettify(base), system.id, dest.absolutePath, now)
+            entries.firstOrNull { it.id == id }?.let {
+                if (sourceUri != null) it.sourceUri = sourceUri
+                save(); return@runCatching it
+            }
+            val entry = GameEntry(id, prettify(base), system.id, dest.absolutePath, now, sourceUri = sourceUri)
             entries.add(entry); save()
             entry
         }.onFailure { Log.e(TAG, "import failed: $displayName", it) }.getOrNull()
@@ -91,10 +111,11 @@ class GameRepository private constructor(context: Context) {
      */
     fun importForSystem(context: Context, uri: Uri, name: String, system: GameSystem, now: Long): GameEntry? =
         runCatching {
+            val src = uri.toString()
             // Arcade: the .zip IS the romset — copy it whole, never extract.
             if (system.zipIsRom) {
                 return@runCatching if (GameSystem.matchesSystem(name, system))
-                    context.contentResolver.openInputStream(uri)?.use { import(it, name, system, now) }
+                    context.contentResolver.openInputStream(uri)?.use { import(it, name, system, now, src) }
                 else null
             }
             if (name.lowercase().endsWith(".zip")) {
@@ -104,7 +125,7 @@ class GameRepository private constructor(context: Context) {
                         while (e != null) {
                             if (!e.isDirectory && GameSystem.matchesSystem(e.name, system)) {
                                 val inner = e.name.substringAfterLast('/').substringAfterLast('\\')
-                                return@runCatching import(zis, inner, system, now)
+                                return@runCatching import(zis, inner, system, now, src)
                             }
                             e = zis.nextEntry
                         }
@@ -112,7 +133,7 @@ class GameRepository private constructor(context: Context) {
                     }
                 }
             } else if (GameSystem.matchesSystem(name, system)) {
-                context.contentResolver.openInputStream(uri)?.use { import(it, name, system, now) }
+                context.contentResolver.openInputStream(uri)?.use { import(it, name, system, now, src) }
             } else {
                 null
             }
