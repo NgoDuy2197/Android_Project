@@ -37,16 +37,18 @@ Future<void> main() async {
     return true;
   };
   final prefs = await SharedPreferences.getInstance();
-  final idx = (prefs.getInt('appTheme') ?? AppTheme.light.index).clamp(
+  // Android TV: always-visible focus highlights for remote (D-pad) control.
+  await TvMode.init(_nativeChannel);
+  // No saved theme yet: TVs start on the sofa-friendly light theme.
+  final defaultTheme = TvMode.isTv ? AppTheme.tvLight : AppTheme.light;
+  final idx = (prefs.getInt('appTheme') ?? defaultTheme.index).clamp(
     0,
     AppTheme.values.length - 1,
   );
-  // Android TV: always-visible focus highlights for remote (D-pad) control.
-  await TvMode.init(_nativeChannel);
   runApp(VoiceAiApp(theme: ThemeController(AppTheme.values[idx])));
 }
 
-enum AppTheme { dark, light, win7, amoled, rose }
+enum AppTheme { dark, light, win7, amoled, rose, tvLight }
 
 const appThemeNames = <AppTheme, String>{
   AppTheme.dark: 'Tối',
@@ -54,6 +56,7 @@ const appThemeNames = <AppTheme, String>{
   AppTheme.win7: 'Windows 7 / Yahoo',
   AppTheme.amoled: 'AMOLED đen',
   AppTheme.rose: 'Hồng pastel',
+  AppTheme.tvLight: 'Sáng (TV)',
 };
 
 class ThemeController extends ChangeNotifier {
@@ -68,8 +71,44 @@ class ThemeController extends ChangeNotifier {
   }
 }
 
-ThemeData appThemeData(AppTheme t) {
+/// Button corner shape for every theme: rounded rectangle, not a pill.
+const double kButtonRadius = 14;
+const _btnShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.all(Radius.circular(kButtonRadius)),
+);
+
+ThemeData appThemeData(AppTheme t) => _roundedButtons(_baseThemeData(t));
+
+/// Forces the rounded-rectangle shape on every button family (Material 3
+/// defaults TextButton/FilledButton/… to a stadium) and on chips.
+ThemeData _roundedButtons(ThemeData t) {
+  const shape = WidgetStatePropertyAll<OutlinedBorder>(_btnShape);
+  ButtonStyle r(ButtonStyle? s) => (s ?? const ButtonStyle()).copyWith(
+    shape: shape,
+  );
+  return t.copyWith(
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: r(t.elevatedButtonTheme.style),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: r(t.filledButtonTheme.style),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: r(t.outlinedButtonTheme.style),
+    ),
+    textButtonTheme: TextButtonThemeData(style: r(t.textButtonTheme.style)),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: r(t.segmentedButtonTheme.style),
+      selectedIcon: t.segmentedButtonTheme.selectedIcon,
+    ),
+    chipTheme: t.chipTheme.copyWith(shape: _btnShape),
+  );
+}
+
+ThemeData _baseThemeData(AppTheme t) {
   switch (t) {
+    case AppTheme.tvLight:
+      return _tvLightTheme();
     case AppTheme.dark:
       return ThemeData.dark(useMaterial3: true).copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F1115),
@@ -143,12 +182,12 @@ ThemeData appThemeData(AppTheme t) {
       );
     case AppTheme.win7:
       // Classic Windows 7 Aero / Yahoo Messenger: Luna desktop blue-green,
-      // glossy title-bar chrome, beveled window frames, pill (stadium) buttons.
+      // glossy title-bar chrome, beveled window frames, rounded buttons.
       const aero = Color(0xFF1F6FD6);
       const yahoo = Color(0xFF6B2FA0);
       const frame = Color(0xFF24558C);
       const edge = Color(0xFF7BA3CC);
-      const pill = StadiumBorder();
+      const pill = _btnShape;
       return ThemeData(
         useMaterial3: false,
         brightness: Brightness.light,
@@ -231,14 +270,118 @@ ThemeData appThemeData(AppTheme t) {
 }
 
 FilledButtonThemeData _pillFilled() => FilledButtonThemeData(
-  style: FilledButton.styleFrom(shape: const StadiumBorder()),
+  style: FilledButton.styleFrom(shape: _btnShape),
 );
 ElevatedButtonThemeData _pillElevated() => ElevatedButtonThemeData(
-  style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+  style: ElevatedButton.styleFrom(shape: _btnShape),
 );
 OutlinedButtonThemeData _pillOutlined() => OutlinedButtonThemeData(
-  style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+  style: OutlinedButton.styleFrom(shape: _btnShape),
 );
+
+/// "Sáng (TV)": bright, high-contrast and roomy for viewing from a sofa.
+/// Strong royal-blue accent keeps the deep-orange focus ring (withTvFocus)
+/// clearly distinct from both the accent and the white surfaces.
+ThemeData _tvLightTheme() {
+  const accent = Color(0xFF0B57D0); // royal blue
+  const ink = Color(0xFF111418); // near-black text
+  const bg = Color(0xFFF7F8FA);
+  final base = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+    colorScheme: ColorScheme.fromSeed(seedColor: accent).copyWith(
+      primary: accent,
+      onPrimary: Colors.white,
+      secondary: const Color(0xFF00796B), // teal
+      tertiary: const Color(0xFF6A1B9A), // purple
+      surface: Colors.white,
+      onSurface: ink,
+      onSurfaceVariant: const Color(0xFF3C4043),
+      surfaceContainerHighest: const Color(0xFFECEFF3),
+      outline: const Color(0xFF5F6368),
+      outlineVariant: const Color(0xFFC4C7CC),
+    ),
+  );
+  const pad = EdgeInsets.symmetric(horizontal: 22, vertical: 14);
+  const minSize = Size(64, 52);
+  return base.copyWith(
+    scaffoldBackgroundColor: bg,
+    // ~15% larger type + roomier hit targets for TV viewing distance.
+    textTheme: base.textTheme.apply(
+      fontSizeFactor: 1.15,
+      bodyColor: ink,
+      displayColor: ink,
+    ),
+    visualDensity: const VisualDensity(horizontal: 1, vertical: 1),
+    materialTapTargetSize: MaterialTapTargetSize.padded,
+    iconTheme: const IconThemeData(color: ink, size: 28),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: accent,
+      foregroundColor: Colors.white,
+      toolbarHeight: 64,
+      titleTextStyle: TextStyle(
+        color: Colors.white,
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    cardTheme: const CardThemeData(
+      color: Colors.white,
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Color(0xFFDADCE0)),
+        borderRadius: BorderRadius.all(Radius.circular(kButtonRadius)),
+      ),
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+        borderSide: BorderSide(color: Color(0xFF5F6368)),
+      ),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        shape: _btnShape,
+        minimumSize: minSize,
+        padding: pad,
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        shape: _btnShape,
+        minimumSize: minSize,
+        padding: pad,
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        shape: _btnShape,
+        minimumSize: minSize,
+        padding: pad,
+        side: const BorderSide(color: accent, width: 1.5),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        shape: _btnShape,
+        minimumSize: minSize,
+        padding: pad,
+      ),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
+    ),
+    listTileTheme: const ListTileThemeData(
+      minVerticalPadding: 12,
+      textColor: ink,
+      iconColor: ink,
+    ),
+    dividerColor: const Color(0xFFDADCE0),
+  );
+}
 
 /// Accent colour + icon for the "thả tim" button, per theme.
 ({IconData icon, Color color, Color light}) themeHeartStyle(AppTheme t) {
@@ -274,6 +417,12 @@ OutlinedButtonThemeData _pillOutlined() => OutlinedButtonThemeData(
         icon: Icons.favorite_rounded,
         color: const Color(0xFFE84C88),
         light: const Color(0xFFFF9AC1),
+      );
+    case AppTheme.tvLight:
+      return (
+        icon: Icons.favorite_rounded,
+        color: const Color(0xFF0B57D0),
+        light: const Color(0xFF6A9EF5),
       );
   }
 }
@@ -532,9 +681,14 @@ class HomeScreenState extends State<HomeScreen> {
     _ai.model = p.getString('model') ?? 'qwen2.5:0.5b';
     _ai.apiKey = p.getString('apiKey') ?? '';
     _ai.method = p.getString('method') ?? 'POST';
-    _ai.systemPrompt =
-        p.getString('prompt') ??
-        'Bạn là trợ lý vui tính, trả lời ngắn gọn bằng tiếng Việt.';
+    final savedPrompt = p.getString('prompt');
+    _ai.systemPrompt = AiClient.migratePrompt(
+      savedPrompt ?? AiClient.defaultSystemPrompt,
+    );
+    // One-time: an untouched old default becomes the new default.
+    if (savedPrompt != null && savedPrompt != _ai.systemPrompt) {
+      await p.setString('prompt', _ai.systemPrompt);
+    }
     await _tts.awaitSpeakCompletion(true);
     await applyTts();
     _sttSub = _sttEvents.receiveBroadcastStream().listen(_onNativeStt);
@@ -721,7 +875,7 @@ class HomeScreenState extends State<HomeScreen> {
     _ai.model = s('model', _ai.model);
     _ai.apiKey = s('apiKey', _ai.apiKey);
     _ai.method = s('method', _ai.method);
-    _ai.systemPrompt = s('prompt', _ai.systemPrompt);
+    _ai.systemPrompt = AiClient.migratePrompt(s('prompt', _ai.systemPrompt));
     if (d['appTheme'] is int) {
       final idx = (d['appTheme'] as int).clamp(0, AppTheme.values.length - 1);
       await widget.theme.set(AppTheme.values[idx]);
@@ -1841,7 +1995,7 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// One of the big bottom controls — pill-shaped (stadium) for every theme.
+  /// One of the big bottom controls — rounded rectangle for every theme.
   /// Win7 keeps the classic hard gloss split + blue border. A null [onTap]
   /// renders it dimmed & disabled. Springs down when pressed.
   Widget _controlButton({
@@ -1855,8 +2009,8 @@ class HomeScreenState extends State<HomeScreen> {
   }) {
     final light = Color.lerp(color, Colors.white, win7 ? 0.42 : 0.35)!;
     final dark = Color.lerp(color, Colors.black, 0.22)!;
-    // Fully pill / "viên thuốc" rounding on every theme.
-    final radius = BorderRadius.circular(height);
+    // Rounded corners (not a pill); the TvFocusable ring uses the same radius.
+    final radius = BorderRadius.circular(kButtonRadius + 2);
     return _PressPop(
       onTap: onTap,
       radius: radius,
@@ -3132,7 +3286,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _field(
               _prompt,
               'Prompt tính cách (tạo không khí)',
-              'Bạn là trợ lý vui tính…',
+              'Bạn là trợ lý giọng nói vui tính…',
               maxLines: 4,
             ),
             if (_loadingLocales)

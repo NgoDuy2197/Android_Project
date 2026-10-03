@@ -21,10 +21,25 @@ class AiClient {
     this.endpoint = defaultEndpoint,
     this.model = 'qwen2.5:0.5b',
     this.apiKey = '',
-    this.systemPrompt =
-        'Bạn là trợ lý vui tính, trả lời ngắn gọn bằng tiếng Việt.',
+    this.systemPrompt = defaultSystemPrompt,
     this.method = 'POST',
   });
+
+  /// Default persona: Vietnamese, short, creative, TTS-friendly.
+  static const defaultSystemPrompt =
+      'Bạn là trợ lý giọng nói vui tính và sáng tạo. Luôn trả lời bằng tiếng '
+      'Việt, ngắn gọn 1–3 câu trừ khi được yêu cầu dài hơn. Đừng trả lời khô '
+      'khan: hãy tìm một góc nhìn thú vị, bất ngờ từ chính câu hỏi. Nói tự '
+      'nhiên như đang trò chuyện vì câu trả lời sẽ được đọc thành tiếng: '
+      'không dùng markdown, gạch đầu dòng hay emoji.';
+
+  /// The previous built-in default; migrated once to [defaultSystemPrompt].
+  static const legacySystemPrompt =
+      'Bạn là trợ lý vui tính, trả lời ngắn gọn bằng tiếng Việt.';
+
+  /// [prompt] unless it is the untouched old default.
+  static String migratePrompt(String prompt) =>
+      prompt.trim() == legacySystemPrompt ? defaultSystemPrompt : prompt;
 
   /// Default local AI server: the LAN Ollama box on its default port. The
   /// OpenAI-compatible path (/v1/chat/completions) is appended automatically

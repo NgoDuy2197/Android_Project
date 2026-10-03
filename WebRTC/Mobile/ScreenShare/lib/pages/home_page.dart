@@ -8,6 +8,7 @@ import '../config_store.dart';
 import '../native_bridge.dart';
 import '../remote/screen_client.dart';
 import '../remote/screen_server.dart';
+import '../tv_focus.dart';
 
 enum _Role { none, server, client }
 
@@ -41,6 +42,8 @@ class _HomePageState extends State<HomePage> {
   final _config = ConfigStore();
   final _nameCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
+  // Địa chỉ server (SelectableText) không nhận focus khi điều hướng D-pad.
+  final _addressTextFocus = FocusNode(skipTraversal: true);
 
   _Role _role = _Role.none;
   ScreenServer? _server;
@@ -71,6 +74,7 @@ class _HomePageState extends State<HomePage> {
     _client?.dispose();
     _nameCtrl.dispose();
     _addressCtrl.dispose();
+    _addressTextFocus.dispose();
     super.dispose();
   }
 
@@ -134,6 +138,7 @@ class _HomePageState extends State<HomePage> {
               runSpacing: 8,
               children: [
                 OutlinedButton.icon(
+                  autofocus: _server?.clients.isEmpty ?? false,
                   onPressed: _pickSaveFolder,
                   icon: const Icon(Icons.folder_open, size: 18),
                   label: const Text('Chọn thư mục'),
@@ -231,6 +236,7 @@ class _HomePageState extends State<HomePage> {
                       top: 8,
                       right: 8,
                       child: IconButton.filledTonal(
+                        autofocus: true,
                         tooltip: 'Thoát toàn màn hình',
                         icon: const Icon(Icons.fullscreen_exit),
                         onPressed: () => _setFullscreen(false),
@@ -254,6 +260,7 @@ class _HomePageState extends State<HomePage> {
       subtitle:
           'Hiển thị QR để máy khác quét, xem màn hình các máy đã kết nối.',
       onTap: _enterServer,
+      autofocus: true,
     );
     final client = _roleButton(
       icon: Icons.smartphone,
@@ -313,11 +320,19 @@ class _HomePageState extends State<HomePage> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    bool autofocus = false,
   }) {
-    return Material(
+    return TvFocusable(
+      onTap: onTap,
+      autofocus: autofocus,
+      handlePointer: false,
+      focusedScale: 1.03,
+      borderRadius: BorderRadius.circular(16),
+      child: Material(
       color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
+        canRequestFocus: false,
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
@@ -345,6 +360,7 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -386,7 +402,8 @@ class _HomePageState extends State<HomePage> {
         if (server.clients.isEmpty)
           _noClients()
         else
-          ...server.clients.map((c) => _clientCard(server, c)),
+          ...server.clients.indexed
+              .map((e) => _clientCard(server, e.$2, autofocus: e.$1 == 0)),
       ],
     );
   }
@@ -437,7 +454,8 @@ class _HomePageState extends State<HomePage> {
                           ),
                           itemCount: server.clients.length,
                           itemBuilder: (context, i) =>
-                              _clientCard(server, server.clients[i]),
+                              _clientCard(server, server.clients[i],
+                                  autofocus: i == 0),
                         ),
                 ),
               ],
@@ -467,6 +485,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 12),
               SelectableText(
                 server.address!,
+                focusNode: _addressTextFocus,
                 style:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
@@ -511,8 +530,22 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _clientCard(ScreenServer server, RemoteClientConn c) {
-    return Card(
+  Widget _clientCard(ScreenServer server, RemoteClientConn c,
+      {bool autofocus = false}) {
+    void open() => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _ClientControlScreen(
+                server: server, config: _config, clientId: c.id),
+          ),
+        );
+    return TvFocusable(
+      onTap: open,
+      autofocus: autofocus,
+      handlePointer: false,
+      focusedScale: 1.02,
+      child: Card(
+      // ListTile giữ hiệu ứng chạm; focus D-pad do TvFocusable đảm nhận.
+      child: ExcludeFocus(
       child: ListTile(
         leading: Icon(
           c.sharing ? Icons.screen_share : Icons.smartphone,
@@ -524,12 +557,9 @@ class _HomePageState extends State<HomePage> {
           style: const TextStyle(fontSize: 12),
         ),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => _ClientControlScreen(
-                server: server, config: _config, clientId: c.id),
-          ),
-        ),
+        onTap: open,
+      ),
+      ),
       ),
     );
   }
@@ -556,7 +586,7 @@ class _HomePageState extends State<HomePage> {
               color: client.sharing || connected ? _green : Colors.white54,
             ),
             const SizedBox(height: 16),
-            TextField(
+            TvTextField(
               controller: _nameCtrl,
               enabled: !connected && !connecting,
               decoration: const InputDecoration(
@@ -567,11 +597,10 @@ class _HomePageState extends State<HomePage> {
               onChanged: (v) => _config.setClientName(v),
             ),
             const SizedBox(height: 12),
-            TextField(
+            TvTextField(
               controller: _addressCtrl,
               enabled: !connected && !connecting,
               keyboardType: TextInputType.url,
-              autocorrect: false,
               decoration: InputDecoration(
                 labelText: 'Địa chỉ máy Server (IP:PORT)',
                 hintText: '192.168.1.10:8080',
@@ -586,6 +615,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             if (!connected)
               FilledButton.icon(
+                autofocus: true,
                 onPressed: connecting ? null : _connectClient,
                 icon: connecting
                     ? const SizedBox(
@@ -601,6 +631,7 @@ class _HomePageState extends State<HomePage> {
               )
             else ...[
               FilledButton.icon(
+                autofocus: true,
                 onPressed: () => client.sharing
                     ? client.stopShare()
                     : client.startShare(),
@@ -848,6 +879,7 @@ class _ClientControlScreenState extends State<_ClientControlScreen> {
           right: 8,
           bottom: 8,
           child: IconButton.filledTonal(
+            autofocus: _fullscreen,
             tooltip: _fullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình',
             icon: Icon(_fullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
             onPressed: () => _setFullscreen(!_fullscreen),
@@ -861,6 +893,7 @@ class _ClientControlScreenState extends State<_ClientControlScreen> {
       BuildContext context, RemoteClientConn c, bool viewing) {
     return [
       FilledButton.icon(
+        autofocus: true,
         onPressed: () =>
             viewing ? server.stopLiveView() : server.startLiveView(clientId),
         icon: Icon(viewing ? Icons.stop : Icons.live_tv),
@@ -895,7 +928,13 @@ class _ClientControlScreenState extends State<_ClientControlScreen> {
         style: const TextStyle(fontSize: 11, color: Colors.white54),
       ),
       const SizedBox(height: 4),
-      SwitchListTile(
+      TvFocusable(
+        onTap: () => _setAudioFromMic(!server.audioFromMic),
+        handlePointer: false,
+        focusedScale: 1.0,
+        borderRadius: BorderRadius.circular(8),
+        child: ExcludeFocus(
+        child: SwitchListTile(
         contentPadding: EdgeInsets.zero,
         secondary: const Icon(Icons.mic),
         title: const Text('Thu âm bằng micro'),
@@ -906,6 +945,8 @@ class _ClientControlScreenState extends State<_ClientControlScreen> {
         ),
         value: server.audioFromMic,
         onChanged: _setAudioFromMic,
+      ),
+        ),
       ),
       const SizedBox(height: 8),
       GridView.count(
@@ -971,10 +1012,15 @@ class _ClientControlScreenState extends State<_ClientControlScreen> {
   }
 
   Widget _cmd(IconData icon, String label, Color color, VoidCallback onTap) {
-    return Material(
+    return TvFocusable(
+      onTap: onTap,
+      handlePointer: false,
+      borderRadius: BorderRadius.circular(14),
+      child: Material(
       color: color,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
+        canRequestFocus: false,
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Row(
@@ -991,6 +1037,7 @@ class _ClientControlScreenState extends State<_ClientControlScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -1004,8 +1051,10 @@ class _PhotoThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return TvFocusable(
       onTap: onTap,
+      focusedScale: 1.02,
+      borderRadius: BorderRadius.circular(10),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Image.memory(

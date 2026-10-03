@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated glossy launcher icon layer (108x108 adaptive canvas). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="41.5" android:translateY="43.5" android:scaleX="1.21" android:scaleY="1.21">
+        <path android:pathData="M17,12.5V9c0,-0.55 -0.45,-1 -1,-1H4c-0.55,0 -1,0.45 -1,1v10c0,0.55 0.45,1 1,1h12c0.55,0 1,-0.45 1,-1v-3.5l4,4v-11l-4,4z" android:fillColor="#FFFFFFFF" />
+        <path android:pathData="M7.75,5.2A2.6,2.6 0 0 1 12.25,5.2" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.4" android:strokeLineCap="round" android:strokeLineJoin="round" />
+        <path android:pathData="M5.74,3.52A5.2,5.2 0 0 1 14.26,3.52" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.4" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    </group>
+    <path android:pathData="M34.6,33.6h3.6a5.3,5.5 0 0 1 0,11h-3.6zM36.5,35.4h1.7a3.5,3.7 0 0 1 0,7.4h-1.7z" android:fillType="evenOdd" android:fillColor="#FFFFFFFF" />
+</vector>

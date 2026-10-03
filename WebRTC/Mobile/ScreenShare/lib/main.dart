@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'pages/home_page.dart';
+import 'tv_focus.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await TvMode.init(const MethodChannel('screenshare/native'));
   runApp(const ScreenShareApp());
 }
 
@@ -16,13 +19,13 @@ class ScreenShareApp extends StatelessWidget {
     return MaterialApp(
       title: 'ScreenShare',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(useMaterial3: true).copyWith(
+      theme: withTvFocus(ThemeData.dark(useMaterial3: true).copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F1115),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF30A46C),
           brightness: Brightness.dark,
         ),
-      ),
+      )),
       home: const _Bootstrap(),
     );
   }

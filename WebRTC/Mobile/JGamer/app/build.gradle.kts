@@ -14,8 +14,9 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         vectorDrawables { useSupportLibrary = true }
-        // Cores are shipped only for arm64-v8a (all modern phones).
-        ndk { abiFilters += "arm64-v8a" }
+        // ABIs come from splits below (AGP rejects ndk.abiFilters together
+        // with ABI splits): arm64-v8a for phones, armeabi-v7a for 32-bit TVs
+        // (e.g. many Sony Bravia). LibretroDroid's x86 libs are left out.
     }
 
     buildTypes {
@@ -32,6 +33,16 @@ android {
     kotlinOptions { jvmTarget = "17" }
 
     buildFeatures { viewBinding = true }
+
+    // One APK per ABI so each carries only its own ~100-200 MB of cores.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
+        }
+    }
 
     // Extract native libs (cores) to the install dir so LibretroDroid can load
     // them by filename from nativeLibraryDir.
@@ -53,4 +64,18 @@ dependencies {
 
     // Emulation engine (libretro frontend, GPLv3).
     implementation("com.github.swordfish90:libretrodroid:0.13.2")
+}
+
+// Per-ABI versionCode: arm64 > v7a, so a 64-bit device offered both picks arm64.
+val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2)
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val abi = output.filters.find {
+                it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI
+            }?.identifier
+            val code = abiCodes[abi] ?: return@forEach
+            output.versionCode.set((output.versionCode.orNull ?: 1) * 10 + code)
+        }
+    }
 }

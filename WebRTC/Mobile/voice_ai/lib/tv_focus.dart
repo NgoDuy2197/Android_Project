@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -22,10 +23,36 @@ class TvMode {
     FocusManager.instance.highlightStrategy = isTv
         ? FocusHighlightStrategy.alwaysTraditional
         : FocusHighlightStrategy.automatic;
+    _hookInput();
   }
 
-  /// True while focus highlights are being drawn (TV, or a key was pressed).
+  /// True after a remote / D-pad / keyboard key, false again after a touch.
+  /// The focus ring follows this instead of relying only on
+  /// FocusManager.highlightMode, which can stay "touch" on some devices even
+  /// while the remote is being used (seen on a Realme phone).
+  static final ValueNotifier<bool> keyNav = ValueNotifier<bool>(false);
+  static bool _hooked = false;
+
+  static void _hookInput() {
+    if (_hooked) return;
+    _hooked = true;
+    HardwareKeyboard.instance.addHandler((event) {
+      if (event is KeyDownEvent && !keyNav.value) keyNav.value = true;
+      return false; // observe only
+    });
+    GestureBinding.instance.pointerRouter.addGlobalRoute((event) {
+      if (event is PointerDownEvent &&
+          event.kind == PointerDeviceKind.touch &&
+          keyNav.value) {
+        keyNav.value = false;
+      }
+    });
+  }
+
+  /// True while focus highlights should be drawn (TV, or a key was pressed).
   static bool get showFocus =>
+      isTv ||
+      keyNav.value ||
       FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
 }
 
@@ -168,7 +195,23 @@ class TvFocusable extends StatefulWidget {
 }
 
 class _TvFocusableState extends State<TvFocusable> {
-  bool _highlight = false;
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    TvMode.keyNav.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    TvMode.keyNav.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
 
   static const _shortcuts = <ShortcutActivator, Intent>{
     SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
@@ -182,6 +225,7 @@ class _TvFocusableState extends State<TvFocusable> {
   Widget build(BuildContext context) {
     final ring = tvRingColor(Theme.of(context));
     final enabled = widget.onTap != null;
+    final highlight = _focused && TvMode.showFocus;
     Widget child = widget.child;
     if (widget.handlePointer) {
       child = GestureDetector(
@@ -203,18 +247,18 @@ class _TvFocusableState extends State<TvFocusable> {
           },
         ),
       },
-      onShowFocusHighlight: (v) {
-        if (mounted && v != _highlight) setState(() => _highlight = v);
+      onFocusChange: (f) {
+        if (mounted && f != _focused) setState(() => _focused = f);
       },
       child: AnimatedScale(
-        scale: _highlight ? widget.focusedScale : 1.0,
+        scale: highlight ? widget.focusedScale : 1.0,
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOut,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           decoration: BoxDecoration(
             borderRadius: widget.borderRadius,
-            boxShadow: _highlight
+            boxShadow: highlight
                 ? [
                     BoxShadow(
                       color: ring.withValues(alpha: 0.65),
@@ -227,7 +271,7 @@ class _TvFocusableState extends State<TvFocusable> {
           foregroundDecoration: BoxDecoration(
             borderRadius: widget.borderRadius,
             border: Border.all(
-              color: _highlight ? ring : Colors.transparent,
+              color: highlight ? ring : Colors.transparent,
               width: tvRingWidth,
             ),
           ),
@@ -325,11 +369,17 @@ class _TvTextFieldState extends State<TvTextField> with WidgetsBindingObserver {
     _node.addListener(_onFocusChange);
     WidgetsBinding.instance.addObserver(this);
     FocusManager.instance.addHighlightModeListener(_onHighlightMode);
+    TvMode.keyNav.addListener(_onKeyNav);
+  }
+
+  void _onKeyNav() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     FocusManager.instance.removeHighlightModeListener(_onHighlightMode);
+    TvMode.keyNav.removeListener(_onKeyNav);
     WidgetsBinding.instance.removeObserver(this);
     _node.removeListener(_onFocusChange);
     if (_node.onKeyEvent == _onKey) _node.onKeyEvent = null;

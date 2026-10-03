@@ -1,6 +1,10 @@
 package com.example.screen_share
 
+import android.app.UiModeManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
@@ -60,6 +64,7 @@ class MainActivity : FlutterActivity() {
                         val name = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
                         result.success(name)
                     }
+                    "isTv" -> result.success(isTvDevice())
                     "pickFolder" -> pickFolder(result)
                     "saveImage" -> saveImage(call, result)
                     "saveLocationLabel" -> {
@@ -98,6 +103,16 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    /** Android TV / leanback / no touchscreen → điều khiển bằng remote. */
+    private fun isTvDevice(): Boolean {
+        val ui = getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
+        if (ui?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) return true
+        val pm = packageManager
+        return pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            pm.hasSystemFeature("android.software.leanback_only") ||
+            !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
     }
 
     override fun onDestroy() {
