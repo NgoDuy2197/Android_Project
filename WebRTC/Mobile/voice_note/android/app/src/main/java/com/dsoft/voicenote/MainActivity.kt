@@ -4,73 +4,108 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
-import android.provider.Settings
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.EditText
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import java.io.RandomAccessFile
+import java.io.File
 import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+/** Home: big glossy record button, quick status, recent transcripts. */
 class MainActivity : Activity() {
+    private lateinit var p: Palette
     private lateinit var prefs: Prefs
-    private lateinit var status: TextView
-    private lateinit var toggle: Button
-    private lateinit var transcript: TextView
+    private lateinit var record: RecordButton
+    private lateinit var bars: LevelBars
+    private lateinit var hint: TextView
+    private lateinit var chip: TextView
+    private lateinit var stopPill: TextView
+    private lateinit var recent: LinearLayout
     private val handler = Handler(Looper.getMainLooper())
-    private var shownModified = -1L
+    private var wasRunning = false
 
-    private val refresh = object : Runnable {
+    private val tick = object : Runnable {
         override fun run() {
             render()
-            handler.postDelayed(this, 1000)
+            handler.postDelayed(this, 100)
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        p = palette()
         prefs = Prefs(this)
-        status = findViewById(R.id.status)
-        toggle = findViewById(R.id.toggle)
-        transcript = findViewById(R.id.transcript)
-        val autostart = findViewById<CheckBox>(R.id.autostart)
-        val modelUrl = findViewById<EditText>(R.id.modelUrl)
-        val timeFormat = findViewById<EditText>(R.id.timeFormat)
-        val pauseMs = findViewById<EditText>(R.id.pauseMs)
+        setupSystemBars(p)
 
-        autostart.isChecked = prefs.autostart
-        modelUrl.setText(prefs.modelUrl)
-        timeFormat.setText(prefs.timeFormat)
-        pauseMs.setText(prefs.pauseMs.toString())
-        findViewById<TextView>(R.id.path).text = "File lưu tại:\n${RecorderService.transcriptDir(this)}"
-
-        toggle.setOnClickListener {
-            if (RecorderService.isRunning) RecorderService.stop(this) else startWithPermission()
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(10), dp(20), dp(24))
         }
-        autostart.setOnCheckedChangeListener { _, checked -> prefs.autostart = checked }
-        findViewById<Button>(R.id.save).setOnClickListener {
-            val fmt = timeFormat.text.toString().trim()
-            if (runCatching { SimpleDateFormat(fmt) }.isFailure) {
-                toast("Định dạng giờ không hợp lệ")
-                return@setOnClickListener
-            }
-            prefs.modelUrl = modelUrl.text.toString()
-            prefs.timeFormat = fmt
-            prefs.pauseMs = pauseMs.text.toString().toLongOrNull() ?: Prefs.DEFAULT_PAUSE_MS
-            RecorderService.reload(this)
-            toast("Đã lưu")
-        }
-        findViewById<Button>(R.id.share).setOnClickListener { shareToday() }
-        findViewById<Button>(R.id.battery).setOnClickListener { askBatteryExemption() }
 
+        // header: large title + folder / settings
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(text("VoiceNote", 34f, p.text, 700), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(circleButton(p, R.drawable.ic_folder) { startActivity(Intent(this@MainActivity, FilesActivity::class.java)) })
+            addView(circleButton(p, R.drawable.ic_settings) { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }.apply {
+                (layoutParams as LinearLayout.LayoutParams).marginStart = dp(10)
+            })
+        }
+        root.addView(header)
+        val today = SimpleDateFormat("EEEE, d 'tháng' M", Locale("vi")).format(Date())
+            .replaceFirstChar { it.titlecase(Locale("vi")) }
+        root.addView(text(today, 15f, p.secondary).apply { setPadding(0, dp(4), 0, 0) })
+
+        // record area
+        val stage = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(28), 0, dp(12))
+        }
+        chip = text("", 13f, p.secondary, 500).apply {
+            background = rounded(p.fill, dp(14).toFloat())
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+        }
+        stage.addView(chip)
+        record = RecordButton(this).apply { setOnClickListener { onRecordTap() } }
+        stage.addView(record, LinearLayout.LayoutParams(dp(240), dp(240)).apply { topMargin = dp(8) })
+        bars = LevelBars(this)
+        stage.addView(bars, LinearLayout.LayoutParams(dp(200), dp(34)))
+        hint = text("", 15f, p.secondary).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(10), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        }
+        stage.addView(hint)
+        stopPill = text("Dừng ghi", 15f, p.red, 500).apply {
+            gravity = Gravity.CENTER
+            background = pressable(rounded(p.fill, dp(18).toFloat()), p.ripple)
+            setPadding(dp(22), dp(9), dp(22), dp(9))
+            setOnClickListener { RecorderService.stop(this@MainActivity) }
+        }
+        stage.addView(stopPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(12)
+        })
+        root.addView(stage)
+
+        // recent files
+        root.addView(sectionHeader(p, "Gần đây").apply { setPadding(dp(4), dp(18), 0, dp(7)) })
+        recent = card(p)
+        root.addView(recent)
+
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            addView(root)
+        })
         handleStartExtra(intent)
     }
 
@@ -81,101 +116,123 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        handler.post(refresh)
+        fillRecent()
+        handler.post(tick)
     }
 
     override fun onPause() {
-        handler.removeCallbacks(refresh)
+        handler.removeCallbacks(tick)
         super.onPause()
     }
 
     private fun handleStartExtra(intent: Intent?) {
         if (intent?.getBooleanExtra(RecorderService.EXTRA_START, false) == true) {
             intent.removeExtra(RecorderService.EXTRA_START)
-            startWithPermission()
+            startRecording()
         }
     }
 
-    private fun startWithPermission() {
-        val needed = buildList {
-            add(Manifest.permission.RECORD_AUDIO)
-            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-        }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-        if (needed.isEmpty()) startService() else requestPermissions(needed.toTypedArray(), REQ_PERMS)
+    private fun onRecordTap() {
+        if (RecorderService.isRunning) SessionActivity.openLive(this) else startRecording()
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        if (requestCode != REQ_PERMS) return
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            startService()
-        } else {
-            toast("Cần quyền micro để ghi âm")
+    private fun startRecording() {
+        // Only the mic is requested: without POST_NOTIFICATIONS the mandatory
+        // recording notification stays hidden on Android 13+.
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
+            return
         }
-    }
-
-    private fun startService() {
         try {
             RecorderService.start(this)
+            SessionActivity.openLive(this)
         } catch (t: Throwable) {
             toast("Không khởi động được: ${t.message}")
         }
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (requestCode != REQ_MIC) return
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startRecording()
+        } else {
+            toast("Cần quyền micro để ghi âm")
+        }
+    }
+
     private fun render() {
-        status.text = RecorderService.status
-        toggle.text = if (RecorderService.isRunning) "Dừng ghi" else "Bắt đầu ghi"
-        val f = TranscriptWriter.today(RecorderService.transcriptDir(this))
-        val modified = if (f.exists()) f.lastModified() else 0L
-        if (modified == shownModified) return
-        shownModified = modified
-        transcript.text = if (modified == 0L) "(Chưa có nội dung hôm nay)" else tail(f, 4096)
+        val running = RecorderService.isRunning
+        record.recording = running
+        record.level = RecorderService.level
+        bars.push(if (running) RecorderService.level else 0f)
+        val engine = if (prefs.engine == "google") "Google" else "Vosk"
+        chip.text = "$engine · ${Prefs.LANGS[prefs.language]}"
+        hint.text = if (running) "${elapsed(RecorderService.sessionStart)} · ${RecorderService.status}\nChạm để mở phiên"
+        else "Chạm để bắt đầu ghi"
+        stopPill.visibility = if (running) TextView.VISIBLE else TextView.GONE
+        if (wasRunning && !running) fillRecent()
+        wasRunning = running
     }
 
-    /** Last [bytes] of the file, cut at a line start so UTF-8 is never split. */
-    private fun tail(f: java.io.File, bytes: Int): String = runCatching {
-        RandomAccessFile(f, "r").use { raf ->
-            val start = maxOf(0L, raf.length() - bytes)
-            raf.seek(start)
-            val buf = ByteArray((raf.length() - start).toInt())
-            raf.readFully(buf)
-            val s = String(buf, Charsets.UTF_8)
-            if (start > 0) s.substringAfter('\n') else s
-        }
-    }.getOrDefault("")
-
-    private fun shareToday() {
-        val f = TranscriptWriter.today(RecorderService.transcriptDir(this))
-        if (!f.exists()) {
-            toast("Chưa có nội dung hôm nay")
+    private fun fillRecent() {
+        recent.removeAllViews()
+        val files = Transcripts.list(this).take(3)
+        if (files.isEmpty()) {
+            recent.addView(text("Chưa có bản ghi nào", 15f, p.secondary).apply {
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+            })
             return
         }
-        // Plain-text share keeps the app dependency-free (no FileProvider); binder limit ~1 MB.
-        val text = runCatching { f.readText() }.getOrDefault("").takeLast(200_000)
-        val send = Intent(Intent.ACTION_SEND)
-            .setType("text/plain")
-            .putExtra(Intent.EXTRA_SUBJECT, f.name)
-            .putExtra(Intent.EXTRA_TEXT, text)
-        startActivity(Intent.createChooser(send, f.name))
-    }
-
-    private fun askBatteryExemption() {
-        val pm = getSystemService(PowerManager::class.java)
-        if (pm.isIgnoringBatteryOptimizations(packageName)) {
-            toast("Đã được bỏ tối ưu pin")
-            return
+        files.forEachIndexed { i, f ->
+            if (i > 0) recent.addView(separator(p, 60))
+            recent.addView(fileRow(f) { SessionActivity.openFile(this, f) })
         }
-        try {
-            startActivity(
-                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
-            )
-        } catch (e: Exception) {
-            runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-        }
+        recent.addView(separator(p, 0))
+        recent.addView(row(p, "Xem tất cả", chevron(p)) { startActivity(Intent(this, FilesActivity::class.java)) }.apply {
+            (getChildAt(0) as TextView).setTextColor(p.blue)
+        })
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
     companion object {
-        private const val REQ_PERMS = 1
+        private const val REQ_MIC = 1
+    }
+}
+
+/** "12:31" or "1:02:31" since [start]. */
+fun elapsed(start: Long): String {
+    if (start <= 0) return "00:00"
+    val s = (System.currentTimeMillis() - start) / 1000
+    return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
+}
+
+/** Shared file row: colored doc tile, name, meta line, trailing view (chevron by default). */
+fun Activity.fileRow(f: File, trailing: android.view.View? = null, onClick: () -> Unit): LinearLayout {
+    val p = palette()
+    val active = RecorderService.isRunning && RecorderService.sessionFile == f
+    return LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(14), dp(10), dp(10), dp(10))
+        background = pressable(null, p.ripple)
+        setOnClickListener { onClick() }
+        addView(icon(R.drawable.ic_doc, android.graphics.Color.WHITE, 34).apply {
+            background = gradient(dp(9).toFloat(), if (active) p.pink else p.blue, if (active) p.red else p.indigo)
+            setPadding(dp(7), dp(7), dp(7), dp(7))
+        })
+        val texts = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, dp(6), 0)
+            addView(text(f.nameWithoutExtension, 16f, p.text, 500).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+            val meta = SimpleDateFormat("d/M · HH:mm", Locale.getDefault()).format(Date(f.lastModified())) +
+                " · ${Transcripts.countEntries(f)} đoạn" + if (active) " · đang ghi" else ""
+            addView(text(meta, 13f, if (active) p.red else p.secondary).apply { setPadding(0, dp(3), 0, 0) })
+        }
+        addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(trailing ?: chevron(p))
     }
 }

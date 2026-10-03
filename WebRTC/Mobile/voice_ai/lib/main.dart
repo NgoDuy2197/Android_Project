@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'ai_client.dart';
 import 'logger.dart';
 import 'sfx.dart';
+import 'tv_focus.dart';
 
 /// Bridge to native code (settings screens + native SpeechRecognizer).
 const _nativeChannel = MethodChannel('voice_ai/native');
@@ -36,8 +37,12 @@ Future<void> main() async {
     return true;
   };
   final prefs = await SharedPreferences.getInstance();
-  final idx = (prefs.getInt('appTheme') ?? AppTheme.light.index)
-      .clamp(0, AppTheme.values.length - 1);
+  final idx = (prefs.getInt('appTheme') ?? AppTheme.light.index).clamp(
+    0,
+    AppTheme.values.length - 1,
+  );
+  // Android TV: always-visible focus highlights for remote (D-pad) control.
+  await TvMode.init(_nativeChannel);
   runApp(VoiceAiApp(theme: ThemeController(AppTheme.values[idx])));
 }
 
@@ -69,7 +74,9 @@ ThemeData appThemeData(AppTheme t) {
       return ThemeData.dark(useMaterial3: true).copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F1115),
         colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF8E4EC6), brightness: Brightness.dark),
+          seedColor: const Color(0xFF8E4EC6),
+          brightness: Brightness.dark,
+        ),
         filledButtonTheme: _pillFilled(),
         elevatedButtonTheme: _pillElevated(),
         outlinedButtonTheme: _pillOutlined(),
@@ -80,14 +87,15 @@ ThemeData appThemeData(AppTheme t) {
       return ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF0F2F5),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: fb,
-          brightness: Brightness.light,
-        ).copyWith(
-          primary: fb,
-          surface: Colors.white,
-          surfaceContainerHighest: const Color(0xFFE9EBEE),
-        ),
+        colorScheme:
+            ColorScheme.fromSeed(
+              seedColor: fb,
+              brightness: Brightness.light,
+            ).copyWith(
+              primary: fb,
+              surface: Colors.white,
+              surfaceContainerHighest: const Color(0xFFE9EBEE),
+            ),
         appBarTheme: const AppBarTheme(
           backgroundColor: fb,
           foregroundColor: Colors.white,
@@ -101,14 +109,15 @@ ThemeData appThemeData(AppTheme t) {
       const neon = Color(0xFF00E5C7);
       return ThemeData.dark(useMaterial3: true).copyWith(
         scaffoldBackgroundColor: Colors.black,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: neon,
-          brightness: Brightness.dark,
-        ).copyWith(
-          primary: neon,
-          surface: const Color(0xFF0A0A0A),
-          surfaceContainerHighest: const Color(0xFF161616),
-        ),
+        colorScheme:
+            ColorScheme.fromSeed(
+              seedColor: neon,
+              brightness: Brightness.dark,
+            ).copyWith(
+              primary: neon,
+              surface: const Color(0xFF0A0A0A),
+              surfaceContainerHighest: const Color(0xFF161616),
+            ),
         appBarTheme: const AppBarTheme(backgroundColor: Colors.black),
         filledButtonTheme: _pillFilled(),
         elevatedButtonTheme: _pillElevated(),
@@ -222,14 +231,14 @@ ThemeData appThemeData(AppTheme t) {
 }
 
 FilledButtonThemeData _pillFilled() => FilledButtonThemeData(
-      style: FilledButton.styleFrom(shape: const StadiumBorder()),
-    );
+  style: FilledButton.styleFrom(shape: const StadiumBorder()),
+);
 ElevatedButtonThemeData _pillElevated() => ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
-    );
+  style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+);
 OutlinedButtonThemeData _pillOutlined() => OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
-    );
+  style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+);
 
 /// Accent colour + icon for the "thả tim" button, per theme.
 ({IconData icon, Color color, Color light}) themeHeartStyle(AppTheme t) {
@@ -276,10 +285,8 @@ void showAppToast(BuildContext context, String message) {
   if (overlay == null) return;
   late OverlayEntry entry;
   entry = OverlayEntry(
-    builder: (_) => _FlyingToast(
-      message: message,
-      onDone: () => entry.remove(),
-    ),
+    builder: (_) =>
+        _FlyingToast(message: message, onDone: () => entry.remove()),
   );
   overlay.insert(entry);
 }
@@ -294,7 +301,7 @@ class VoiceAiApp extends StatelessWidget {
       builder: (context, _) => MaterialApp(
         title: 'Voice AI',
         debugShowCheckedModeBanner: false,
-        theme: appThemeData(theme.theme),
+        theme: withTvFocus(appThemeData(theme.theme)),
         home: HomeScreen(theme: theme),
       ),
     );
@@ -393,8 +400,10 @@ class HomeScreenState extends State<HomeScreen> {
   bool _loopActive = false;
   bool _loopSeeding = false; // waiting for the user's topic command
   int _loopTurn = 0;
+
   /// Spoken AI lines in the auto-dialogue. `second == false` → A (voice 1).
   final List<({bool second, String text})> _loopLines = [];
+
   /// Topic / tone set by the user's first command when starting auto-dialogue.
   /// Injected into every system prompt so both AIs stay on the same trend.
   String _loopTopic = '';
@@ -440,7 +449,8 @@ class HomeScreenState extends State<HomeScreen> {
   /// The bubble currently tracking the user's speech, if any. An auto-dialogue
   /// placeholder for speaker B is also `fromUser && live`, so `thinking` bubbles
   /// are excluded — the STT path must never overwrite one.
-  ChatMsg? get _liveUser => (_history.isNotEmpty &&
+  ChatMsg? get _liveUser =>
+      (_history.isNotEmpty &&
           _history.last.fromUser &&
           _history.last.live &&
           !_history.last.thinking)
@@ -508,18 +518,29 @@ class HomeScreenState extends State<HomeScreen> {
     maxMessages = p.getInt('maxMessages') ?? 20;
     loopContextCount = p.getInt('loopContextCount') ?? 1;
     silenceClearSec = p.getInt('silenceClearSec') ?? 0;
-    _ai.endpoint = p.getString('endpoint') ?? '';
+    _ai.endpoint = p.getString('endpoint') ?? AiClient.defaultEndpoint;
+    // One-time move off the old defaults (empty / emulator / loopback) to the
+    // LAN Ollama server. A user-chosen address is left untouched.
+    if (!(p.getBool('endpointMigrated72') ?? false)) {
+      if (AiClient.isLegacyDefaultEndpoint(_ai.endpoint)) {
+        _ai.endpoint = AiClient.defaultEndpoint;
+        await p.setString('endpoint', _ai.endpoint);
+      }
+      await p.setBool('endpointMigrated72', true);
+    }
     _ai.provider = p.getString('provider') ?? 'local';
     _ai.model = p.getString('model') ?? 'qwen2.5:0.5b';
     _ai.apiKey = p.getString('apiKey') ?? '';
     _ai.method = p.getString('method') ?? 'POST';
-    _ai.systemPrompt = p.getString('prompt') ??
+    _ai.systemPrompt =
+        p.getString('prompt') ??
         'Bạn là trợ lý vui tính, trả lời ngắn gọn bằng tiếng Việt.';
     await _tts.awaitSpeakCompletion(true);
     await applyTts();
     _sttSub = _sttEvents.receiveBroadcastStream().listen(_onNativeStt);
     AppLog.instance.log(
-        'Boot: endpoint="${_ai.endpoint}" model="${_ai.model}" stopWord="$stopWord" locale="$locale"');
+      'Boot: endpoint="${_ai.endpoint}" model="${_ai.model}" stopWord="$stopWord" locale="$locale"',
+    );
     if (mounted) setState(() {});
   }
 
@@ -560,8 +581,9 @@ class HomeScreenState extends State<HomeScreen> {
   Future<String> _effectiveEngine() async {
     if (ttsEngine.isNotEmpty) return ttsEngine;
     try {
-      final engines =
-          (await _tts.getEngines as List).map((e) => e.toString()).toList();
+      final engines = (await _tts.getEngines as List)
+          .map((e) => e.toString())
+          .toList();
       const preferred = 'com.google.android.tts';
       if (engines.contains(preferred)) return preferred;
     } catch (_) {}
@@ -585,8 +607,12 @@ class HomeScreenState extends State<HomeScreen> {
   /// Set language + voice for a given side (voice 1, or voice 2 for the loop's
   /// other speaker). Voice 2 falls back to voice 1 when not chosen.
   Future<void> _selectVoice({required bool second}) async {
-    final name = second && ttsVoice2Name.isNotEmpty ? ttsVoice2Name : ttsVoiceName;
-    final vloc = second && ttsVoice2Name.isNotEmpty ? ttsVoice2Locale : ttsVoiceLocale;
+    final name = second && ttsVoice2Name.isNotEmpty
+        ? ttsVoice2Name
+        : ttsVoiceName;
+    final vloc = second && ttsVoice2Name.isNotEmpty
+        ? ttsVoice2Locale
+        : ttsVoiceLocale;
     if (name.isNotEmpty) {
       try {
         await _tts.setVoice({'name': name, 'locale': vloc});
@@ -647,29 +673,29 @@ class HomeScreenState extends State<HomeScreen> {
   // ---------- Config export / import / profiles ----------
 
   Map<String, dynamic> exportConfig() => {
-        'stopWord': stopWord,
-        'startWord': startWord,
-        'locale': locale,
-        'ttsRate': ttsRate,
-        'ttsEngine': ttsEngine,
-        'ttsLang': ttsLang,
-        'ttsVoiceName': ttsVoiceName,
-        'ttsVoiceLocale': ttsVoiceLocale,
-        'ttsVoice2Name': ttsVoice2Name,
-        'ttsVoice2Locale': ttsVoice2Locale,
-        'loopPromptA': loopPromptA,
-        'loopPromptB': loopPromptB,
-        'maxMessages': maxMessages,
-        'loopContextCount': loopContextCount,
-        'silenceClearSec': silenceClearSec,
-        'endpoint': _ai.endpoint,
-        'provider': _ai.provider,
-        'model': _ai.model,
-        'apiKey': _ai.apiKey,
-        'method': _ai.method,
-        'prompt': _ai.systemPrompt,
-        'appTheme': widget.theme.theme.index,
-      };
+    'stopWord': stopWord,
+    'startWord': startWord,
+    'locale': locale,
+    'ttsRate': ttsRate,
+    'ttsEngine': ttsEngine,
+    'ttsLang': ttsLang,
+    'ttsVoiceName': ttsVoiceName,
+    'ttsVoiceLocale': ttsVoiceLocale,
+    'ttsVoice2Name': ttsVoice2Name,
+    'ttsVoice2Locale': ttsVoice2Locale,
+    'loopPromptA': loopPromptA,
+    'loopPromptB': loopPromptB,
+    'maxMessages': maxMessages,
+    'loopContextCount': loopContextCount,
+    'silenceClearSec': silenceClearSec,
+    'endpoint': _ai.endpoint,
+    'provider': _ai.provider,
+    'model': _ai.model,
+    'apiKey': _ai.apiKey,
+    'method': _ai.method,
+    'prompt': _ai.systemPrompt,
+    'appTheme': widget.theme.theme.index,
+  };
 
   /// Load a config map into the live app (used by profiles / import).
   Future<void> applyConfig(Map<String, dynamic> d) async {
@@ -747,8 +773,11 @@ class HomeScreenState extends State<HomeScreen> {
   /// Moves [value] to the front of its history list and keeps at most [mruMax]
   /// entries. Re-saving a value already in the list just promotes it instead of
   /// duplicating it.
-  Future<void> pushRecent(String kind, String value,
-      {String provider = ''}) async {
+  Future<void> pushRecent(
+    String kind,
+    String value, {
+    String provider = '',
+  }) async {
     final v = value.trim();
     if (v.isEmpty) return;
     final p = await SharedPreferences.getInstance();
@@ -777,11 +806,13 @@ class HomeScreenState extends State<HomeScreen> {
   /// TTS languages + voices for the settings pickers, read from the EFFECTIVE
   /// engine (so Vietnamese shows even when the default engine lacks it).
   Future<
-      ({
-        List<String> languages,
-        List<({String name, String locale})> voices,
-        String engine,
-      })> ttsInfo() async {
+    ({
+      List<String> languages,
+      List<({String name, String locale})> voices,
+      String engine,
+    })
+  >
+  ttsInfo() async {
     final eng = await _effectiveEngine();
     if (eng.isNotEmpty) {
       try {
@@ -794,24 +825,26 @@ class HomeScreenState extends State<HomeScreen> {
     List<String> langs = [];
     List<({String name, String locale})> voices = [];
     try {
-      langs = (await _tts.getLanguages as List).map((e) => e.toString()).toList()
-        ..sort();
+      langs =
+          (await _tts.getLanguages as List).map((e) => e.toString()).toList()
+            ..sort();
     } catch (e) {
       AppLog.instance.log('ttsLanguages lỗi: $e');
     }
     try {
       final vs = await _tts.getVoices as List;
-      voices = vs
-          .map((v) {
-            final m = Map<String, dynamic>.from(v as Map);
-            return (
-              name: (m['name'] ?? '').toString(),
-              locale: (m['locale'] ?? '').toString(),
-            );
-          })
-          .where((v) => v.name.isNotEmpty)
-          .toList()
-        ..sort((a, b) => a.locale.compareTo(b.locale));
+      voices =
+          vs
+              .map((v) {
+                final m = Map<String, dynamic>.from(v as Map);
+                return (
+                  name: (m['name'] ?? '').toString(),
+                  locale: (m['locale'] ?? '').toString(),
+                );
+              })
+              .where((v) => v.name.isNotEmpty)
+              .toList()
+            ..sort((a, b) => a.locale.compareTo(b.locale));
     } catch (e) {
       AppLog.instance.log('ttsVoices lỗi: $e');
     }
@@ -819,8 +852,10 @@ class HomeScreenState extends State<HomeScreen> {
     // Also ask the native engine directly (availableLanguages / voices) and
     // union it in — this surfaces installed voices the plugin can miss.
     try {
-      final r = await _nativeChannel
-          .invokeMapMethod<String, dynamic>('ttsInfo', {'engine': eng});
+      final r = await _nativeChannel.invokeMapMethod<String, dynamic>(
+        'ttsInfo',
+        {'engine': eng},
+      );
       final nativeLangs =
           (r?['languages'] as List?)?.map((e) => e.toString()) ?? const [];
       final have = langs.map((e) => e.toLowerCase()).toSet();
@@ -829,20 +864,24 @@ class HomeScreenState extends State<HomeScreen> {
       }
       langs.sort();
 
-      final nativeVoices = ((r?['voices'] as List?) ?? []).map((v) {
-        final m = Map<String, dynamic>.from(v as Map);
-        return (
-          name: (m['name'] ?? '').toString(),
-          locale: (m['locale'] ?? '').toString(),
-        );
-      }).where((v) => v.name.isNotEmpty);
+      final nativeVoices = ((r?['voices'] as List?) ?? [])
+          .map((v) {
+            final m = Map<String, dynamic>.from(v as Map);
+            return (
+              name: (m['name'] ?? '').toString(),
+              locale: (m['locale'] ?? '').toString(),
+            );
+          })
+          .where((v) => v.name.isNotEmpty);
       final haveV = voices.map((v) => v.name).toSet();
       for (final v in nativeVoices) {
         if (haveV.add(v.name)) voices.add(v);
       }
       voices.sort((a, b) => a.locale.compareTo(b.locale));
-      AppLog.instance.log('TTS (engine="$eng"): ${langs.length} ngôn ngữ, '
-          '${voices.length} giọng');
+      AppLog.instance.log(
+        'TTS (engine="$eng"): ${langs.length} ngôn ngữ, '
+        '${voices.length} giọng',
+      );
     } catch (e) {
       AppLog.instance.log('ttsInfo native lỗi: $e');
     }
@@ -858,12 +897,14 @@ class HomeScreenState extends State<HomeScreen> {
   /// without Google, both come back empty and [recognizers] shows what (if
   /// anything) is installed.
   Future<
-      ({
-        bool available,
-        bool onDevice,
-        List<({String id, String name})> locales,
-        List<String> recognizers,
-      })> sttInfo() async {
+    ({
+      bool available,
+      bool onDevice,
+      List<({String id, String name})> locales,
+      List<String> recognizers,
+    })
+  >
+  sttInfo() async {
     bool available = false;
     bool onDevice = false;
     final map = <String, ({String id, String name})>{};
@@ -884,7 +925,9 @@ class HomeScreenState extends State<HomeScreen> {
         for (final t in langs) {
           final id = t.replaceAll('-', '_');
           map.putIfAbsent(
-              id.toLowerCase(), () => (id: id, name: sttLangName(id)));
+            id.toLowerCase(),
+            () => (id: id, name: sttLangName(id)),
+          );
         }
         recognizers = ((r['recognizers'] as List?) ?? [])
             .map((e) {
@@ -896,12 +939,13 @@ class HomeScreenState extends State<HomeScreen> {
         available = r['available'] == true || recognizers.isNotEmpty;
         // Diagnostics — shows exactly what checkRecognitionSupport returned.
         AppLog.instance.log(
-            'STT support: dùng được=${(r['languages'] as List?)?.length ?? 0} '
-            '| đã cài=${(r['installed'] as List?) ?? []} '
-            '| online=${((r['online'] as List?) ?? []).length} '
-            '| tải được=${((r['downloadable'] as List?) ?? []).length} '
-            '| lỗi=${r['supportError'] ?? '-'} '
-            '| engine=${recognizers.join(",")}');
+          'STT support: dùng được=${(r['languages'] as List?)?.length ?? 0} '
+          '| đã cài=${(r['installed'] as List?) ?? []} '
+          '| online=${((r['online'] as List?) ?? []).length} '
+          '| tải được=${((r['downloadable'] as List?) ?? []).length} '
+          '| lỗi=${r['supportError'] ?? '-'} '
+          '| engine=${recognizers.join(",")}',
+        );
       }
     } catch (e) {
       AppLog.instance.log('sttDetails native lỗi: $e');
@@ -939,24 +983,27 @@ class HomeScreenState extends State<HomeScreen> {
 
     try {
       final langs = await _tts.getLanguages;
-      out['ttsLanguages'] =
-          (langs as List).map((e) => e.toString()).toList()..sort();
+      out['ttsLanguages'] = (langs as List).map((e) => e.toString()).toList()
+        ..sort();
     } catch (e) {
       out['ttsLanguages'] = <String>[];
       out['ttsError'] = '$e';
     }
 
-    AppLog.instance.log('Detect: sttAvailable=${out['sttAvailable']} '
-        'sttLocales=${(out['sttLocales'] as List).length} '
-        'ttsLangs=${(out['ttsLanguages'] as List).length}');
+    AppLog.instance.log(
+      'Detect: sttAvailable=${out['sttAvailable']} '
+      'sttLocales=${(out['sttLocales'] as List).length} '
+      'ttsLangs=${(out['ttsLanguages'] as List).length}',
+    );
     return out;
   }
 
   /// Start/stop the keep-alive foreground service (background + screen-off).
   Future<void> _setBackground(bool on) async {
     try {
-      await _nativeChannel
-          .invokeMethod(on ? 'startBackground' : 'stopBackground');
+      await _nativeChannel.invokeMethod(
+        on ? 'startBackground' : 'stopBackground',
+      );
     } on PlatformException catch (_) {}
   }
 
@@ -1034,8 +1081,10 @@ class HomeScreenState extends State<HomeScreen> {
       // on-device *recognition* vi pack was never downloaded.
       if (code == 12 || code == 13) {
         if (_state == AiState.listening) _stop();
-        _snack('Thiếu gói NHẬN GIỌNG tiếng Việt (khác giọng đọc). '
-            'Vào Cài đặt → "Tải gói ngay trong app".');
+        _snack(
+          'Thiếu gói NHẬN GIỌNG tiếng Việt (khác giọng đọc). '
+          'Vào Cài đặt → "Tải gói ngay trong app".',
+        );
       } else if (code == 9) {
         if (_state == AiState.listening) _stop();
         _setStatus('Chưa cấp quyền micro.');
@@ -1061,20 +1110,20 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   String _sttErrName(int code) => switch (code) {
-        1 => 'network timeout',
-        2 => 'network',
-        3 => 'audio',
-        4 => 'server',
-        5 => 'client',
-        6 => 'speech timeout',
-        7 => 'no match',
-        8 => 'busy',
-        9 => 'thiếu quyền micro',
-        11 => 'server disconnected',
-        12 => 'ngôn ngữ chưa hỗ trợ',
-        13 => 'ngôn ngữ chưa tải',
-        _ => 'khác',
-      };
+    1 => 'network timeout',
+    2 => 'network',
+    3 => 'audio',
+    4 => 'server',
+    5 => 'client',
+    6 => 'speech timeout',
+    7 => 'no match',
+    8 => 'busy',
+    9 => 'thiếu quyền micro',
+    11 => 'server disconnected',
+    12 => 'ngôn ngữ chưa hỗ trợ',
+    13 => 'ngôn ngữ chưa tải',
+    _ => 'khác',
+  };
 
   void _processTranscript(String text, bool isFinal) {
     _armSilenceClear(); // fresh speech → reset the silence-to-clear timer
@@ -1328,9 +1377,10 @@ class HomeScreenState extends State<HomeScreen> {
     }
     buf.writeln();
     buf.writeln(
-        'BẮT BUỘC: luôn tuân thủ cách nói / phong cách ở trên trong mọi câu '
-        'trả lời. Chỉ nói nội dung thoại, không giải thích meta, không ghi '
-        'tên người nói.');
+      'BẮT BUỘC: luôn tuân thủ cách nói / phong cách ở trên trong mọi câu '
+      'trả lời. Chỉ nói nội dung thoại, không giải thích meta, không ghi '
+      'tên người nói.',
+    );
     final topic = _loopTopic.trim();
     if (topic.isNotEmpty) {
       buf.writeln();
@@ -1452,7 +1502,9 @@ class HomeScreenState extends State<HomeScreen> {
         _live = '';
         if (_liveUser != null) _removeLiveUser();
         setState(() {});
-        AppLog.instance.log('Im lặng ${silenceClearSec}s — đã xoá nội dung nghe.');
+        AppLog.instance.log(
+          'Im lặng ${silenceClearSec}s — đã xoá nội dung nghe.',
+        );
       }
     });
   }
@@ -1464,13 +1516,13 @@ class HomeScreenState extends State<HomeScreen> {
   /// Readiness self-check as discrete steps. The Diagnostics screen runs them
   /// one at a time so it can show the current step + how long it's taking.
   List<(String, Future<DiagItem> Function())> diagSteps() => [
-        ('Nhận diện giọng nói', _diagStt),
-        ('Quyền micro', _diagMic),
-        ('Ngôn ngữ nghe ($locale)', _diagLocale),
-        ('Giọng đọc (TTS) vi-VN', _diagTts),
-        ('Cấu hình máy chủ AI', _diagAiConfig),
-        ('Kết nối máy chủ AI', _diagAiPing),
-      ];
+    ('Nhận diện giọng nói', _diagStt),
+    ('Quyền micro', _diagMic),
+    ('Ngôn ngữ nghe ($locale)', _diagLocale),
+    ('Giọng đọc (TTS) vi-VN', _diagTts),
+    ('Cấu hình máy chủ AI', _diagAiConfig),
+    ('Kết nối máy chủ AI', _diagAiPing),
+  ];
 
   Future<DiagItem> _diagStt() async {
     try {
@@ -1478,8 +1530,11 @@ class HomeScreenState extends State<HomeScreen> {
       final detail = info.recognizers.isEmpty
           ? 'Không có engine nhận giọng nào (cài "Speech Services by Google")'
           : 'Dùng engine: ${info.recognizers.first}';
-      return DiagItem('Nhận diện giọng nói',
-          info.available ? DiagStatus.ok : DiagStatus.fail, detail);
+      return DiagItem(
+        'Nhận diện giọng nói',
+        info.available ? DiagStatus.ok : DiagStatus.fail,
+        detail,
+      );
     } catch (e) {
       return DiagItem('Nhận diện giọng nói', DiagStatus.fail, '$e');
     }
@@ -1487,11 +1542,14 @@ class HomeScreenState extends State<HomeScreen> {
 
   Future<DiagItem> _diagMic() async {
     try {
-      final has = await _nativeChannel.invokeMethod<bool>('micGranted') ?? false;
+      final has =
+          await _nativeChannel.invokeMethod<bool>('micGranted') ?? false;
       return DiagItem(
         'Quyền micro',
         has ? DiagStatus.ok : DiagStatus.fail,
-        has ? 'Đã cấp' : 'Chưa cấp — bấm Bắt đầu để cấp, hoặc vào Cài đặt ứng dụng',
+        has
+            ? 'Đã cấp'
+            : 'Chưa cấp — bấm Bắt đầu để cấp, hoặc vào Cài đặt ứng dụng',
       );
     } catch (e) {
       return DiagItem('Quyền micro', DiagStatus.warn, '$e');
@@ -1504,15 +1562,19 @@ class HomeScreenState extends State<HomeScreen> {
       // so a language the plugin misses but the recognizer supports still counts.
       final info = await sttInfo();
       final want = locale.toLowerCase().replaceAll('-', '_');
-      final ids =
-          info.locales.map((l) => l.id.toLowerCase().replaceAll('-', '_'));
+      final ids = info.locales.map(
+        (l) => l.id.toLowerCase().replaceAll('-', '_'),
+      );
       final exact = ids.any((id) => id == want);
       final anyVi = ids.any((id) => id.startsWith('vi'));
       if (exact) {
         return DiagItem('Ngôn ngữ nghe ($locale)', DiagStatus.ok, 'Máy hỗ trợ');
       } else if (anyVi) {
-        return DiagItem('Ngôn ngữ nghe ($locale)', DiagStatus.warn,
-            'Không thấy đúng "$locale" nhưng máy có tiếng Việt khác');
+        return DiagItem(
+          'Ngôn ngữ nghe ($locale)',
+          DiagStatus.warn,
+          'Không thấy đúng "$locale" nhưng máy có tiếng Việt khác',
+        );
       }
       final hint = info.recognizers.isEmpty
           ? 'Máy không có bộ nhận giọng nói (máy nội địa Trung thiếu Google). Cài "Speech Services by Google".'
@@ -1540,19 +1602,28 @@ class HomeScreenState extends State<HomeScreen> {
   Future<DiagItem> _diagAiConfig() async {
     if (!_ai.configured) {
       return const DiagItem(
-          'Cấu hình máy chủ AI', DiagStatus.fail, 'Chưa nhập địa chỉ máy chủ');
+        'Cấu hình máy chủ AI',
+        DiagStatus.fail,
+        'Chưa nhập địa chỉ máy chủ',
+      );
     }
     return DiagItem('Cấu hình máy chủ AI', DiagStatus.ok, _ai.resolvedUrl);
   }
 
   Future<DiagItem> _diagAiPing() async {
     if (!_ai.configured) {
-      return const DiagItem('Kết nối máy chủ AI', DiagStatus.warn,
-          'Bỏ qua — chưa cấu hình địa chỉ');
+      return const DiagItem(
+        'Kết nối máy chủ AI',
+        DiagStatus.warn,
+        'Bỏ qua — chưa cấu hình địa chỉ',
+      );
     }
     final (ok, detail) = await _ai.ping();
     return DiagItem(
-        'Kết nối máy chủ AI', ok ? DiagStatus.ok : DiagStatus.fail, detail);
+      'Kết nối máy chủ AI',
+      ok ? DiagStatus.ok : DiagStatus.fail,
+      detail,
+    );
   }
 
   @override
@@ -1639,7 +1710,9 @@ class HomeScreenState extends State<HomeScreen> {
                           color: const Color(0xFFF8FBFF),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                              color: const Color(0xFF3A6EA5), width: 2),
+                            color: const Color(0xFF3A6EA5),
+                            width: 2,
+                          ),
                           boxShadow: const [
                             BoxShadow(
                               color: Color(0x55000000),
@@ -1660,7 +1733,9 @@ class HomeScreenState extends State<HomeScreen> {
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topCenter,
@@ -1679,7 +1754,7 @@ class HomeScreenState extends State<HomeScreen> {
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
                               shadows: [
-                                Shadow(color: Colors.black38, blurRadius: 1)
+                                Shadow(color: Colors.black38, blurRadius: 1),
                               ],
                             ),
                           ),
@@ -1687,12 +1762,17 @@ class HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 8),
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
                           child: _history.isEmpty
                               ? Center(
-                                  child: Text('Hội thoại sẽ hiện ở đây…',
-                                      style: TextStyle(
-                                          color: cs.onSurfaceVariant)),
+                                  child: Text(
+                                    'Hội thoại sẽ hiện ở đây…',
+                                    style: TextStyle(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
                                 )
                               : ListView.builder(
                                   controller: _chatScroll,
@@ -1711,13 +1791,13 @@ class HomeScreenState extends State<HomeScreen> {
                 children: [
                   Expanded(
                     child: _controlButton(
-                      onTap: _loopActive
-                          ? null
-                          : (running ? _stop : _start),
+                      onTap: _loopActive ? null : (running ? _stop : _start),
                       icon: running ? Icons.stop_rounded : Icons.mic_rounded,
                       label: running ? 'Dừng' : 'Nói',
                       color: running ? const Color(0xFFE5484D) : cs.primary,
                       win7: win7,
+                      // Initial remote focus lands on the main action.
+                      autofocus: true,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1771,6 +1851,7 @@ class HomeScreenState extends State<HomeScreen> {
     required Color color,
     required bool win7,
     double height = 58,
+    bool autofocus = false,
   }) {
     final light = Color.lerp(color, Colors.white, win7 ? 0.42 : 0.35)!;
     final dark = Color.lerp(color, Colors.black, 0.22)!;
@@ -1779,6 +1860,7 @@ class HomeScreenState extends State<HomeScreen> {
     return _PressPop(
       onTap: onTap,
       radius: radius,
+      autofocus: autofocus,
       builder: (pressed) => DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
@@ -1795,7 +1877,9 @@ class HomeScreenState extends State<HomeScreen> {
           boxShadow: win7
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: pressed ? 0.18 : 0.28),
+                    color: Colors.black.withValues(
+                      alpha: pressed ? 0.18 : 0.28,
+                    ),
                     blurRadius: pressed ? 2 : 5,
                     offset: Offset(0, pressed ? 1 : 3),
                   ),
@@ -1821,12 +1905,11 @@ class HomeScreenState extends State<HomeScreen> {
                   label,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      shadows: [
-                        Shadow(color: Colors.black26, blurRadius: 2)
-                      ]),
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    shadows: [Shadow(color: Colors.black26, blurRadius: 2)],
+                  ),
                 ),
               ),
             ],
@@ -1852,12 +1935,16 @@ class HomeScreenState extends State<HomeScreen> {
             end: Alignment.bottomCenter,
             colors: [style.light, style.color],
           ),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.6),
+            width: 2,
+          ),
           boxShadow: [
             BoxShadow(
-                color: style.color.withValues(alpha: 0.55),
-                blurRadius: 14,
-                offset: const Offset(0, 5)),
+              color: style.color.withValues(alpha: 0.55),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
           ],
         ),
         child: Icon(style.icon, color: Colors.white, size: 26),
@@ -1871,7 +1958,8 @@ class HomeScreenState extends State<HomeScreen> {
     final media = MediaQuery.of(context);
     final style = themeHeartStyle(widget.theme.theme);
     // Start near the bottom-right (where the button lives), with a little spread.
-    final startX = media.size.width -
+    final startX =
+        media.size.width -
         70 -
         _rnd.nextDouble() * 40 +
         (_rnd.nextDouble() - 0.5) * 20;
@@ -1898,104 +1986,122 @@ class HomeScreenState extends State<HomeScreen> {
       builder: (ctx) {
         String? qrData; // showing a generated QR
         String? scanned; // full scanned text
-        return StatefulBuilder(builder: (ctx, setD) {
-          Widget content;
-          if (qrData != null) {
-            content = Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.all(10),
-                child: QrImageView(data: qrData!, size: 232),
-              ),
-              const SizedBox(height: 8),
-              Text(qrData!,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12.5)),
-            ]);
-          } else if (scanned != null) {
-            final full = scanned!;
-            final short = full.length > 20 ? '${full.substring(0, 20)}...' : full;
-            content = Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Nội dung quét được:'),
-                const SizedBox(height: 6),
-                SelectableText(short,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 10),
-                FilledButton.icon(
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: full));
-                    _snack('Đã copy toàn bộ nội dung');
-                  },
-                  icon: const Icon(Icons.copy),
-                  label: const Text('Copy'),
+        return StatefulBuilder(
+          builder: (ctx, setD) {
+            Widget content;
+            if (qrData != null) {
+              content = Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(10),
+                    child: QrImageView(data: qrData!, size: 232),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    qrData!,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                ],
+              );
+            } else if (scanned != null) {
+              final full = scanned!;
+              final short = full.length > 20
+                  ? '${full.substring(0, 20)}...'
+                  : full;
+              content = Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Nội dung quét được:'),
+                  const SizedBox(height: 6),
+                  SelectableText(
+                    short,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: full));
+                      _snack('Đã copy toàn bộ nội dung');
+                    },
+                    icon: const Icon(Icons.copy),
+                    label: const Text('Copy'),
+                  ),
+                ],
+              );
+            } else {
+              content = TvTextField(
+                controller: ctrl,
+                minLines: 2,
+                maxLines: 6,
+                autofocus: true,
+                startEditing: true,
+                decoration: const InputDecoration(
+                  hintText: 'Nhập text để tạo QR…',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
-              ],
-            );
-          } else {
-            content = TextField(
-              controller: ctrl,
-              minLines: 2,
-              maxLines: 6,
-              autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'Nhập text để tạo QR…',
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              );
+            }
+            final showActions = qrData == null && scanned == null;
+            final screenW = MediaQuery.of(ctx).size.width;
+            return AlertDialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 24,
               ),
-            );
-          }
-          final showActions = qrData == null && scanned == null;
-          final screenW = MediaQuery.of(ctx).size.width;
-          return AlertDialog(
-            insetPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
-            title: const Text('QR code'),
-            content: SizedBox(
-              width: screenW * 0.92,
-              child: SingleChildScrollView(child: content),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Đóng')),
-              if (!showActions)
+              title: const Text('QR code'),
+              content: SizedBox(
+                width: screenW * 0.92,
+                child: SingleChildScrollView(child: content),
+              ),
+              actions: [
                 TextButton(
-                  onPressed: () => setD(() {
-                    qrData = null;
-                    scanned = null;
-                  }),
-                  child: const Text('Lại'),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Đóng'),
                 ),
-              if (showActions) ...[
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final t = await _scanQr();
-                    if (t != null) setD(() => scanned = t);
-                  },
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: const Text('Quét QRcode'),
-                ),
-                FilledButton.icon(
-                  onPressed: () {
-                    final t = ctrl.text.trim();
-                    if (t.isEmpty) {
-                      _snack('Nhập text trước đã.');
-                      return;
-                    }
-                    setD(() => qrData = t);
-                  },
-                  icon: const Icon(Icons.qr_code_2),
-                  label: const Text('QRcode'),
-                ),
+                if (!showActions)
+                  TextButton(
+                    autofocus: true,
+                    onPressed: () => setD(() {
+                      qrData = null;
+                      scanned = null;
+                    }),
+                    child: const Text('Lại'),
+                  ),
+                if (showActions) ...[
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final t = await _scanQr();
+                      if (t != null) setD(() => scanned = t);
+                    },
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: const Text('Quét QRcode'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () {
+                      final t = ctrl.text.trim();
+                      if (t.isEmpty) {
+                        _snack('Nhập text trước đã.');
+                        return;
+                      }
+                      setD(() => qrData = t);
+                    },
+                    icon: const Icon(Icons.qr_code_2),
+                    label: const Text('QRcode'),
+                  ),
+                ],
               ],
-            ],
-          );
-        });
+            );
+          },
+        );
       },
     );
     ctrl.dispose();
@@ -2019,9 +2125,9 @@ class HomeScreenState extends State<HomeScreen> {
       AppLog.instance.log('requestCamera lỗi: $e');
     }
     if (!mounted) return null;
-    return Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const QrScannerPage()),
-    );
+    return Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const QrScannerPage()));
   }
 
   /// Popup to type a question (the "Nhắn chữ" button) with its own Send button.
@@ -2036,22 +2142,26 @@ class HomeScreenState extends State<HomeScreen> {
         insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
         shape: win7
             ? const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10)))
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+              )
             : null,
         title: const Text('Nhắn chữ cho AI'),
         content: SizedBox(
           width: screenW * 0.92,
-          child: TextField(
+          child: TvTextField(
             controller: ctrl,
             autofocus: true,
+            startEditing: true,
             minLines: 2,
             maxLines: 8,
             textInputAction: TextInputAction.send,
             decoration: const InputDecoration(
               hintText: 'Nhập nội dung…',
               border: OutlineInputBorder(),
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
             ),
             onSubmitted: (_) {
               final t = ctrl.text;
@@ -2062,8 +2172,9 @@ class HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Huỷ')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Huỷ'),
+          ),
           FilledButton.icon(
             onPressed: () {
               final t = ctrl.text;
@@ -2112,9 +2223,8 @@ class HomeScreenState extends State<HomeScreen> {
                   ),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-                color: isUser
-                    ? const Color(0xFF1C5FB0)
-                    : const Color(0xFF9CC3E8)),
+              color: isUser ? const Color(0xFF1C5FB0) : const Color(0xFF9CC3E8),
+            ),
           )
         : BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14));
 
@@ -2123,22 +2233,27 @@ class HomeScreenState extends State<HomeScreen> {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints:
-            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
         decoration: deco,
         child: m.thinking
             // Auto-dialogue: dots only, no label — the bubble's side already
             // says who is composing.
             ? _TypingDots(color: fg)
             : thinking
-            ? Row(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
-                const SizedBox(width: 10),
-                Text('Đang suy nghĩ…', style: TextStyle(color: fg)),
-              ])
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Đang suy nghĩ…', style: TextStyle(color: fg)),
+                ],
+              )
             : Text(
                 m.text,
                 style: TextStyle(
@@ -2155,21 +2270,25 @@ class HomeScreenState extends State<HomeScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-          builder: (_) =>
-              SettingsScreen(ai: _ai, home: this, theme: widget.theme)),
+        builder: (_) =>
+            SettingsScreen(ai: _ai, home: this, theme: widget.theme),
+      ),
     );
     await saveCfg();
     if (mounted) setState(() {});
   }
 }
 
-
 class SettingsScreen extends StatefulWidget {
   final AiClient ai;
   final HomeScreenState home;
   final ThemeController theme;
-  const SettingsScreen(
-      {super.key, required this.ai, required this.home, required this.theme});
+  const SettingsScreen({
+    super.key,
+    required this.ai,
+    required this.home,
+    required this.theme,
+  });
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -2182,22 +2301,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final _stop = TextEditingController(text: widget.home.stopWord);
   late final _startw = TextEditingController(text: widget.home.startWord);
   late final _locale = TextEditingController(text: widget.home.locale);
-  late final _loopPromptA =
-      TextEditingController(text: widget.home.loopPromptA);
-  late final _loopPromptB =
-      TextEditingController(text: widget.home.loopPromptB);
-  late final _maxMsg =
-      TextEditingController(text: widget.home.maxMessages.toString());
-  late final _loopCtx =
-      TextEditingController(text: widget.home.loopContextCount.toString());
-  late final _silence =
-      TextEditingController(text: widget.home.silenceClearSec.toString());
+  late final _loopPromptA = TextEditingController(
+    text: widget.home.loopPromptA,
+  );
+  late final _loopPromptB = TextEditingController(
+    text: widget.home.loopPromptB,
+  );
+  late final _maxMsg = TextEditingController(
+    text: widget.home.maxMessages.toString(),
+  );
+  late final _loopCtx = TextEditingController(
+    text: widget.home.loopContextCount.toString(),
+  );
+  late final _silence = TextEditingController(
+    text: widget.home.silenceClearSec.toString(),
+  );
   late String _ttsVoice2Sel = widget.home.ttsVoice2Name;
-  late String _method = AiClient.methods.contains(widget.ai.method.toUpperCase())
+  late String _method =
+      AiClient.methods.contains(widget.ai.method.toUpperCase())
       ? widget.ai.method.toUpperCase()
       : 'POST';
-  late String _provider =
-      AiClient.providers.contains(widget.ai.provider) ? widget.ai.provider : 'local';
+  late String _provider = AiClient.providers.contains(widget.ai.provider)
+      ? widget.ai.provider
+      : 'local';
 
   // Common languages always offered even if the device reports none.
   static const _presets = <({String id, String name})>[
@@ -2228,13 +2354,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<({String name, String locale})> _ttsVoices = [];
   List<String> _ttsEngineList = [];
   bool _loadingTts = true;
-  late String _ttsEngineSel = widget.home.ttsEngine; // '' = auto (ưu tiên Google)
+  late String _ttsEngineSel =
+      widget.home.ttsEngine; // '' = auto (ưu tiên Google)
   late String _ttsLangSel = widget.home.ttsLang; // '' = auto
   late String _ttsVoiceSel = widget.home.ttsVoiceName; // '' = auto
   late AppTheme _themeSel = widget.theme.theme;
 
   // Running the "test listening language" probe.
   bool _testing = false;
+
+  /// Slider focus: Left/Right adjust, Up/Down leave (remote navigation).
+  final _rateFocus = tvVerticalEscapeNode();
 
   /// Voices belonging to the selected "Ngôn ngữ đọc" (empty selection = all).
   /// Matches the exact locale or the same base language (e.g. vi-VN ~ vi).
@@ -2260,11 +2390,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadRecents() async {
     final r = <String, List<String>>{};
     for (final p in AiClient.providers) {
-      r[HomeScreenState.mruKey('model', p)] =
-          await widget.home.loadRecent('model', provider: p);
+      r[HomeScreenState.mruKey('model', p)] = await widget.home.loadRecent(
+        'model',
+        provider: p,
+      );
     }
-    r[HomeScreenState.mruKey('endpoint', '')] =
-        await widget.home.loadRecent('endpoint');
+    r[HomeScreenState.mruKey('endpoint', '')] = await widget.home.loadRecent(
+      'endpoint',
+    );
     if (mounted) setState(() => _recent = r);
   }
 
@@ -2274,8 +2407,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _dlBusy = true);
     try {
       await widget.home.downloadSttModel();
-      _snack('Đã yêu cầu tải gói nhận giọng tiếng Việt. '
-          'Chờ ~1–2 phút cho máy tải xong rồi thử nói lại.');
+      _snack(
+        'Đã yêu cầu tải gói nhận giọng tiếng Việt. '
+        'Chờ ~1–2 phút cho máy tải xong rồi thử nói lại.',
+      );
     } catch (e) {
       _snack('Máy không hỗ trợ tải trong app ($e) — dùng nút "Ra cài đặt".');
     } finally {
@@ -2298,21 +2433,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final want = id.toLowerCase().replaceAll('-', '_');
     final wantBase = want.split('_').first;
-    final exact = info.locales
-        .any((l) => l.id.toLowerCase().replaceAll('-', '_') == want);
+    final exact = info.locales.any(
+      (l) => l.id.toLowerCase().replaceAll('-', '_') == want,
+    );
     final sameBase = info.locales.any(
-        (l) => l.id.toLowerCase().split(RegExp('[_-]')).first == wantBase);
+      (l) => l.id.toLowerCase().split(RegExp('[_-]')).first == wantBase,
+    );
 
     if (info.available && exact) {
       _resultDialog(true, 'Ngôn ngữ nghe "$id" đã sẵn sàng trên máy.');
     } else if (info.available && sameBase) {
-      _resultDialog(false,
-          'Máy có ngôn ngữ gần giống nhưng không đúng "$id". Nên cài thêm gói đúng để nhận tốt hơn.');
+      _resultDialog(
+        false,
+        'Máy có ngôn ngữ gần giống nhưng không đúng "$id". Nên cài thêm gói đúng để nhận tốt hơn.',
+      );
     } else if (info.available) {
       _resultDialog(false, 'Máy chưa có gói ngôn ngữ "$id" để nhận giọng nói.');
     } else {
-      _resultDialog(false,
-          'Máy chưa có bộ nhận giọng nói khả dụng (thường do ROM thiếu Google).');
+      _resultDialog(
+        false,
+        'Máy chưa có bộ nhận giọng nói khả dụng (thường do ROM thiếu Google).',
+      );
     }
   }
 
@@ -2320,13 +2461,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(children: [
-          Icon(ok ? Icons.check_circle : Icons.warning_amber_rounded,
-              color:
-                  ok ? const Color(0xFF30A46C) : const Color(0xFFF5A623)),
-          const SizedBox(width: 8),
-          Text(ok ? 'Khả dụng' : 'Chưa cài đủ'),
-        ]),
+        title: Row(
+          children: [
+            Icon(
+              ok ? Icons.check_circle : Icons.warning_amber_rounded,
+              color: ok ? const Color(0xFF30A46C) : const Color(0xFFF5A623),
+            ),
+            const SizedBox(width: 8),
+            Text(ok ? 'Khả dụng' : 'Chưa cài đủ'),
+          ],
+        ),
         content: ok
             ? Text(msg)
             : SingleChildScrollView(
@@ -2334,9 +2478,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('$msg\n\nMở màn hình cài đặt để tải ngôn ngữ về máy. '
-                        'Nếu nút "CH Play" dẫn sai, hãy tự tìm trên CH Play bằng '
-                        'từ khoá dưới đây (chạm để copy):'),
+                    Text(
+                      '$msg\n\nMở màn hình cài đặt để tải ngôn ngữ về máy. '
+                      'Nếu nút "CH Play" dẫn sai, hãy tự tìm trên CH Play bằng '
+                      'từ khoá dưới đây (chạm để copy):',
+                    ),
                     const SizedBox(height: 10),
                     _copyRow('Speech Services by Google'),
                     _copyRow('com.google.android.tts'),
@@ -2352,13 +2498,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: ok
             ? [
                 TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('OK')),
+                  autofocus: true,
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
               ]
             : [
                 TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Đóng')),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Đóng'),
+                ),
                 TextButton(
                   onPressed: () {
                     Navigator.pop(ctx);
@@ -2367,6 +2516,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: const Text('CH Play'),
                 ),
                 FilledButton(
+                  autofocus: true,
                   onPressed: () {
                     Navigator.pop(ctx);
                     _openInstall('openSttSettings');
@@ -2383,7 +2533,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _copyRow(String text) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: InkWell(
+      child: TvFocusable(
+        focusedScale: 1.02,
         onTap: () async {
           await Clipboard.setData(ClipboardData(text: text));
           _snack('Đã copy: $text');
@@ -2398,9 +2549,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Row(
             children: [
               Expanded(
-                child: SelectableText(text,
-                    style: const TextStyle(
-                        fontFamily: 'monospace', fontSize: 13.5)),
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13.5,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               const Icon(Icons.copy, size: 16),
@@ -2428,13 +2583,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// Small speaker button to hear a voice sample.
   Widget _previewBtn(VoidCallback onTap) => Padding(
-        padding: const EdgeInsets.only(left: 6, bottom: 18),
-        child: IconButton.filledTonal(
-          tooltip: 'Nghe thử',
-          icon: const Icon(Icons.volume_up),
-          onPressed: onTap,
-        ),
-      );
+    padding: const EdgeInsets.only(left: 6, bottom: 18),
+    child: IconButton.filledTonal(
+      tooltip: 'Nghe thử',
+      icon: const Icon(Icons.volume_up),
+      onPressed: onTap,
+    ),
+  );
 
   void _previewVoice(String name) {
     final match = _ttsVoices.where((v) => v.name == name).toList();
@@ -2507,11 +2662,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     for (final c in [
-      _endpoint, _model, _apiKey, _prompt, _stop, _startw, _locale,
-      _loopPromptA, _loopPromptB, _maxMsg, _loopCtx, _silence,
+      _endpoint,
+      _model,
+      _apiKey,
+      _prompt,
+      _stop,
+      _startw,
+      _locale,
+      _loopPromptA,
+      _loopPromptB,
+      _maxMsg,
+      _loopCtx,
+      _silence,
     ]) {
       c.dispose();
     }
+    _rateFocus.dispose();
     super.dispose();
   }
 
@@ -2523,11 +2689,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.ai.apiKey = _apiKey.text.trim();
     widget.ai.method = _method;
     widget.ai.systemPrompt = _prompt.text.trim();
-    widget.home.stopWord =
-        _stop.text.trim().isEmpty ? 'AI' : _stop.text.trim();
+    widget.home.stopWord = _stop.text.trim().isEmpty ? 'AI' : _stop.text.trim();
     widget.home.startWord = _startw.text.trim();
-    widget.home.locale =
-        _locale.text.trim().isEmpty ? 'vi_VN' : _locale.text.trim();
+    widget.home.locale = _locale.text.trim().isEmpty
+        ? 'vi_VN'
+        : _locale.text.trim();
     widget.home.ttsEngine = _ttsEngineSel;
     widget.home.ttsLang = _ttsLangSel;
     final v = _ttsVoices.where((x) => x.name == _ttsVoiceSel).toList();
@@ -2538,12 +2704,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.home.ttsVoice2Locale = v2.isNotEmpty ? v2.first.locale : '';
     widget.home.loopPromptA = _loopPromptA.text.trim();
     widget.home.loopPromptB = _loopPromptB.text.trim();
-    widget.home.maxMessages =
-        (int.tryParse(_maxMsg.text.trim()) ?? 20).clamp(2, 200);
-    widget.home.loopContextCount =
-        (int.tryParse(_loopCtx.text.trim()) ?? 1).clamp(1, 40);
-    widget.home.silenceClearSec =
-        (int.tryParse(_silence.text.trim()) ?? 0).clamp(0, 60);
+    widget.home.maxMessages = (int.tryParse(_maxMsg.text.trim()) ?? 20).clamp(
+      2,
+      200,
+    );
+    widget.home.loopContextCount = (int.tryParse(_loopCtx.text.trim()) ?? 1)
+        .clamp(1, 40);
+    widget.home.silenceClearSec = (int.tryParse(_silence.text.trim()) ?? 0)
+        .clamp(0, 60);
     widget.theme.set(_themeSel);
   }
 
@@ -2562,8 +2730,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _doExport() async {
     _applyToHome();
     await widget.home.saveCfg();
-    final json = const JsonEncoder.withIndent('  ')
-        .convert(widget.home.exportConfig());
+    final json = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(widget.home.exportConfig());
     await Clipboard.setData(ClipboardData(text: json));
     if (!mounted) return;
     final nameCtrl = TextEditingController(text: 'voice_ai');
@@ -2576,7 +2745,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
+              TvTextField(
                 controller: nameCtrl,
                 decoration: const InputDecoration(
                   labelText: 'Tên profile (dùng cho tên file)',
@@ -2584,15 +2753,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              SelectableText(json,
-                  style:
-                      const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+              // On a TV a SelectableText would trap the D-pad; "Copy" covers it.
+              TvMode.isTv
+                  ? Text(
+                      json,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    )
+                  : SelectableText(
+                      json,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
             ],
           ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Đóng')),
+            autofocus: true,
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Đóng'),
+          ),
           TextButton.icon(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: json));
@@ -2618,7 +2803,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final now = DateTime.now();
       String two(int n) => n.toString().padLeft(2, '0');
-      final ts = '${now.year}${two(now.month)}${two(now.day)}_'
+      final ts =
+          '${now.year}${two(now.month)}${two(now.day)}_'
           '${two(now.hour)}${two(now.minute)}${two(now.second)}';
       var name = profile.trim();
       if (name.isEmpty) name = 'voice_ai';
@@ -2627,8 +2813,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$fileName');
       await file.writeAsString(json);
-      await Share.shareXFiles([XFile(file.path)],
-          subject: 'Voice AI - $fileName');
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], subject: 'Voice AI - $fileName');
       if (mounted) _snack('Đã tạo file: $fileName');
     } catch (e) {
       if (mounted) _snack('Lưu file lỗi: $e');
@@ -2646,8 +2833,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              TvTextField(
                 controller: nameCtrl,
+                autofocus: true,
                 decoration: const InputDecoration(
                   labelText: 'Tên profile',
                   border: OutlineInputBorder(),
@@ -2663,7 +2851,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              TextField(
+              TvTextField(
                 controller: jsonCtrl,
                 minLines: 4,
                 maxLines: 10,
@@ -2677,7 +2865,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Huỷ'),
+          ),
           FilledButton(
             onPressed: () async {
               final name = nameCtrl.text.trim();
@@ -2688,7 +2878,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Map<String, dynamic> data;
               try {
                 data = Map<String, dynamic>.from(
-                    jsonDecode(jsonCtrl.text.trim()) as Map);
+                  jsonDecode(jsonCtrl.text.trim()) as Map,
+                );
               } catch (e) {
                 _snack('JSON không hợp lệ: $e');
                 return;
@@ -2710,7 +2901,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Lets the user pick a .json config file, loads its text into the import
   /// field, and pre-fills the profile name from the file name if empty.
   Future<void> _pickImportFile(
-      TextEditingController nameCtrl, TextEditingController jsonCtrl) async {
+    TextEditingController nameCtrl,
+    TextEditingController jsonCtrl,
+  ) async {
     try {
       final res = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -2773,475 +2966,602 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      body: ListView(
+      // A Column (not a lazy ListView) so every control exists and D-pad
+      // focus traversal can always find the next one below.
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        children: [
-          // Quick access to the log (top of the screen).
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const LogScreen())),
-              icon: const Icon(Icons.article_outlined),
-              label: const Text('Xem log'),
-            ),
-          ),
-          // Config profiles + import/export.
-          DropdownButtonFormField<String>(
-            initialValue: null,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Profile cấu hình (chọn để áp dụng)',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              const DropdownMenuItem<String>(
-                  value: '', child: Text('— chọn profile —')),
-              for (final n in _profileNames)
-                DropdownMenuItem<String>(value: n, child: Text(n)),
-            ],
-            onChanged: (v) {
-              if (v != null && v.isNotEmpty) _applyProfile(v);
-            },
-          ),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _doImport,
-                icon: const Icon(Icons.file_download),
-                label: const Text('Import'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Quick access to the log (top of the screen).
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LogScreen()),
+                ),
+                icon: const Icon(Icons.article_outlined),
+                label: const Text('Xem log'),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _doExport,
-                icon: const Icon(Icons.file_upload),
-                label: const Text('Export'),
-              ),
-            ),
-          ]),
-          const Divider(height: 24),
-          _hdr('Cấu hình chung'),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: DropdownButtonFormField<AppTheme>(
-              initialValue: _themeSel,
+            // Config profiles + import/export.
+            DropdownButtonFormField<String>(
+              initialValue: null,
+              isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Giao diện (theme)',
+                labelText: 'Profile cấu hình (chọn để áp dụng)',
                 border: OutlineInputBorder(),
               ),
               items: [
-                for (final t in AppTheme.values)
-                  DropdownMenuItem(value: t, child: Text(appThemeNames[t]!)),
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('— chọn profile —'),
+                ),
+                for (final n in _profileNames)
+                  DropdownMenuItem<String>(value: n, child: Text(n)),
               ],
-              onChanged: (v) => setState(() => _themeSel = v ?? AppTheme.dark),
+              onChanged: (v) {
+                if (v != null && v.isNotEmpty) _applyProfile(v);
+              },
             ),
-          ),
-          _field(_maxMsg, 'Số tin tối đa hiện trên màn hình (chung)', '20'),
-          const Divider(height: 24),
-          _hdr('AI đối thoại (hỏi–đáp / chat)'),
-          _field(_startw, 'Từ khoá bắt đầu (tuỳ chọn)', 'để trống nếu không dùng',
-              helper:
-                  'Nếu điền, chỉ tính câu hỏi phần nói SAU từ này (tới từ kết thúc).'),
-          _field(_stop, 'Từ khoá kết thúc câu hỏi', 'AI'),
-          _field(_silence, 'Xoá sau khi im lặng (giây, 0 = tắt)', '0',
-              helper: 'Khi KHÔNG dùng "Từ khoá bắt đầu": im lặng quá lâu mà chưa '
-                  'nói từ kết thúc thì xoá nội dung vừa nghe.'),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: DropdownButtonFormField<String>(
-              initialValue: _provider,
-              decoration: const InputDecoration(
-                labelText: 'Nguồn AI',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(
-                    value: 'local',
-                    child: Text('Local (Ollama / LM Studio…)')),
-                DropdownMenuItem(
-                    value: 'gemini', child: Text('Google Gemini (API key)')),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _doImport,
+                    icon: const Icon(Icons.file_download),
+                    label: const Text('Import'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _doExport,
+                    icon: const Icon(Icons.file_upload),
+                    label: const Text('Export'),
+                  ),
+                ),
               ],
-              onChanged: (v) => setState(() => _provider = v ?? 'local'),
             ),
-          ),
-          if (_provider == 'local') ...[
-            _mruField(_endpoint, 'Địa chỉ máy chủ AI (OpenAI-compatible)',
-                'http://192.168.1.10:11434/v1/chat/completions',
-                kind: 'endpoint'),
+            const Divider(height: 24),
+            _hdr('Cấu hình chung'),
             Padding(
               padding: const EdgeInsets.only(bottom: 14),
-              child: DropdownButtonFormField<String>(
-                initialValue: _method,
+              child: DropdownButtonFormField<AppTheme>(
+                // Initial remote focus: first setting of the screen.
+                autofocus: true,
+                initialValue: _themeSel,
                 decoration: const InputDecoration(
-                  labelText: 'HTTP method',
-                  helperText: 'Mặc định POST cho chat.',
+                  labelText: 'Giao diện (theme)',
                   border: OutlineInputBorder(),
                 ),
                 items: [
-                  for (final m in AiClient.methods)
-                    DropdownMenuItem(value: m, child: Text(m)),
+                  for (final t in AppTheme.values)
+                    DropdownMenuItem(value: t, child: Text(appThemeNames[t]!)),
                 ],
-                onChanged: (v) => setState(() => _method = v ?? 'POST'),
+                onChanged: (v) =>
+                    setState(() => _themeSel = v ?? AppTheme.dark),
               ),
             ),
-          ],
-          _mruField(_model, _provider == 'gemini' ? 'Model Gemini' : 'Tên model',
+            _field(
+              _maxMsg,
+              'Số tin tối đa hiện trên màn hình (chung)',
+              '20',
+              number: true,
+            ),
+            const Divider(height: 24),
+            _hdr('AI đối thoại (hỏi–đáp / chat)'),
+            _field(
+              _startw,
+              'Từ khoá bắt đầu (tuỳ chọn)',
+              'để trống nếu không dùng',
+              helper:
+                  'Nếu điền, chỉ tính câu hỏi phần nói SAU từ này (tới từ kết thúc).',
+            ),
+            _field(_stop, 'Từ khoá kết thúc câu hỏi', 'AI'),
+            _field(
+              _silence,
+              'Xoá sau khi im lặng (giây, 0 = tắt)',
+              '0',
+              number: true,
+              helper:
+                  'Khi KHÔNG dùng "Từ khoá bắt đầu": im lặng quá lâu mà chưa '
+                  'nói từ kết thúc thì xoá nội dung vừa nghe.',
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: DropdownButtonFormField<String>(
+                initialValue: _provider,
+                decoration: const InputDecoration(
+                  labelText: 'Nguồn AI',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'local',
+                    child: Text('Local (Ollama / LM Studio…)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'gemini',
+                    child: Text('Google Gemini (API key)'),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _provider = v ?? 'local'),
+              ),
+            ),
+            if (_provider == 'local') ...[
+              _mruField(
+                _endpoint,
+                'Địa chỉ máy chủ AI (OpenAI-compatible)',
+                AiClient.defaultEndpoint,
+                kind: 'endpoint',
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: DropdownButtonFormField<String>(
+                  initialValue: _method,
+                  decoration: const InputDecoration(
+                    labelText: 'HTTP method',
+                    helperText: 'Mặc định POST cho chat.',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final m in AiClient.methods)
+                      DropdownMenuItem(value: m, child: Text(m)),
+                  ],
+                  onChanged: (v) => setState(() => _method = v ?? 'POST'),
+                ),
+              ),
+            ],
+            _mruField(
+              _model,
+              _provider == 'gemini' ? 'Model Gemini' : 'Tên model',
               _provider == 'gemini' ? 'gemini-1.5-flash' : 'qwen2.5:0.5b',
-              kind: 'model', provider: _provider),
-          _field(
+              kind: 'model',
+              provider: _provider,
+            ),
+            _field(
               _apiKey,
               _provider == 'gemini'
                   ? 'Gemini API key (token)'
                   : 'API key (nếu cần)',
-              _provider == 'gemini' ? 'AIza…' : 'để trống nếu chạy local'),
-          _field(_prompt, 'Prompt tính cách (tạo không khí)',
+              _provider == 'gemini' ? 'AIza…' : 'để trống nếu chạy local',
+            ),
+            _field(
+              _prompt,
+              'Prompt tính cách (tạo không khí)',
               'Bạn là trợ lý vui tính…',
-              maxLines: 4),
-          if (_loadingLocales)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
-              child: Row(children: [
-                SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
-                SizedBox(width: 10),
-                Text('Đang dò ngôn ngữ trên máy…'),
-              ]),
-            )
-          else ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: DropdownButtonFormField<String>(
-                initialValue: _localeSel,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Ngôn ngữ nghe',
-                  helperText:
-                      'Dấu ⚠ = máy chưa báo hỗ trợ. Nếu vi báo "chưa tải", bấm "Tải gói ngay trong app" bên dưới.',
-                  border: OutlineInputBorder(),
+              maxLines: 4,
+            ),
+            if (_loadingLocales)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 10),
+                    Text('Đang dò ngôn ngữ trên máy…'),
+                  ],
                 ),
-                items: [
-                  for (final l in _locales)
-                    DropdownMenuItem(
-                      value: l.id,
-                      child: Text(
-                        '${l.onDevice ? '' : '⚠ '}${l.name} (${l.id})',
-                        overflow: TextOverflow.ellipsis,
+              )
+            else ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: DropdownButtonFormField<String>(
+                  initialValue: _localeSel,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Ngôn ngữ nghe',
+                    helperText:
+                        'Dấu ⚠ = máy chưa báo hỗ trợ. Nếu vi báo "chưa tải", bấm "Tải gói ngay trong app" bên dưới.',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final l in _locales)
+                      DropdownMenuItem(
+                        value: l.id,
+                        child: Text(
+                          '${l.onDevice ? '' : '⚠ '}${l.name} (${l.id})',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    const DropdownMenuItem(
+                      value: '__custom__',
+                      child: Text('Tùy chỉnh…'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() {
+                      _localeSel = v;
+                      if (v == '__custom__') {
+                        _customLocale = true;
+                      } else {
+                        _customLocale = false;
+                        _locale.text = v;
+                      }
+                    });
+                  },
+                ),
+              ),
+              if (_customLocale) _field(_locale, 'Locale tùy chỉnh', 'vi_VN'),
+              const SizedBox(height: 4),
+              // Stacked vertically (one per line).
+              Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _dlBusy ? null : _downloadRecognitionPack,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1F6FD6),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFF8FB4E0),
+                        disabledForegroundColor: Colors.white,
+                      ),
+                      icon: _dlBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.download),
+                      label: Text(
+                        _dlBusy
+                            ? 'Đang yêu cầu tải…'
+                            : 'Tải gói ngay trong app',
                       ),
                     ),
-                  const DropdownMenuItem(
-                      value: '__custom__', child: Text('Tùy chỉnh…')),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _testing ? null : _testLocale,
+                      icon: _testing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.spellcheck),
+                      label: Text(
+                        _testing ? 'Đang kiểm tra…' : 'Thử tiếng Việt',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openInstall('openSttSettings'),
+                      icon: const Icon(Icons.settings),
+                      label: const Text('Ra cài đặt'),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openInstall('openSpeechServicesStore'),
+                      icon: const Icon(Icons.shop),
+                      label: const Text('Speech Services (CH Play)'),
+                    ),
+                  ),
                 ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() {
-                    _localeSel = v;
-                    if (v == '__custom__') {
-                      _customLocale = true;
-                    } else {
-                      _customLocale = false;
-                      _locale.text = v;
+              ),
+            ],
+            const Divider(height: 24),
+            _hdr('AI tự thoại (AI nói với AI)'),
+            const Text(
+              'Câu mở đầu khi bấm Tự thoại = chủ đề/xu hướng cho cả 2 bên. '
+              'Cách nói A/B luôn đưa vào system mỗi lượt. Input mỗi lượt = '
+              'câu đối phương vừa nói.',
+              style: TextStyle(color: Colors.white54, fontSize: 12.5),
+            ),
+            const SizedBox(height: 10),
+            _field(
+              _loopPromptA,
+              'Cách nói người A (system, giọng 1)',
+              'VD: vui tính, thân mật, câu ngắn tiếng Việt…',
+              maxLines: 3,
+              helper:
+                  'Luôn inject vào system để ép AI tuân thủ mỗi câu trả lời.',
+            ),
+            _field(
+              _loopPromptB,
+              'Cách nói người B (system, giọng 2)',
+              'VD: hay phản biện, dí dỏm, câu ngắn tiếng Việt…',
+              maxLines: 3,
+              helper:
+                  'Luôn inject vào system để ép AI tuân thủ mỗi câu trả lời.',
+            ),
+            _field(
+              _loopCtx,
+              'Số câu đối phương làm input',
+              '1',
+              number: true,
+              helper:
+                  '1 = chỉ câu đối phương vừa nói. '
+                  'Lớn hơn = lấy thêm các câu gần nhất của đối phương (không lấy câu của chính nó).',
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Giọng đọc & tốc độ',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            if (_loadingTts)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 10),
+                    Text('Đang dò giọng đọc trên máy…'),
+                  ],
+                ),
+              )
+            else ...[
+              if (_ttsEngineList.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _ttsEngineList.contains(_ttsEngineSel)
+                        ? _ttsEngineSel
+                        : '',
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Engine đọc',
+                      helperText:
+                          'Chọn Google nếu máy nội địa Trung để có tiếng Việt.',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('Tự động (ưu tiên Google)'),
+                      ),
+                      for (final e in _ttsEngineList)
+                        DropdownMenuItem(
+                          value: e,
+                          child: Text(
+                            _engineLabel(e),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) async {
+                      setState(() {
+                        _ttsEngineSel = v ?? '';
+                        _ttsLangSel = '';
+                        _ttsVoiceSel = '';
+                      });
+                      widget.home.ttsEngine = _ttsEngineSel;
+                      await _loadTts(); // languages/voices differ per engine
+                    },
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DropdownButtonFormField<String>(
+                  initialValue: _ttsLangs.contains(_ttsLangSel)
+                      ? _ttsLangSel
+                      : '',
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Ngôn ngữ đọc',
+                    helperText: 'Máy có ${_ttsLangs.length} ngôn ngữ đọc.',
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Tự động (theo máy)'),
+                    ),
+                    for (final l in _ttsLangs)
+                      DropdownMenuItem(
+                        value: l,
+                        child: Text(l, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() {
+                    _ttsLangSel = v ?? '';
+                    // Drop the voice if it no longer belongs to the new language.
+                    if (!_voicesForLang.any((x) => x.name == _ttsVoiceSel)) {
+                      _ttsVoiceSel = '';
                     }
-                  });
+                  }),
+                ),
+              ),
+              Builder(
+                builder: (_) {
+                  final voices = _voicesForLang;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue:
+                                voices.any((v) => v.name == _ttsVoiceSel)
+                                ? _ttsVoiceSel
+                                : '',
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              labelText: 'Giọng đọc',
+                              helperText: _ttsLangSel.isEmpty
+                                  ? 'Máy có ${_ttsVoices.length} giọng.'
+                                  : '${voices.length} giọng cho "$_ttsLangSel".',
+                              border: const OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: '',
+                                child: Text('Tự động (theo ngôn ngữ)'),
+                              ),
+                              for (final v in voices)
+                                DropdownMenuItem(
+                                  value: v.name,
+                                  child: Text(
+                                    '${v.locale} — ${v.name}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => _ttsVoiceSel = v ?? ''),
+                          ),
+                        ),
+                        _previewBtn(() => _previewVoice(_ttsVoiceSel)),
+                      ],
+                    ),
+                  );
                 },
               ),
-            ),
-            if (_customLocale) _field(_locale, 'Locale tùy chỉnh', 'vi_VN'),
-            const SizedBox(height: 4),
-            // Stacked vertically (one per line).
-            Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _dlBusy ? null : _downloadRecognitionPack,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1F6FD6),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFF8FB4E0),
-                      disabledForegroundColor: Colors.white,
+              Builder(
+                builder: (_) {
+                  final voices = _voicesForLang;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue:
+                                voices.any((v) => v.name == _ttsVoice2Sel)
+                                ? _ttsVoice2Sel
+                                : '',
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Giọng đọc thứ 2 (cho tự thoại)',
+                              helperText: 'Để trống = dùng chung giọng 1.',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: '',
+                                child: Text('Giống giọng 1'),
+                              ),
+                              for (final v in voices)
+                                DropdownMenuItem(
+                                  value: v.name,
+                                  child: Text(
+                                    '${v.locale} — ${v.name}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => _ttsVoice2Sel = v ?? ''),
+                          ),
+                        ),
+                        _previewBtn(
+                          () => _previewVoice(
+                            _ttsVoice2Sel.isNotEmpty
+                                ? _ttsVoice2Sel
+                                : _ttsVoiceSel,
+                          ),
+                        ),
+                      ],
                     ),
-                    icon: _dlBusy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.download),
-                    label: Text(_dlBusy
-                        ? 'Đang yêu cầu tải…'
-                        : 'Tải gói ngay trong app'),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _testing ? null : _testLocale,
-                    icon: _testing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.spellcheck),
-                    label: Text(_testing ? 'Đang kiểm tra…' : 'Thử tiếng Việt'),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openInstall('openSttSettings'),
-                    icon: const Icon(Icons.settings),
-                    label: const Text('Ra cài đặt'),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openInstall('openSpeechServicesStore'),
-                    icon: const Icon(Icons.shop),
-                    label: const Text('Speech Services (CH Play)'),
+                  );
+                },
+              ),
+            ],
+            Row(
+              children: [
+                const SizedBox(width: 120, child: Text('Tốc độ đọc')),
+                Expanded(
+                  child: StatefulBuilder(
+                    builder: (context, s) => Slider(
+                      focusNode: _rateFocus,
+                      value: widget.home.ttsRate,
+                      min: 0.2,
+                      max: 1.0,
+                      onChanged: (v) => s(() => widget.home.ttsRate = v),
+                    ),
                   ),
                 ),
               ],
             ),
+            const Divider(height: 24),
+            FilledButton.tonalIcon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DiagnosticsScreen(home: widget.home),
+                ),
+              ),
+              icon: const Icon(Icons.health_and_safety_outlined),
+              label: const Text('Kiểm tra điều kiện hoạt động'),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.tonalIcon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DetectScreen(home: widget.home),
+                ),
+              ),
+              icon: const Icon(Icons.travel_explore),
+              label: const Text('Dò thiết bị (xem STT/TTS có sẵn)'),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Gợi ý: cài Ollama trên máy tính cùng Wi-Fi, chạy model nhỏ '
+              '(vd "ollama run qwen2.5:0.5b"), đặt OLLAMA_HOST=0.0.0.0, rồi dán '
+              'http://<IP-máy-tính>:11434/v1/chat/completions vào ô địa chỉ. '
+              'Địa chỉ thiếu "//" hoặc thiếu đường dẫn sẽ được tự chuẩn hoá.',
+              style: TextStyle(color: Colors.white54, fontSize: 12.5),
+            ),
           ],
-          const Divider(height: 24),
-          _hdr('AI tự thoại (AI nói với AI)'),
-          const Text(
-            'Câu mở đầu khi bấm Tự thoại = chủ đề/xu hướng cho cả 2 bên. '
-            'Cách nói A/B luôn đưa vào system mỗi lượt. Input mỗi lượt = '
-            'câu đối phương vừa nói.',
-            style: TextStyle(color: Colors.white54, fontSize: 12.5),
-          ),
-          const SizedBox(height: 10),
-          _field(_loopPromptA, 'Cách nói người A (system, giọng 1)',
-              'VD: vui tính, thân mật, câu ngắn tiếng Việt…',
-              maxLines: 3,
-              helper: 'Luôn inject vào system để ép AI tuân thủ mỗi câu trả lời.'),
-          _field(_loopPromptB, 'Cách nói người B (system, giọng 2)',
-              'VD: hay phản biện, dí dỏm, câu ngắn tiếng Việt…',
-              maxLines: 3,
-              helper: 'Luôn inject vào system để ép AI tuân thủ mỗi câu trả lời.'),
-          _field(_loopCtx, 'Số câu đối phương làm input', '1',
-              helper: '1 = chỉ câu đối phương vừa nói. '
-                  'Lớn hơn = lấy thêm các câu gần nhất của đối phương (không lấy câu của chính nó).'),
-          const SizedBox(height: 4),
-          const Text('Giọng đọc & tốc độ',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          if (_loadingTts)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Row(children: [
-                SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
-                SizedBox(width: 10),
-                Text('Đang dò giọng đọc trên máy…'),
-              ]),
-            )
-          else ...[
-            if (_ttsEngineList.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: DropdownButtonFormField<String>(
-                  initialValue:
-                      _ttsEngineList.contains(_ttsEngineSel) ? _ttsEngineSel : '',
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Engine đọc',
-                    helperText:
-                        'Chọn Google nếu máy nội địa Trung để có tiếng Việt.',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                        value: '', child: Text('Tự động (ưu tiên Google)')),
-                    for (final e in _ttsEngineList)
-                      DropdownMenuItem(
-                          value: e,
-                          child: Text(_engineLabel(e),
-                              overflow: TextOverflow.ellipsis)),
-                  ],
-                  onChanged: (v) async {
-                    setState(() {
-                      _ttsEngineSel = v ?? '';
-                      _ttsLangSel = '';
-                      _ttsVoiceSel = '';
-                    });
-                    widget.home.ttsEngine = _ttsEngineSel;
-                    await _loadTts(); // languages/voices differ per engine
-                  },
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: DropdownButtonFormField<String>(
-                initialValue: _ttsLangs.contains(_ttsLangSel) ? _ttsLangSel : '',
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: 'Ngôn ngữ đọc',
-                  helperText: 'Máy có ${_ttsLangs.length} ngôn ngữ đọc.',
-                  border: const OutlineInputBorder(),
-                ),
-                items: [
-                  const DropdownMenuItem(
-                      value: '', child: Text('Tự động (theo máy)')),
-                  for (final l in _ttsLangs)
-                    DropdownMenuItem(
-                        value: l,
-                        child: Text(l, overflow: TextOverflow.ellipsis)),
-                ],
-                onChanged: (v) => setState(() {
-                  _ttsLangSel = v ?? '';
-                  // Drop the voice if it no longer belongs to the new language.
-                  if (!_voicesForLang.any((x) => x.name == _ttsVoiceSel)) {
-                    _ttsVoiceSel = '';
-                  }
-                }),
-              ),
-            ),
-            Builder(builder: (_) {
-              final voices = _voicesForLang;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: voices.any((v) => v.name == _ttsVoiceSel)
-                          ? _ttsVoiceSel
-                          : '',
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        labelText: 'Giọng đọc',
-                        helperText: _ttsLangSel.isEmpty
-                            ? 'Máy có ${_ttsVoices.length} giọng.'
-                            : '${voices.length} giọng cho "$_ttsLangSel".',
-                        border: const OutlineInputBorder(),
-                      ),
-                      items: [
-                        const DropdownMenuItem(
-                            value: '', child: Text('Tự động (theo ngôn ngữ)')),
-                        for (final v in voices)
-                          DropdownMenuItem(
-                              value: v.name,
-                              child: Text('${v.locale} — ${v.name}',
-                                  overflow: TextOverflow.ellipsis)),
-                      ],
-                      onChanged: (v) => setState(() => _ttsVoiceSel = v ?? ''),
-                    ),
-                  ),
-                  _previewBtn(() => _previewVoice(_ttsVoiceSel)),
-                ]),
-              );
-            }),
-            Builder(builder: (_) {
-              final voices = _voicesForLang;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: voices.any((v) => v.name == _ttsVoice2Sel)
-                          ? _ttsVoice2Sel
-                          : '',
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Giọng đọc thứ 2 (cho tự thoại)',
-                        helperText: 'Để trống = dùng chung giọng 1.',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        const DropdownMenuItem(
-                            value: '', child: Text('Giống giọng 1')),
-                        for (final v in voices)
-                          DropdownMenuItem(
-                              value: v.name,
-                              child: Text('${v.locale} — ${v.name}',
-                                  overflow: TextOverflow.ellipsis)),
-                      ],
-                      onChanged: (v) => setState(() => _ttsVoice2Sel = v ?? ''),
-                    ),
-                  ),
-                  _previewBtn(() => _previewVoice(
-                      _ttsVoice2Sel.isNotEmpty ? _ttsVoice2Sel : _ttsVoiceSel)),
-                ]),
-              );
-            }),
-          ],
-          Row(
-            children: [
-              const SizedBox(width: 120, child: Text('Tốc độ đọc')),
-              Expanded(
-                child: StatefulBuilder(
-                  builder: (context, s) => Slider(
-                    value: widget.home.ttsRate,
-                    min: 0.2,
-                    max: 1.0,
-                    onChanged: (v) => s(() => widget.home.ttsRate = v),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 24),
-          FilledButton.tonalIcon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DiagnosticsScreen(home: widget.home),
-              ),
-            ),
-            icon: const Icon(Icons.health_and_safety_outlined),
-            label: const Text('Kiểm tra điều kiện hoạt động'),
-          ),
-          const SizedBox(height: 8),
-          FilledButton.tonalIcon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DetectScreen(home: widget.home),
-              ),
-            ),
-            icon: const Icon(Icons.travel_explore),
-            label: const Text('Dò thiết bị (xem STT/TTS có sẵn)'),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Gợi ý: cài Ollama trên máy tính cùng Wi-Fi, chạy model nhỏ '
-            '(vd "ollama run qwen2.5:0.5b"), đặt OLLAMA_HOST=0.0.0.0, rồi dán '
-            'http://<IP-máy-tính>:11434/v1/chat/completions vào ô địa chỉ. '
-            'Địa chỉ thiếu "//" hoặc thiếu đường dẫn sẽ được tự chuẩn hoá.',
-            style: TextStyle(color: Colors.white54, fontSize: 12.5),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _hdr(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(t,
-            style: const TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 15)),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      t,
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+    ),
+  );
 
-  Widget _field(TextEditingController c, String label, String hint,
-      {int maxLines = 1, String? helper}) {
+  Widget _field(
+    TextEditingController c,
+    String label,
+    String hint, {
+    int maxLines = 1,
+    String? helper,
+    bool number = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: TextField(
+      // Remote-friendly: D-pad passes through; OK edits; Done/Back commits.
+      child: TvTextField(
         controller: c,
         maxLines: maxLines,
         autocorrect: false,
+        keyboardType: number ? TextInputType.number : null,
+        inputFormatters: number
+            ? [FilteringTextInputFormatter.digitsOnly]
+            : null,
+        textInputAction: maxLines == 1 ? TextInputAction.done : null,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
@@ -3269,13 +3589,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String kind,
     String provider = '',
   }) {
-    final items = _recent[HomeScreenState.mruKey(kind, provider)] ??
-        const <String>[];
+    final items =
+        _recent[HomeScreenState.mruKey(kind, provider)] ?? const <String>[];
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: TextField(
+      child: TvTextField(
         controller: c,
         autocorrect: false,
+        textInputAction: TextInputAction.done,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
@@ -3289,8 +3610,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: const Icon(Icons.history),
                   onSelected: (v) async {
                     if (v == _mruClear) {
-                      await widget.home
-                          .clearRecent(kind, provider: provider);
+                      await widget.home.clearRecent(kind, provider: provider);
                       await _loadRecents();
                       return;
                     }
@@ -3300,8 +3620,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     for (final v in items)
                       PopupMenuItem<String>(
                         value: v,
-                        child: Text(v,
-                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          v,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     const PopupMenuDivider(),
                     const PopupMenuItem<String>(
@@ -3328,12 +3651,16 @@ class DiagnosticsScreen extends StatefulWidget {
 
 class _DiagnosticsScreenState extends State<DiagnosticsScreen>
     with SingleTickerProviderStateMixin {
-  late final List<(String, Future<DiagItem> Function())> _steps =
-      widget.home.diagSteps();
-  late final List<DiagItem?> _results =
-      List<DiagItem?>.filled(_steps.length, null);
-  late final List<Duration?> _durations =
-      List<Duration?>.filled(_steps.length, null);
+  late final List<(String, Future<DiagItem> Function())> _steps = widget.home
+      .diagSteps();
+  late final List<DiagItem?> _results = List<DiagItem?>.filled(
+    _steps.length,
+    null,
+  );
+  late final List<Duration?> _durations = List<Duration?>.filled(
+    _steps.length,
+    null,
+  );
 
   int _current = -1; // step being checked right now
   DateTime? _stepStart;
@@ -3378,7 +3705,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen>
         item = await _steps[i].$2().timeout(
           const Duration(seconds: 12),
           onTimeout: () => DiagItem(
-              _steps[i].$1, DiagStatus.warn, 'Quá thời gian (12s), đã bỏ qua'),
+            _steps[i].$1,
+            DiagStatus.warn,
+            'Quá thời gian (12s), đã bỏ qua',
+          ),
         );
       } catch (e) {
         item = DiagItem(_steps[i].$1, DiagStatus.fail, '$e');
@@ -3396,18 +3726,17 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen>
         _current = -1;
       });
     }
-    AppLog.instance.log('Diagnostics done: '
-        '${_results.whereType<DiagItem>().map((e) => '${e.label}=${e.status.name}').join(', ')}');
+    AppLog.instance.log(
+      'Diagnostics done: '
+      '${_results.whereType<DiagItem>().map((e) => '${e.label}=${e.status.name}').join(', ')}',
+    );
   }
 
   (IconData, Color) _badge(DiagStatus s) => switch (s) {
-        DiagStatus.ok => (Icons.check_circle, const Color(0xFF30A46C)),
-        DiagStatus.warn => (
-            Icons.warning_amber_rounded,
-            const Color(0xFFF5A623)
-          ),
-        DiagStatus.fail => (Icons.cancel, const Color(0xFFE5484D)),
-      };
+    DiagStatus.ok => (Icons.check_circle, const Color(0xFF30A46C)),
+    DiagStatus.warn => (Icons.warning_amber_rounded, const Color(0xFFF5A623)),
+    DiagStatus.fail => (Icons.cancel, const Color(0xFFE5484D)),
+  };
 
   String _fmt(Duration d) => '${(d.inMilliseconds / 1000).toStringAsFixed(1)}s';
 
@@ -3429,48 +3758,58 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen>
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            color: _running
-                ? const Color(0x2230B0C7)
-                : (anyFail
-                    ? const Color(0x22E5484D)
-                    : (allOk
-                        ? const Color(0x2230A46C)
-                        : const Color(0x22F5A623))),
-            child: ListTile(
-              leading: _running
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : Icon(
-                      anyFail
-                          ? Icons.error_outline
-                          : (allOk ? Icons.verified : Icons.info_outline),
-                      color: anyFail
-                          ? const Color(0xFFE5484D)
-                          : (allOk
-                              ? const Color(0xFF30A46C)
-                              : const Color(0xFFF5A623)),
-                    ),
-              title: Text(_running
-                  ? 'Đang kiểm tra… ($progress)'
+      // D-pad scrollable list (initial focus); Up at the top → app bar.
+      body: TvKeyScroll(
+        autofocus: true,
+        builder: (scroll) => ListView(
+          controller: scroll,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              color: _running
+                  ? const Color(0x2230B0C7)
                   : (anyFail
-                      ? 'Có điều kiện chưa đạt'
-                      : (allOk
-                          ? 'Sẵn sàng hoạt động'
-                          : 'Hoạt động được, vài cảnh báo'))),
-              subtitle: Text(_running
-                  ? 'Đang chạy: ${_steps[_current].$1}'
-                  : 'Chạm nút làm mới để kiểm tra lại.'),
+                        ? const Color(0x22E5484D)
+                        : (allOk
+                              ? const Color(0x2230A46C)
+                              : const Color(0x22F5A623))),
+              child: ListTile(
+                leading: _running
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        anyFail
+                            ? Icons.error_outline
+                            : (allOk ? Icons.verified : Icons.info_outline),
+                        color: anyFail
+                            ? const Color(0xFFE5484D)
+                            : (allOk
+                                  ? const Color(0xFF30A46C)
+                                  : const Color(0xFFF5A623)),
+                      ),
+                title: Text(
+                  _running
+                      ? 'Đang kiểm tra… ($progress)'
+                      : (anyFail
+                            ? 'Có điều kiện chưa đạt'
+                            : (allOk
+                                  ? 'Sẵn sàng hoạt động'
+                                  : 'Hoạt động được, vài cảnh báo')),
+                ),
+                subtitle: Text(
+                  _running
+                      ? 'Đang chạy: ${_steps[_current].$1}'
+                      : 'Chạm nút làm mới để kiểm tra lại.',
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          for (int i = 0; i < _steps.length; i++) _stepTile(i),
-        ],
+            const SizedBox(height: 8),
+            for (int i = 0; i < _steps.length; i++) _stepTile(i),
+          ],
+        ),
       ),
     );
   }
@@ -3490,8 +3829,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen>
           subtitle: Text(result.detail),
           trailing: duration == null
               ? null
-              : Text(_fmt(duration),
-                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              : Text(
+                  _fmt(duration),
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
           isThreeLine: result.detail.length > 40,
         ),
       );
@@ -3499,20 +3840,26 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen>
 
     // Currently running → spinner + live elapsed time.
     if (i == _current && _running) {
-      final elapsed =
-          _stepStart == null ? Duration.zero : DateTime.now().difference(_stepStart!);
+      final elapsed = _stepStart == null
+          ? Duration.zero
+          : DateTime.now().difference(_stepStart!);
       return Card(
         color: const Color(0x1130B0C7),
         child: ListTile(
           leading: const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2)),
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
           title: Text(label),
           subtitle: const Text('Đang kiểm tra…'),
-          trailing: Text(_fmt(elapsed),
-              style: const TextStyle(
-                  color: Color(0xFF30B0C7), fontWeight: FontWeight.bold)),
+          trailing: Text(
+            _fmt(elapsed),
+            style: const TextStyle(
+              color: Color(0xFF30B0C7),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
       );
     }
@@ -3550,7 +3897,12 @@ class _DetectScreenState extends State<DetectScreen> {
   Future<void> _run() async {
     setState(() => _loading = true);
     final d = await widget.home.detectDevice();
-    if (mounted) setState(() { _d = d; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _d = d;
+        _loading = false;
+      });
+    }
   }
 
   bool _hl(String s) {
@@ -3578,66 +3930,90 @@ class _DetectScreenState extends State<DetectScreen> {
       ),
       body: _loading || d == null
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _statusCard(d['sttAvailable'] == true),
-                const SizedBox(height: 8),
-                _section('Nhận diện giọng nói (STT)'),
-                _kv('Khả dụng', d['sttAvailable'] == true ? 'CÓ' : 'KHÔNG'),
-                if (d['sttError'] != null) _kv('Lỗi', '${d['sttError']}'),
-                _kv('Ngôn ngữ hệ thống', '${d['sttSystem'] ?? '—'}'),
-                _listBlock('Engine nhận giọng đã cài',
-                    (d['sttRecognizers'] as List?) ?? const [], null),
-                _listBlock('Ngôn ngữ STT (plugin + native)',
-                    d['sttLocales'] as List, d['sttLocalesError']),
-                const SizedBox(height: 12),
-                _section('Giọng đọc (TTS)'),
-                _listBlock('Ngôn ngữ TTS thiết bị báo có',
-                    d['ttsLanguages'] as List, d['ttsError']),
-                const SizedBox(height: 16),
-                const Text(
-                  'Dòng bôi vàng là tiếng Trung/tiếng Việt. Nếu STT trống hoặc '
-                  'báo lỗi/timeout, máy không nhận giọng nói bằng cách hiện tại; '
-                  'khi đó nên dùng nhận giọng nói qua Gemini (đám mây).',
-                  style: TextStyle(color: Colors.white54, fontSize: 12.5),
-                ),
-              ],
+          : TvKeyScroll(
+              autofocus: true,
+              builder: (scroll) => ListView(
+                controller: scroll,
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _statusCard(d['sttAvailable'] == true),
+                  const SizedBox(height: 8),
+                  _section('Nhận diện giọng nói (STT)'),
+                  _kv('Khả dụng', d['sttAvailable'] == true ? 'CÓ' : 'KHÔNG'),
+                  if (d['sttError'] != null) _kv('Lỗi', '${d['sttError']}'),
+                  _kv('Ngôn ngữ hệ thống', '${d['sttSystem'] ?? '—'}'),
+                  _listBlock(
+                    'Engine nhận giọng đã cài',
+                    (d['sttRecognizers'] as List?) ?? const [],
+                    null,
+                  ),
+                  _listBlock(
+                    'Ngôn ngữ STT (plugin + native)',
+                    d['sttLocales'] as List,
+                    d['sttLocalesError'],
+                  ),
+                  const SizedBox(height: 12),
+                  _section('Giọng đọc (TTS)'),
+                  _listBlock(
+                    'Ngôn ngữ TTS thiết bị báo có',
+                    d['ttsLanguages'] as List,
+                    d['ttsError'],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Dòng bôi vàng là tiếng Trung/tiếng Việt. Nếu STT trống hoặc '
+                    'báo lỗi/timeout, máy không nhận giọng nói bằng cách hiện tại; '
+                    'khi đó nên dùng nhận giọng nói qua Gemini (đám mây).',
+                    style: TextStyle(color: Colors.white54, fontSize: 12.5),
+                  ),
+                ],
+              ),
             ),
     );
   }
 
   Widget _statusCard(bool ok) => Card(
-        color: ok ? const Color(0x2230A46C) : const Color(0x22E5484D),
-        child: ListTile(
-          leading: Icon(ok ? Icons.check_circle : Icons.error_outline,
-              color: ok ? const Color(0xFF30A46C) : const Color(0xFFE5484D)),
-          title: Text(ok
-              ? 'Máy CÓ bộ nhận diện giọng nói'
-              : 'Máy KHÔNG có bộ nhận diện giọng nói khả dụng'),
-          subtitle: const Text('Chạm nút làm mới để dò lại.'),
-        ),
-      );
+    color: ok ? const Color(0x2230A46C) : const Color(0x22E5484D),
+    child: ListTile(
+      leading: Icon(
+        ok ? Icons.check_circle : Icons.error_outline,
+        color: ok ? const Color(0xFF30A46C) : const Color(0xFFE5484D),
+      ),
+      title: Text(
+        ok
+            ? 'Máy CÓ bộ nhận diện giọng nói'
+            : 'Máy KHÔNG có bộ nhận diện giọng nói khả dụng',
+      ),
+      subtitle: const Text('Chạm nút làm mới để dò lại.'),
+    ),
+  );
 
   Widget _section(String t) => Padding(
-        padding: const EdgeInsets.only(top: 6, bottom: 6),
-        child: Text(t,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-      );
+    padding: const EdgeInsets.only(top: 6, bottom: 6),
+    child: Text(
+      t,
+      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    ),
+  );
 
   Widget _kv(String k, String v) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-                width: 150,
-                child: Text(k,
-                    style: const TextStyle(color: Colors.white54, fontSize: 13))),
-            Expanded(child: SelectableText(v, style: const TextStyle(fontSize: 13))),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 150,
+          child: Text(
+            k,
+            style: const TextStyle(color: Colors.white54, fontSize: 13),
+          ),
         ),
-      );
+        Expanded(
+          child: SelectableText(v, style: const TextStyle(fontSize: 13)),
+        ),
+      ],
+    ),
+  );
 
   Widget _listBlock(String title, List items, Object? error) {
     return Padding(
@@ -3645,26 +4021,33 @@ class _DetectScreenState extends State<DetectScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$title (${items.length})',
-              style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          Text(
+            '$title (${items.length})',
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
           const SizedBox(height: 4),
           if (error != null)
-            Text('Lỗi: $error',
-                style: const TextStyle(color: Color(0xFFE5484D), fontSize: 12.5)),
+            Text(
+              'Lỗi: $error',
+              style: const TextStyle(color: Color(0xFFE5484D), fontSize: 12.5),
+            ),
           if (items.isEmpty && error == null)
-            const Text('— (trống, thiết bị không báo có)',
-                style: TextStyle(color: Colors.white38, fontSize: 12.5)),
+            const Text(
+              '— (trống, thiết bị không báo có)',
+              style: TextStyle(color: Colors.white38, fontSize: 12.5),
+            ),
           for (final it in items)
             Container(
               margin: const EdgeInsets.symmetric(vertical: 2),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: _hl('$it')
-                    ? const Color(0x33F5A623)
-                    : Colors.white10,
+                color: _hl('$it') ? const Color(0x33F5A623) : Colors.white10,
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: SelectableText('$it', style: const TextStyle(fontSize: 13)),
+              child: SelectableText(
+                '$it',
+                style: const TextStyle(fontSize: 13),
+              ),
             ),
         ],
       ),
@@ -3707,21 +4090,29 @@ class LogScreen extends StatelessWidget {
           final lines = log.lines.reversed.toList();
           if (lines.isEmpty) {
             return const Center(
-              child: Text('Chưa có log.', style: TextStyle(color: Colors.white54)),
+              child: Text(
+                'Chưa có log.',
+                style: TextStyle(color: Colors.white54),
+              ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: lines.length,
-            itemBuilder: (_, i) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: SelectableText(
-                lines[i],
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 12.5,
-                  height: 1.3,
-                ),
+          const style = TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 12.5,
+            height: 1.3,
+          );
+          return TvKeyScroll(
+            autofocus: true,
+            builder: (scroll) => ListView.builder(
+              controller: scroll,
+              padding: const EdgeInsets.all(12),
+              itemCount: lines.length,
+              itemBuilder: (_, i) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                // SelectableText rows would each grab D-pad focus on a TV.
+                child: TvMode.isTv
+                    ? Text(lines[i], style: style)
+                    : SelectableText(lines[i], style: style),
               ),
             ),
           );
@@ -3739,11 +4130,13 @@ class _PressPop extends StatefulWidget {
   final BorderRadius radius;
   final Widget? child;
   final Widget Function(bool pressed)? builder;
+  final bool autofocus;
   const _PressPop({
     required this.onTap,
     required this.radius,
     this.child,
     this.builder,
+    this.autofocus = false,
   });
 
   @override
@@ -3762,31 +4155,41 @@ class _PressPopState extends State<_PressPop> {
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
     final visual = widget.builder?.call(_down) ?? widget.child!;
-    return Opacity(
-      opacity: enabled ? 1.0 : 0.45,
-      // Listener (not GestureDetector) drives the press state so it never
-      // competes with the InkWell / real tap in the gesture arena.
-      child: Listener(
-        onPointerDown: (_) => _set(true),
-        onPointerUp: (_) => _set(false),
-        onPointerCancel: (_) => _set(false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: AnimatedScale(
-            scale: _down ? 0.93 : 1.0,
-            duration: const Duration(milliseconds: 110),
-            curve: Curves.easeOut,
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: widget.radius,
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
+    // TvFocusable: D-pad focus ring + glow, OK/Select/Enter fires onTap.
+    // Touch is still handled by the GestureDetector / InkWell below.
+    return TvFocusable(
+      onTap: widget.onTap,
+      autofocus: widget.autofocus,
+      borderRadius: widget.radius,
+      handlePointer: false,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.45,
+        // Listener (not GestureDetector) drives the press state so it never
+        // competes with the InkWell / real tap in the gesture arena.
+        child: Listener(
+          onPointerDown: (_) => _set(true),
+          onPointerUp: (_) => _set(false),
+          onPointerCancel: (_) => _set(false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onTap,
+            child: AnimatedScale(
+              scale: _down ? 0.93 : 1.0,
+              duration: const Duration(milliseconds: 110),
+              curve: Curves.easeOut,
+              child: Material(
+                color: Colors.transparent,
                 borderRadius: widget.radius,
-                onTap: widget.onTap,
-                splashColor: Colors.white24,
-                highlightColor: Colors.white10,
-                child: visual,
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  borderRadius: widget.radius,
+                  onTap: widget.onTap,
+                  // Focus is owned by the TvFocusable wrapper.
+                  canRequestFocus: false,
+                  splashColor: Colors.white24,
+                  highlightColor: Colors.white10,
+                  child: visual,
+                ),
               ),
             ),
           ),
@@ -3841,14 +4244,15 @@ class _FloatingHeartState extends State<_FloatingHeart>
       Color.lerp(widget.baseColor, Colors.white, 0.1)!,
     ];
     _color = variants[r.nextInt(variants.length)];
-    _c = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 1500 + r.nextInt(700)),
-    )
-      ..addStatusListener((s) {
-        if (s == AnimationStatus.completed) widget.onDone();
-      })
-      ..forward();
+    _c =
+        AnimationController(
+            vsync: this,
+            duration: Duration(milliseconds: 1500 + r.nextInt(700)),
+          )
+          ..addStatusListener((s) {
+            if (s == AnimationStatus.completed) widget.onDone();
+          })
+          ..forward();
   }
 
   @override
@@ -3871,8 +4275,7 @@ class _FloatingHeartState extends State<_FloatingHeart>
         final opacity = t < 0.12
             ? t / 0.12
             : (t > 0.66 ? (1 - (t - 0.66) / 0.34) : 1.0);
-        final scale =
-            0.5 + 0.5 * Curves.easeOutBack.transform(min(1.0, t * 5));
+        final scale = 0.5 + 0.5 * Curves.easeOutBack.transform(min(1.0, t * 5));
         return Positioned(
           left: x,
           top: y,
@@ -3887,7 +4290,9 @@ class _FloatingHeartState extends State<_FloatingHeart>
                   size: _size,
                   shadows: [
                     Shadow(
-                        color: _color.withValues(alpha: 0.5), blurRadius: 10),
+                      color: _color.withValues(alpha: 0.5),
+                      blurRadius: 10,
+                    ),
                   ],
                 ),
               ),
@@ -3917,14 +4322,15 @@ class _FlyingToastState extends State<_FlyingToast>
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )
-      ..addStatusListener((s) {
-        if (s == AnimationStatus.completed) widget.onDone();
-      })
-      ..forward();
+    _c =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 2400),
+          )
+          ..addStatusListener((s) {
+            if (s == AnimationStatus.completed) widget.onDone();
+          })
+          ..forward();
   }
 
   @override
@@ -3971,7 +4377,9 @@ class _FlyingToastState extends State<_FlyingToast>
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     child: Text(
                       widget.message,
                       style: const TextStyle(
@@ -4041,14 +4449,15 @@ class _QrScannerPageState extends State<QrScannerPage> {
     final base = e == null
         ? 'Không mở được camera.'
         : e.errorCode == MobileScannerErrorCode.permissionDenied
-            ? 'Chưa cấp quyền Camera — mở Cài đặt ứng dụng để bật.'
-            : 'Lỗi camera: ${e.errorCode.name}';
+        ? 'Chưa cấp quyền Camera — mở Cài đặt ứng dụng để bật.'
+        : 'Lỗi camera: ${e.errorCode.name}';
     return detail == null ? base : '$base\n($detail)';
   }
 
   void _logState(MobileScannerController c) {
     final v = c.value;
-    final line = 'QR state: init=${v.isInitialized} running=${v.isRunning} '
+    final line =
+        'QR state: init=${v.isInitialized} running=${v.isRunning} '
         'cams=${v.availableCameras} dir=${v.cameraDirection.name} '
         'size=${v.size.width.toInt()}x${v.size.height.toInt()} '
         'torch=${v.torchState.name} err=${_fmtErr(v.error)}';
@@ -4110,8 +4519,10 @@ class _QrScannerPageState extends State<QrScannerPage> {
       // throwing it, so the result has to be read back from `value`.
       await c.start();
       final err = c.value.error;
-      AppLog.instance.log('QR: start xong → ${_fmtErr(err)} '
-          'running=${c.value.isRunning} cams=${c.value.availableCameras}');
+      AppLog.instance.log(
+        'QR: start xong → ${_fmtErr(err)} '
+        'running=${c.value.isRunning} cams=${c.value.availableCameras}',
+      );
       if (err != null && mounted) {
         setState(() => _error = _errText(err));
       } else if (!c.value.isRunning && mounted) {
@@ -4120,12 +4531,15 @@ class _QrScannerPageState extends State<QrScannerPage> {
       }
     } catch (e, st) {
       AppLog.instance.log('QR: start ném lỗi: ${e.runtimeType} $e');
-      AppLog.instance
-          .log('QR: stack: ${st.toString().split('\n').take(4).join(' ‹ ')}');
+      AppLog.instance.log(
+        'QR: stack: ${st.toString().split('\n').take(4).join(' ‹ ')}',
+      );
       if (mounted) {
-        setState(() => _error = e is MobileScannerException
-            ? _errText(e)
-            : 'Không mở được camera.\n($e)');
+        setState(
+          () => _error = e is MobileScannerException
+              ? _errText(e)
+              : 'Không mở được camera.\n($e)',
+        );
       }
     } finally {
       _starting = false;
@@ -4159,9 +4573,9 @@ class _QrScannerPageState extends State<QrScannerPage> {
                 ),
                 const SizedBox(width: 12),
                 OutlinedButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const LogScreen()),
-                  ),
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const LogScreen())),
                   child: const Text('Xem log'),
                 ),
               ],
@@ -4189,26 +4603,26 @@ class _QrScannerPageState extends State<QrScannerPage> {
       body: _error != null
           ? _errorBox(_error!)
           : c == null
-              ? const Center(child: CircularProgressIndicator())
-              : MobileScanner(
-                  controller: c,
-                  errorBuilder: (context, error, child) {
-                    AppLog.instance
-                        .log('QR errorBuilder: ${_fmtErr(error)}');
-                    return _errorBox(_errText(error));
-                  },
-                  onDetect: (capture) {
-                    if (_done) return;
-                    final codes = capture.barcodes;
-                    final v = codes.isNotEmpty ? codes.first.rawValue : null;
-                    AppLog.instance
-                        .log('QR: onDetect ${codes.length} mã, len=${v?.length}');
-                    if (v != null && v.isNotEmpty) {
-                      _done = true;
-                      Navigator.of(context).pop(v);
-                    }
-                  },
-                ),
+          ? const Center(child: CircularProgressIndicator())
+          : MobileScanner(
+              controller: c,
+              errorBuilder: (context, error, child) {
+                AppLog.instance.log('QR errorBuilder: ${_fmtErr(error)}');
+                return _errorBox(_errText(error));
+              },
+              onDetect: (capture) {
+                if (_done) return;
+                final codes = capture.barcodes;
+                final v = codes.isNotEmpty ? codes.first.rawValue : null;
+                AppLog.instance.log(
+                  'QR: onDetect ${codes.length} mã, len=${v?.length}',
+                );
+                if (v != null && v.isNotEmpty) {
+                  _done = true;
+                  Navigator.of(context).pop(v);
+                }
+              },
+            ),
     );
   }
 }
@@ -4251,8 +4665,10 @@ class _TypingDotsState extends State<_TypingDots>
         child: Container(
           width: d,
           height: d,
-          decoration:
-              BoxDecoration(color: widget.color, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: widget.color,
+            shape: BoxShape.circle,
+          ),
         ),
       ),
     );
@@ -4344,7 +4760,8 @@ class _FireworkBurstState extends State<_FireworkBurst>
         _Shell(
           start: start,
           life: 0.44,
-          origin: widget.center +
+          origin:
+              widget.center +
               Offset((r.nextDouble() - 0.5) * 90, (r.nextDouble() - 0.5) * 70),
           sparks: [
             for (var i = 0; i < 24; i++)

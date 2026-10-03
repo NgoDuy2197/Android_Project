@@ -15,7 +15,7 @@
     <string name="import_skipped"> • skipped %1$d non-%2$s file(s)</string>
 
     <string name="empty_recent">No recent games yet.\nImport a ROM and play it.</string>
-    <string name="empty_library">No games here yet.\nTap + to import ROMs for this system.</string>
+    <string name="empty_library">No games here yet.\nTap + to import ROMs, or ⋮ → ROM folder to scan a folder for this system.</string>
     <string name="never_played">Never played</string>
 
     <string name="import_failed">Could not open the file picker.</string>
@@ -35,7 +35,30 @@
     <string name="deleted_with_original">Deleted (original file removed too)</string>
     <string name="deleted_original_failed">Removed from library — couldn\'t delete the original file</string>
     <string name="deleted_library_only">Removed from library</string>
-    <string name="menu_delete_rom">🗑️ Delete this ROM</string>
+    <string name="deleted_original_failed_msg">JGamer has no permission to delete %1$d original file(s) — the file picker only gave read access. The games were removed from the library, but the files are still on the device.\n\nTo let JGamer delete files directly, set a ROM folder for this system (⋮ → ROM folder, or Settings → ROM folders) and keep your ROMs there.</string>
+    <string name="delete_none">No games to delete in this tab.</string>
+    <string name="delete_pick_title">Select games to delete</string>
+    <plurals name="delete_confirm_multi">
+        <item quantity="one">Delete %d game?</item>
+        <item quantity="other">Delete %d games?</item>
+    </plurals>
+    <string name="menu_delete_games">Delete games…</string>
+    <string name="menu_rom_folder">ROM folder…</string>
+    <string name="menu_rom_folder_for">ROM folder for %1$s…</string>
+    <string name="menu_rescan">Rescan ROM folder</string>
+
+    <string name="folders_header">ROM folders</string>
+    <string name="folders_info">Pick a folder per system. JGamer imports matching ROMs from it automatically (when you open that tab) and can delete files there directly. Systems without a folder use + import only.</string>
+    <string name="folder_choose">Choose</string>
+    <string name="folder_clear">Clear</string>
+    <string name="folder_not_set">Not set — import with + only</string>
+    <string name="folder_set">%1$s folder: %2$s</string>
+    <string name="folder_grant_failed">Couldn\'t keep access to that folder. Try another folder.</string>
+    <string name="folder_none">No ROM folder set for %1$s.</string>
+    <string name="folder_scanning">Scanning %1$s folder…</string>
+    <string name="folder_unreadable">Can\'t read the %1$s ROM folder (moved or access revoked). Choose it again.</string>
+    <string name="folder_scan_result">ROM folder: %1$d added, %2$d removed</string>
+    <string name="folder_scan_nothing">ROM folder: no new games</string>
 
     <string name="game_not_found">Game not found.</string>
     <string name="core_failed">Failed to start the emulator core.</string>
@@ -52,6 +75,7 @@
     <string name="menu_use_joystick">D-pad → Joystick</string>
     <string name="menu_use_dpad">Joystick → D-pad</string>
     <string name="menu_palette">🎨 Game Boy color palette</string>
+    <string name="menu_filter">🖼️ Screen filter</string>
     <string name="menu_theme">🎨 Control theme</string>
     <string name="menu_screen_size">🖥️ Screen size</string>
     <string name="size_small">Small</string>
@@ -78,6 +102,17 @@
     <string name="load_failed_switch">This engine couldn\'t boot this romset — usually the core/version doesn\'t match the ROM, or the .zip name isn\'t the game\'s romset id (e.g. mslug.zip). Try another engine?</string>
     <string name="trying_engine">Trying engine: %1$s…</string>
     <string name="load_failed_all">Couldn\'t boot this ROM with any engine (%1$s).\n\nUsually the romset doesn\'t match the core version, or a BIOS / parent set is missing. Try a romset that matches one of these cores, or add the needed BIOS zip (e.g. neogeo.zip) into the same ROM folder.</string>
+    <string name="menu_display">📺 Display: %1$s</string>
+    <string name="menu_pad_mode">🎮 On-screen controls: %1$s</string>
+    <string name="display_fit">Fit (keep aspect)</string>
+    <string name="display_fill">Fill (stretch)</string>
+    <string name="display_integer">Integer scale</string>
+    <string name="pad_auto">Auto</string>
+    <string name="pad_on">On</string>
+    <string name="pad_off">Off</string>
+    <string name="pad_use_global">Use global setting (%1$s)</string>
+    <string name="pad_mode_for">On-screen controls — %1$s</string>
+    <string name="pad_hidden_hint">On-screen controls hidden. Open the menu with Back / Menu, or Start+Select on a gamepad.</string>
     <string name="menu_quit">Quit to library</string>
 
     <string name="state_saved">State saved</string>
@@ -91,5 +126,9 @@
     <string name="opt_auto_save_sum">Automatically snapshot progress so resume restores exactly.</string>
     <string name="opt_vibrate">Vibrate on button press</string>
     <string name="opt_vibrate_sum">Haptic feedback for the on-screen gamepad.</string>
+    <string name="opt_pad">Show on-screen controls</string>
+    <string name="opt_pad_sum">Auto hides them on a TV or when a gamepad is connected. Each system can override this from the in-game menu.</string>
+    <string name="opt_display">Display mode</string>
+    <string name="opt_display_sum">How the picture fills the game area (whole screen when controls are hidden).</string>
     <string name="settings_info">Import ROMs with the + button (per tab). NES: .nes • SNES: .sfc/.smc • GBA: .gba • Game Gear: .gg • Arcade: .zip romset (kept as-is; try FinalBurn Neo, switch to MAME if it fails) • PICO-8: .p8/.p8.png. ROMs are your own; none are bundled.</string>
 </resources>

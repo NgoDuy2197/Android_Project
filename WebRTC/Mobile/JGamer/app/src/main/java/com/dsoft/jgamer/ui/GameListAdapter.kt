@@ -14,7 +14,8 @@ import java.util.Date
 
 class GameListAdapter(
     private val onClick: (GameEntry) -> Unit,
-    private val onLongClick: (GameEntry) -> Unit
+    private val onLongClick: (GameEntry) -> Unit,
+    private val onDelete: (GameEntry) -> Unit
 ) : ListAdapter<GameEntry, GameListAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -28,6 +29,7 @@ class GameListAdapter(
         private val title: TextView = v.findViewById(R.id.gameTitle)
         private val subtitle: TextView = v.findViewById(R.id.gameSubtitle)
         private val badge: TextView = v.findViewById(R.id.gameBadge)
+        private val delete: View = v.findViewById(R.id.gameDelete)
 
         fun bind(e: GameEntry) {
             title.text = e.title
@@ -38,6 +40,7 @@ class GameListAdapter(
             subtitle.text = "${e.system.displayName} • $played"
             itemView.setOnClickListener { onClick(e) }
             itemView.setOnLongClickListener { onLongClick(e); true }
+            delete.setOnClickListener { onDelete(e) }
         }
     }
 

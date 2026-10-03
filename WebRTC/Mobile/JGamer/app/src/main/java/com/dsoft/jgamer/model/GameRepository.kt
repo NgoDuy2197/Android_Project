@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import java.io.File
 import java.io.InputStream
@@ -19,7 +20,9 @@ class GameRepository private constructor(context: Context) {
     private val app = context.applicationContext
     private val romsDir = File(app.filesDir, "roms").apply { runCatching { mkdirs() } }
     private val indexFile = File(app.filesDir, "library.json")
-    private val entries = mutableListOf<GameEntry>()
+    // Copy-on-write: the folder scan adds entries on a background thread while
+    // the UI reads the list.
+    private val entries = java.util.concurrent.CopyOnWriteArrayList<GameEntry>()
 
     init { load() }
 
@@ -60,9 +63,62 @@ class GameRepository private constructor(context: Context) {
 
     private fun deleteSource(e: GameEntry): Boolean {
         val src = e.sourceUri ?: return false
-        return runCatching {
-            DocumentsContract.deleteDocument(app.contentResolver, Uri.parse(src))
-        }.onFailure { Log.w(TAG, "delete original failed: $src", it) }.getOrDefault(false)
+        val uri = Uri.parse(src)
+        // DocumentsContract first; DocumentFile as a fallback for providers
+        // that only accept delete through the tree/single-document wrapper.
+        return runCatching { DocumentsContract.deleteDocument(app.contentResolver, uri) }
+            .onFailure { Log.w(TAG, "delete original failed: $src", it) }.getOrDefault(false) ||
+            runCatching { DocumentFile.fromSingleUri(app, uri)?.delete() == true }.getOrDefault(false)
+    }
+
+    /** Outcome of [scanFolder]; [error] = folder unreadable (grant lost / removed). */
+    data class ScanResult(val added: Int, val removed: Int, val error: Boolean = false)
+
+    // Zips with no ROM for the system: don't re-open them on every scan this session.
+    private val scanNoMatch = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    /**
+     * Sync [system]'s library with its ROM folder (SAF tree, up to 3 levels
+     * deep): imports new matching files (sourceUri = the folder document, so
+     * delete-original works) and drops entries whose file vanished from the
+     * folder. [ignore] = sources the user removed from the library only.
+     * Blocking IO — call off the main thread. Never throws.
+     */
+    fun scanFolder(context: Context, system: GameSystem, treeUri: Uri, ignore: Set<String>): ScanResult {
+        val root = runCatching { DocumentFile.fromTreeUri(context, treeUri) }.getOrNull()
+        if (root == null || !root.canRead()) return ScanResult(0, 0, error = true)
+
+        val found = ArrayList<DocumentFile>()
+        fun walk(dir: DocumentFile, depth: Int) {
+            runCatching { dir.listFiles() }.getOrDefault(emptyArray()).forEach { f ->
+                if (f.isDirectory) { if (depth < 3) walk(f, depth + 1) }
+                else {
+                    val n = f.name ?: return@forEach
+                    // Non-arcade .zip may hold a ROM (importForSystem extracts it).
+                    if (GameSystem.matchesSystem(n, system) ||
+                        (!system.zipIsRom && n.lowercase().endsWith(".zip"))) found.add(f)
+                }
+            }
+        }
+        walk(root, 1)
+
+        val seen = found.map { it.uri.toString() }.toHashSet()
+        val known = entries.mapNotNull { it.sourceUri }.toHashSet()
+        var added = 0
+        val now = System.currentTimeMillis()
+        found.forEachIndexed { i, f ->
+            val src = f.uri.toString()
+            if (src in known || src in ignore || src in scanNoMatch) return@forEachIndexed
+            if (importForSystem(context, f.uri, f.name ?: "game_$i", system, now + i) != null) added++
+            else scanNoMatch.add(src)
+        }
+
+        // Entries that came from this folder but whose file is gone.
+        val prefix = "$treeUri/document/"
+        var removed = 0
+        entries.filter { it.systemId == system.id && it.sourceUri?.startsWith(prefix) == true && it.sourceUri !in seen }
+            .forEach { remove(it.id); removed++ }
+        return ScanResult(added, removed)
     }
 
     /** Import a ROM stream into a system's folder. Returns entry or null (never throws). */
@@ -154,6 +210,7 @@ class GameRepository private constructor(context: Context) {
         }.onFailure { Log.w(TAG, "index load failed", it) }
     }
 
+    @Synchronized
     private fun save() {
         runCatching {
             val arr = JSONArray(); entries.forEach { arr.put(it.toJson()) }

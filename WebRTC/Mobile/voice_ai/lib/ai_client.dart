@@ -10,7 +10,7 @@ import 'logger.dart';
 ///    API key (token).
 class AiClient {
   String provider; // 'local' | 'gemini'
-  String endpoint; // local: e.g. http://192.168.1.10:11434/v1/chat/completions
+  String endpoint; // local: e.g. http://192.168.1.72:11434/v1/chat/completions
   String model; // local: qwen2.5:0.5b   gemini: gemini-1.5-flash
   String apiKey; // local: optional bearer   gemini: the API token
   String systemPrompt;
@@ -18,13 +18,30 @@ class AiClient {
 
   AiClient({
     this.provider = 'local',
-    this.endpoint = '',
+    this.endpoint = defaultEndpoint,
     this.model = 'qwen2.5:0.5b',
     this.apiKey = '',
     this.systemPrompt =
         'Bạn là trợ lý vui tính, trả lời ngắn gọn bằng tiếng Việt.',
     this.method = 'POST',
   });
+
+  /// Default local AI server: the LAN Ollama box on its default port. The
+  /// OpenAI-compatible path (/v1/chat/completions) is appended automatically
+  /// by [resolvedUrl].
+  static const defaultEndpoint = 'http://192.168.1.72:11434';
+
+  /// True for the endpoints older builds shipped/suggested as defaults (empty,
+  /// emulator host, loopback, the old sample IP), which get migrated once.
+  static bool isLegacyDefaultEndpoint(String e) {
+    final t = e.trim().toLowerCase();
+    if (t.isEmpty) return true;
+    final host = Uri.tryParse(t.contains('://') ? t : 'http://$t')?.host ?? '';
+    return host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '10.0.2.2' ||
+        host == '0.0.0.0';
+  }
 
   static const methods = ['POST', 'GET', 'PUT', 'PATCH'];
   static const providers = ['local', 'gemini'];
@@ -68,7 +85,8 @@ class AiClient {
     try {
       if (isGemini) {
         final url = Uri.parse(
-            'https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}');
+          'https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}',
+        );
         final res = await http.get(url).timeout(const Duration(seconds: 8));
         AppLog.instance.log('Gemini ping -> ${res.statusCode}');
         if (res.statusCode == 200) return (true, 'Gemini OK (key hợp lệ)');
@@ -79,7 +97,10 @@ class AiClient {
       }
       final u = Uri.parse(resolvedUrl);
       final base = Uri(
-          scheme: u.scheme, host: u.host, port: u.hasPort ? u.port : null);
+        scheme: u.scheme,
+        host: u.host,
+        port: u.hasPort ? u.port : null,
+      );
       final res = await http.get(base).timeout(const Duration(seconds: 6));
       AppLog.instance.log('Ping $base -> ${res.statusCode}');
       return (res.statusCode < 500, 'HTTP ${res.statusCode} @ $base');
@@ -132,7 +153,9 @@ class AiClient {
     try {
       j = _decodeBody(bodyText);
     } catch (e) {
-      AppLog.instance.log('AI body không phải JSON hợp lệ: ${_snippet(bodyText)}');
+      AppLog.instance.log(
+        'AI body không phải JSON hợp lệ: ${_snippet(bodyText)}',
+      );
       throw 'Máy chủ trả về dữ liệu không đọc được (không phải JSON). Xem Log.';
     }
 
@@ -146,7 +169,9 @@ class AiClient {
     if (answer != null && answer.trim().isNotEmpty) return answer.trim();
 
     // 200 but nothing usable — log the raw body so the cause is visible.
-    AppLog.instance.log('Không trích được nội dung. Body: ${_snippet(bodyText, 600)}');
+    AppLog.instance.log(
+      'Không trích được nội dung. Body: ${_snippet(bodyText, 600)}',
+    );
     throw 'Máy chủ trả lời nhưng không có nội dung. '
         'Kiểm tra tên model "$model" và xem Log để biết chi tiết.';
   }
@@ -193,7 +218,8 @@ class AiClient {
         if (msg is Map) {
           final c = _asText(msg['content']);
           if (c != null && c.trim().isNotEmpty) return c;
-          final r = _asText(msg['reasoning_content']) ?? _asText(msg['reasoning']);
+          final r =
+              _asText(msg['reasoning_content']) ?? _asText(msg['reasoning']);
           if (r != null && r.trim().isNotEmpty) return r;
         }
         final t = _asText(first['text']);
@@ -212,7 +238,9 @@ class AiClient {
       if (c != null && c.trim().isNotEmpty) return c;
     }
     // Ollama /api/generate, or a plain top-level field.
-    return _asText(j['response']) ?? _asText(j['content']) ?? _asText(j['text']);
+    return _asText(j['response']) ??
+        _asText(j['content']) ??
+        _asText(j['text']);
   }
 
   /// Coerce a content value to text. Handles String and the OpenAI
@@ -238,8 +266,9 @@ class AiClient {
   // --- Gemini native API -----------------------------------------------------
   Future<String> _askGemini(String question) async {
     final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/'
-        '$_geminiModel:generateContent?key=${apiKey.trim()}');
+      'https://generativelanguage.googleapis.com/v1beta/models/'
+      '$_geminiModel:generateContent?key=${apiKey.trim()}',
+    );
     AppLog.instance.log('Gemini POST model=$_geminiModel');
     final res = await http
         .post(
@@ -248,16 +277,16 @@ class AiClient {
           body: jsonEncode({
             'systemInstruction': {
               'parts': [
-                {'text': systemPrompt}
-              ]
+                {'text': systemPrompt},
+              ],
             },
             'contents': [
               {
                 'role': 'user',
                 'parts': [
-                  {'text': question}
-                ]
-              }
+                  {'text': question},
+                ],
+              },
             ],
             'generationConfig': {'temperature': 0.7},
           }),

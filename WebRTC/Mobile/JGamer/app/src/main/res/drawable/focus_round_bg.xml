@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Round icon-button background with a visible focus ring (TV remote). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <solid android:color="#553D7BEF" />
+            <stroke android:width="3dp" android:color="@color/brand" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="oval"><solid android:color="#33FFFFFF" /></shape>
+    </item>
+    <item android:drawable="@android:color/transparent" />
+</selector>

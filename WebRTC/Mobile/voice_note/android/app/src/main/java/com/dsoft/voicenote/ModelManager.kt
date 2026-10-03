@@ -7,28 +7,37 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.ZipInputStream
 
-/** Downloads + unpacks a Vosk model zip once, and locates its root directory. */
-class ModelManager(private val filesDir: File, private val cacheDir: File) {
-    private val root = File(filesDir, "model")
+/**
+ * Downloads + unpacks one Vosk model zip once, and locates its root directory.
+ * Each URL gets its own folder, so switching language never re-downloads.
+ */
+class ModelManager(filesDir: File, private val cacheDir: File, private val url: String) {
+    private val modelsDir = File(filesDir, "models")
+    private val name = url.substringBefore('?').substringAfterLast('/').removeSuffix(".zip").ifBlank { "model" }
+    private val root = File(modelsDir, name)
     private val marker = File(root, ".ready")
 
-    private fun isReady(url: String) =
-        marker.exists() && runCatching { marker.readText() }.getOrNull() == url
+    init {
+        File(filesDir, "model").deleteRecursively() // layout of v1.0 (single model)
+    }
+
+    private fun isReady() = marker.exists() && runCatching { marker.readText() }.getOrNull() == url
 
     /** Forces a fresh download next time (used when the model fails to load). */
     fun invalidate() {
         marker.delete()
     }
 
-    /** Returns the model directory, (re)downloading it when [url] changed. */
-    fun ensure(url: String, progress: (String) -> Unit): File {
-        if (!isReady(url)) download(url, progress)
+    /** Returns the model directory, downloading it first if needed. */
+    fun ensure(progress: (String) -> Unit): File {
+        if (!isReady()) download(progress)
         return findModelDir(root) ?: throw IOException("Model không hợp lệ trong $root")
     }
 
-    private fun download(url: String, progress: (String) -> Unit) {
-        val zip = File(cacheDir, "model.zip.part")
-        val tmp = File(filesDir, "model.tmp")
+    private fun download(progress: (String) -> Unit) {
+        modelsDir.mkdirs()
+        val zip = File(cacheDir, "$name.zip.part")
+        val tmp = File(modelsDir, "$name.tmp")
         tmp.deleteRecursively()
         progress("Đang tải model…")
         var conn: HttpURLConnection? = null

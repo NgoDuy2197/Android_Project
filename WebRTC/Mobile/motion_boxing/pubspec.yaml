@@ -38,6 +38,9 @@ dependencies:
   audioplayers: ^6.8.1
   wakelock_plus: ^1.2.8  # keep screen awake while playing (you don't watch it)
   vibration: ^3.1.3      # strong haptic buzz on hits/KO
+  shared_preferences: ^2.5.3  # persisted sound settings
+  file_picker: 8.3.7          # pick custom sound files (Java plugin; v11 needs built-in Kotlin which this project disables)
+  path_provider: ^2.1.5       # app documents dir for copied sounds
 
 dev_dependencies:
   flutter_test:

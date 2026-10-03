@@ -23,6 +23,8 @@ set "PY=.venv\Scripts\python.exe"
 
 "%PY%" -m PyInstaller --noconfirm --clean --onefile --noconsole --name VoiceNote ^
     --collect-all vosk --collect-all _sounddevice_data --hidden-import pystray._win32 ^
+    --collect-all faster_whisper --collect-all ctranslate2 --collect-binaries onnxruntime ^
+    --collect-data tokenizers --exclude-module torch --exclude-module matplotlib ^
     voicenote.py || goto :fail
 
 copy /Y "dist\VoiceNote.exe" "VoiceNote.exe" >nul

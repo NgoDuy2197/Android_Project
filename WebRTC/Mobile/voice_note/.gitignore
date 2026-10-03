@@ -1,4 +1,59 @@
+# ---------------------------------------------------------------------------
+# Android / Gradle
+# ---------------------------------------------------------------------------
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/app/release/
+android/captures/
+android/.cxx/
+android/.externalNativeBuild/
+android/local.properties
+android/*.apk
+android/*.aab
+android/app/src/main/assets/model/
+*.iml
+output-metadata.json
+
+# Signing / secrets (keep keystores out of git)
+*.jks
+*.keystore
+key.properties
+keystore.properties
+
+# ---------------------------------------------------------------------------
+# Windows / Python / PyInstaller
+# ---------------------------------------------------------------------------
 windows/.venv/
+windows/venv/
+windows/build/
 windows/dist/
 windows/*.spec
 windows/*.exe
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------
+# Vosk models / runtime data (downloaded at runtime, large)
+# ---------------------------------------------------------------------------
+models/
+vosk-model-*/
+*.zip
+*.zip.part
+transcript_*.txt
+*.log
+
+# ---------------------------------------------------------------------------
+# IDE / OS
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+Desktop.ini

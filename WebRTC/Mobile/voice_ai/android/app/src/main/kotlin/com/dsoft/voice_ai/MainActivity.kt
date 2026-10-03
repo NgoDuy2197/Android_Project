@@ -134,9 +134,23 @@ class MainActivity : FlutterActivity() {
                             ),
                         )
                     )
+                    // Android TV / D-pad device? Lets Flutter force visible
+                    // focus highlights from the very first frame.
+                    "isTv" -> result.success(isTvDevice())
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun isTvDevice(): Boolean {
+        val ui = getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager
+        if (ui?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) {
+            return true
+        }
+        val pm = packageManager
+        return pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            pm.hasSystemFeature("android.software.leanback_only") ||
+            !pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
     }
 
     /**

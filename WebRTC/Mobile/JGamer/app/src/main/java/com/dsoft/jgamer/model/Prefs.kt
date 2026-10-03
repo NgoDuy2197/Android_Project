@@ -129,10 +129,46 @@ class Prefs(context: Context) {
     fun setFilterIndex(systemId: String, index: Int) =
         sp.edit().putInt("filter_$systemId", index).apply()
 
+    // ---- On-screen controls: Auto / On / Off --------------------------------
+    // Global mode plus an optional per-system override (-1 = use global).
+    var padMode: Int
+        get() = sp.getInt("pad_mode", PAD_AUTO)
+        set(v) = sp.edit().putInt("pad_mode", v).apply()
+    fun getPadOverride(systemId: String): Int = sp.getInt("pad_mode_$systemId", -1)
+    fun setPadOverride(systemId: String, mode: Int) = sp.edit().putInt("pad_mode_$systemId", mode).apply()
+    fun effectivePadMode(systemId: String): Int = getPadOverride(systemId).takeIf { it >= 0 } ?: padMode
+
+    // "Menu = Back / Start+Select" hint, shown once when the pad is first hidden.
+    var padHiddenHintShown: Boolean
+        get() = sp.getBoolean("pad_hidden_hint", false)
+        set(v) = sp.edit().putBoolean("pad_hidden_hint", v).apply()
+
+    // ---- Display mode (global): Fit / Fill / Integer scale --------------------
+    var displayMode: Int
+        get() = sp.getInt("display_mode", DISPLAY_FIT)
+        set(v) = sp.edit().putInt("display_mode", v).apply()
+
+    // ---- Per-system ROM scan folder (SAF tree uri) ---------------------------
+    fun getRomFolder(systemId: String): String? = sp.getString("folder_$systemId", null)
+    fun setRomFolder(systemId: String, treeUri: String?) = sp.edit().apply {
+        if (treeUri == null) remove("folder_$systemId") else putString("folder_$systemId", treeUri)
+    }.apply()
+
+    // Folder files the user removed from the library only: the scan must not re-add them.
+    fun getScanIgnore(): Set<String> = sp.getStringSet("scan_ignore", emptySet()) ?: emptySet()
+    fun addScanIgnore(sourceUri: String) =
+        sp.edit().putStringSet("scan_ignore", getScanIgnore() + sourceUri).apply()
+
     companion object {
         const val KEY_RESUME_ON_LAUNCH = "resume_on_launch"
         const val KEY_AUTO_SAVE = "auto_save_state"
         const val KEY_VIBRATE = "vibrate"
         const val KEY_LAST_GAME = "last_game_id"
+        const val PAD_AUTO = 0
+        const val PAD_ON = 1
+        const val PAD_OFF = 2
+        const val DISPLAY_FIT = 0
+        const val DISPLAY_FILL = 1
+        const val DISPLAY_INTEGER = 2
     }
 }

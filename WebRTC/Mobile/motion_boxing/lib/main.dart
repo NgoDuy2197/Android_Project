@@ -8,6 +8,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'motion_detector.dart';
 import 'sfx.dart';
+import 'sound_settings.dart';
+import 'sound_settings_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,7 +47,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   final _motion = MotionDetector();
-  final _sfx = Sfx();
+  final _sfx = Sfx(SoundSettings());
   final _rng = Random();
 
   GamePhase _phase = GamePhase.menu;
@@ -59,6 +61,7 @@ class _GameScreenState extends State<GameScreen> {
   double _oppMaxHp = 100;
 
   int _combo = 0;
+  bool _lowHpWarned = false;
 
   // Opponent attack
   Timer? _attackTimer;
@@ -158,6 +161,7 @@ class _GameScreenState extends State<GameScreen> {
       _oppMaxHp = _oppMaxHpFor(1);
       _oppHp = _oppMaxHp;
       _combo = 0;
+      _lowHpWarned = false;
       _incoming = false;
       _score = 0;
       _bestCombo = 0;
@@ -213,6 +217,7 @@ class _GameScreenState extends State<GameScreen> {
       _oppScale = 0.86;
       _feedback = _combo >= 3 ? 'COMBO x$_combo! 🔥' : 'ĐẤM TRÚNG!';
     });
+    if (_combo == 3 || (_combo > 3 && _combo % 5 == 0)) _sfx.combo();
     _restTimers.add(Timer(const Duration(milliseconds: 90), () {
       if (mounted) setState(() => _oppScale = 1.0);
     }));
@@ -273,6 +278,7 @@ class _GameScreenState extends State<GameScreen> {
         _oppMaxHp = _oppMaxHpFor(_round);
         _oppHp = _oppMaxHp;
         _playerHp = (_playerHp + 15).clamp(0, 100);
+        if (_playerHp > 30) _lowHpWarned = false;
         _resting = false;
         _feedback = 'HIỆP $_round!';
       });
@@ -323,6 +329,10 @@ class _GameScreenState extends State<GameScreen> {
           _endGame();
           return;
         }
+        if (_playerHp <= 30 && !_lowHpWarned) {
+          _lowHpWarned = true;
+          _sfx.lowHp();
+        }
       }
       _scheduleAttack();
     });
@@ -360,7 +370,10 @@ class _GameScreenState extends State<GameScreen> {
             const _HowTo(),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: _startGame,
+              onPressed: () {
+                _sfx.tap();
+                _startGame();
+              },
               icon: const Icon(Icons.play_arrow),
               label: const Text('Bắt đầu'),
               style: FilledButton.styleFrom(
@@ -370,6 +383,8 @@ class _GameScreenState extends State<GameScreen> {
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
+            const SizedBox(height: 12),
+            _soundButton(),
           ],
         ),
       ),
@@ -509,7 +524,10 @@ class _GameScreenState extends State<GameScreen> {
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
-              onPressed: _startGame,
+              onPressed: () {
+                _sfx.tap();
+                _startGame();
+              },
               icon: const Icon(Icons.replay),
               label: const Text('Chơi lại'),
               style: FilledButton.styleFrom(
@@ -519,6 +537,8 @@ class _GameScreenState extends State<GameScreen> {
                     const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
             ),
+            const SizedBox(height: 10),
+            _soundButton(),
             const SizedBox(height: 24),
           ],
         ),
@@ -527,6 +547,18 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   // --- Small widgets ---------------------------------------------------------
+  Widget _soundButton() {
+    return OutlinedButton.icon(
+      onPressed: () {
+        _sfx.tap();
+        Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => SoundSettingsScreen(sfx: _sfx)));
+      },
+      icon: const Icon(Icons.music_note),
+      label: const Text('Cài đặt âm thanh'),
+    );
+  }
+
   String _oppFace(double frac) {
     if (frac > 0.66) return '😀';
     if (frac > 0.33) return '😠';

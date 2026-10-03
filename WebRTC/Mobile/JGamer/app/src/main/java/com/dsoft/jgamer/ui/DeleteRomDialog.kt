@@ -14,13 +14,35 @@ import com.dsoft.jgamer.model.Prefs
 /**
  * Confirm-and-delete for a ROM: removes it from the library (copy, states,
  * SRAM) and — ticked by default when the source is known — deletes the
- * original file on the device too. Shared by the library and the player.
+ * original file on the device too. Library only (row trash / long-press /
+ * multi-delete); the in-game menu deliberately has no delete.
  */
 object DeleteRomDialog {
 
     fun show(activity: Activity, entry: GameEntry, onDeleted: () -> Unit) {
+        confirm(activity, listOf(entry), activity.getString(R.string.delete_confirm_title, entry.title), onDeleted)
+    }
+
+    /** Multi-select: tick games from [list], then the same confirm as [show]. */
+    fun showMulti(activity: Activity, list: List<GameEntry>, onDeleted: () -> Unit) {
+        if (list.isEmpty()) { Toast.makeText(activity, R.string.delete_none, Toast.LENGTH_SHORT).show(); return }
+        val ticked = BooleanArray(list.size)
+        AlertDialog.Builder(activity)
+            .setTitle(R.string.delete_pick_title)
+            .setMultiChoiceItems(list.map { it.title }.toTypedArray(), ticked) { _, w, on -> ticked[w] = on }
+            .setPositiveButton(R.string.action_delete) { _, _ ->
+                val chosen = list.filterIndexed { i, _ -> ticked[i] }
+                if (chosen.isEmpty()) return@setPositiveButton
+                val title = activity.resources.getQuantityString(R.plurals.delete_confirm_multi, chosen.size, chosen.size)
+                confirm(activity, chosen, title, onDeleted)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun confirm(activity: Activity, list: List<GameEntry>, title: String, onDeleted: () -> Unit) {
         val pad = (20 * activity.resources.displayMetrics.density).toInt()
-        val hasSource = entry.sourceUri != null
+        val hasSource = list.any { it.sourceUri != null }
         val check = CheckBox(activity).apply {
             setText(R.string.delete_original)
             isChecked = hasSource
@@ -36,19 +58,30 @@ object DeleteRomDialog {
             })
         }
         AlertDialog.Builder(activity)
-            .setTitle(activity.getString(R.string.delete_confirm_title, entry.title))
+            .setTitle(title)
             .setView(col)
             .setPositiveButton(R.string.action_delete) { _, _ ->
                 val wantOriginal = check.isChecked
                 val prefs = Prefs(activity)
-                if (prefs.lastGameId == entry.id) prefs.lastGameId = null
-                val originalGone = GameRepository.get(activity).remove(entry.id, deleteOriginal = wantOriginal)
-                val msg = when {
-                    originalGone -> R.string.deleted_with_original
-                    wantOriginal -> R.string.deleted_original_failed
-                    else -> R.string.deleted_library_only
+                val repo = GameRepository.get(activity)
+                var failed = 0
+                list.forEach { e ->
+                    if (prefs.lastGameId == e.id) prefs.lastGameId = null
+                    val originalGone = repo.remove(e.id, deleteOriginal = wantOriginal && e.sourceUri != null)
+                    if (wantOriginal && e.sourceUri != null && !originalGone) failed++
+                    // Kept on the device: stop the folder scan from re-adding it.
+                    if (!originalGone) e.sourceUri?.let { prefs.addScanIgnore(it) }
                 }
-                Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
+                if (failed > 0) {
+                    // Permission problem: explain instead of a toast that's easy to miss.
+                    AlertDialog.Builder(activity)
+                        .setTitle(R.string.deleted_original_failed)
+                        .setMessage(activity.getString(R.string.deleted_original_failed_msg, failed))
+                        .setPositiveButton(android.R.string.ok, null).show()
+                } else {
+                    val msg = if (wantOriginal) R.string.deleted_with_original else R.string.deleted_library_only
+                    Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
+                }
                 onDeleted()
             }
             .setNegativeButton(android.R.string.cancel, null)

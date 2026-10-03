@@ -14,6 +14,8 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
@@ -24,11 +26,16 @@ import org.vosk.Model
 import org.vosk.Recognizer
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * Foreground service: mic -> Vosk -> daily transcript file.
+ * Foreground service: mic -> recognizer -> daily transcript file.
+ * Engines: "google" = the phone's SpeechRecognizer (online, accurate, like voice_ai),
+ * "vosk" = fully offline.
  * Any failure (mic busy, model broken, disk error...) is caught, reported in the
- * notification and retried with exponential backoff; the service never dies on its own.
+ * app's status line and retried with exponential backoff; the service never dies on its own.
  */
 class RecorderService : Service() {
     @Volatile private var stopped = false
@@ -38,7 +45,16 @@ class RecorderService : Service() {
     private var model: Model? = null
     private var modelUrl: String? = null
     private var wakeLock: PowerManager.WakeLock? = null
-    private var lastText = ""
+    private val main = Handler(Looper.getMainLooper())
+    private var engineKind: String? = null
+    private var stt: SystemStt? = null
+    private var sttSeg: Segmenter? = null
+    private val sttTick = object : Runnable {
+        override fun run() {
+            safe { sttSeg?.tick(System.currentTimeMillis()) }
+            main.postDelayed(this, 300)
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -56,28 +72,95 @@ class RecorderService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            ACTION_RELOAD -> {
-                reload = true
-                wake()
-            }
+            ACTION_RELOAD -> if (isRunning) stopEngine()
         }
         if (!goForeground()) {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (worker?.isAlive != true) {
-            stopped = false
-            worker = Thread(::loop, "voicenote-worker").also { it.start() }
-        }
+        if (!isRunning) beginSession()
+        startEngine()
         isRunning = true
         return START_STICKY
     }
 
-    override fun onDestroy() {
+    /** Starts the configured engine (no-op if it is already running). */
+    private fun startEngine() {
+        if (wakeLock == null) {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "VoiceNote:rec").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        }
+        val prefs = Prefs(this)
+        engineKind = prefs.engine
+        if (prefs.engine == "google") {
+            if (stt != null) return
+            val writer = TranscriptWriter(prefs.timeFormat, ::fileForEntry)
+            val seg = Segmenter(prefs.pauseMs) { start, text -> addEntry(Entry(writer.write(start, text), text)) }
+            sttSeg = seg
+            val locale = if (prefs.language == "en") "en-US" else "vi-VN"
+            stt = SystemStt(this, locale, object : SystemStt.Callback {
+                override fun onStatus(s: String) = setStatus(s)
+                override fun onSpeechStart() = seg.onPartial("…", System.currentTimeMillis())
+                override fun onPartial(text: String) {
+                    partial = text
+                    if (text.isNotBlank()) seg.onPartial(text, System.currentTimeMillis())
+                }
+                override fun onFinal(text: String) = safe { seg.onFinal(text, System.currentTimeMillis()) }
+                override fun onLevel(level: Float) {
+                    RecorderService.level = level
+                }
+            }).also { it.start() }
+            main.removeCallbacks(sttTick)
+            main.post(sttTick)
+            setStatus("Đang khởi động nhận dạng Google…")
+        } else if (worker?.isAlive != true) {
+            stopped = false
+            worker = Thread(::loop, "voicenote-worker").also { it.start() }
+        }
+    }
+
+    private fun stopEngine() {
+        stt?.stop()
+        stt = null
+        main.removeCallbacks(sttTick)
+        sttSeg?.let { seg -> safe { seg.flush() } }
+        sttSeg = null
         shutdown()
+        partial = ""
+        level = 0f
+    }
+
+    override fun onDestroy() {
+        stopEngine()
+        runCatching { wakeLock?.release() }
+        wakeLock = null
         isRunning = false
         status = "Đã dừng"
         super.onDestroy()
+    }
+
+    /**
+     * File for an entry: "mỗi ngày" -> transcript_yyyy-MM-dd.txt; "mỗi phiên" -> one
+     * file per recording session (named by its first entry), split again at midnight.
+     * The file is only created on the first entry, so silent sessions leave nothing.
+     */
+    private fun fileForEntry(startMs: Long): File {
+        val dir = transcriptDir(this)
+        if (Prefs(this).fileMode == "day") {
+            return File(dir, Transcripts.dayFileName(startMs)).also { sessionFile = it }
+        }
+        val day = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(startMs))
+        val cur = sessionFile
+        if (cur != null && cur.exists() && sessionDay == day) return cur
+        var f = File(dir, Transcripts.sessionFileName(startMs))
+        var n = 2
+        while (f.exists()) f = File(dir, Transcripts.sessionFileName(startMs).removeSuffix(".txt") + " ($n).txt").also { n++ }
+        sessionFile = f
+        sessionDay = day
+        return f
     }
 
     private fun goForeground(): Boolean {
@@ -116,18 +199,13 @@ class RecorderService : Service() {
     // ---- worker thread -------------------------------------------------------
 
     private fun loop() {
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "VoiceNote:rec").apply {
-            setReferenceCounted(false)
-            acquire()
-        }
         var backoff = 2000L
-        try {
+        run {
             while (!stopped) {
                 try {
                     reload = false
                     val prefs = Prefs(this)
-                    recognize(loadModel(prefs.modelUrl), prefs)
+                    recognize(loadModel(prefs.modelUrl()), prefs)
                     backoff = 2000L
                 } catch (t: Throwable) {
                     if (stopped) break
@@ -137,8 +215,6 @@ class RecorderService : Service() {
                     backoff = (backoff * 2).coerceAtMost(60_000)
                 }
             }
-        } finally {
-            runCatching { wakeLock?.release() }
         }
     }
 
@@ -146,8 +222,8 @@ class RecorderService : Service() {
         model?.let { if (modelUrl == url) return it }
         runCatching { model?.close() }
         model = null
-        val mm = ModelManager(filesDir, cacheDir)
-        val dir = mm.ensure(url) { setStatus(it) }
+        val mm = ModelManager(filesDir, cacheDir, url)
+        val dir = mm.ensure { setStatus(it) }
         setStatus("Đang nạp model…")
         return try {
             Model(dir.absolutePath).also { model = it; modelUrl = url }
@@ -169,14 +245,10 @@ class RecorderService : Service() {
         } catch (e: SecurityException) {
             throw IOException("Chưa cấp quyền micro")
         }
-        val writer = TranscriptWriter(transcriptDir(this), prefs.timeFormat)
-        val seg = Segmenter(prefs.pauseMs) { start, text ->
-            writer.write(start, text)
-            lastText = text
-            updateNotification()
-        }
+        val writer = TranscriptWriter(prefs.timeFormat, ::fileForEntry)
+        val seg = Segmenter(prefs.pauseMs) { start, text -> addEntry(Entry(writer.write(start, text), text)) }
         val recognizer = try {
-            Recognizer(model, SAMPLE_RATE.toFloat())
+            Recognizer(model, SAMPLE_RATE.toFloat()).apply { setWords(true) }
         } catch (e: Throwable) {
             rec.release()
             throw e
@@ -185,7 +257,8 @@ class RecorderService : Service() {
             if (rec.state != AudioRecord.STATE_INITIALIZED) throw IOException("Không mở được micro")
             rec.startRecording()
             if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) throw IOException("Micro đang bị ứng dụng khác dùng")
-            setStatus("Đang nghe…")
+            setStatus("Đang nghe (${Prefs.LANGS[prefs.language]})…")
+            val minConf = prefs.minConfidence
             val buf = ShortArray(SAMPLE_RATE / 5) // 200 ms
             var emptyReads = 0
             while (!stopped && !reload) {
@@ -198,15 +271,22 @@ class RecorderService : Service() {
                 }
                 emptyReads = 0
                 val now = System.currentTimeMillis()
+                var sum = 0.0
+                for (i in 0 until n) sum += buf[i].toDouble() * buf[i]
+                val db = 10 * kotlin.math.log10(sum / n / (32768.0 * 32768.0) + 1e-12)
+                level = ((db + 60) / 60).toFloat().coerceIn(0f, 1f) // -60..0 dBFS
                 if (recognizer.acceptWaveForm(buf, n)) {
-                    safe { seg.onFinal(field(recognizer.result, "text"), now) }
+                    safe { seg.onFinal(finalText(recognizer.result, minConf), now) }
+                    partial = ""
                 } else {
-                    seg.onPartial(field(recognizer.partialResult, "partial"), now)
+                    partial = field(recognizer.partialResult, "partial")
+                    seg.onPartial(partial, now)
                 }
                 safe { seg.tick(now) }
             }
-            safe { seg.onFinal(field(recognizer.finalResult, "text"), System.currentTimeMillis()) }
+            safe { seg.onFinal(finalText(recognizer.finalResult, minConf), System.currentTimeMillis()) }
         } finally {
+            partial = ""
             safe { seg.flush() }
             runCatching { rec.stop() }
             rec.release()
@@ -227,6 +307,23 @@ class RecorderService : Service() {
     private fun field(json: String, key: String) =
         runCatching { JSONObject(json).optString(key) }.getOrDefault("")
 
+    /** Text of a final result, or "" when it looks like noise (low word confidence). */
+    private fun finalText(json: String, minConf: Float): String = runCatching {
+        val o = JSONObject(json)
+        val text = o.optString("text")
+        val words = o.optJSONArray("result")
+        if (text.isEmpty() || words == null || words.length() == 0) return@runCatching text
+        var sum = 0.0
+        for (i in 0 until words.length()) sum += words.getJSONObject(i).optDouble("conf", 1.0)
+        val mean = sum / words.length()
+        // Background noise mostly decodes to 1-2 stray words: demand more for those.
+        val need = if (words.length() <= 2) minOf(0.95, minConf + 0.25) else minConf.toDouble()
+        if (mean < need) {
+            Log.i(TAG, "dropped (conf %.2f): %s".format(mean, text))
+            ""
+        } else text
+    }.getOrDefault("")
+
     private fun sleep(ms: Long) = synchronized(sleepLock) {
         if (!stopped) runCatching { sleepLock.wait(ms) }
     }
@@ -236,13 +333,7 @@ class RecorderService : Service() {
     // ---- notification --------------------------------------------------------
 
     private fun setStatus(s: String) {
-        if (status == s) return
         status = s
-        updateNotification()
-    }
-
-    private fun updateNotification() {
-        runCatching { getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification()) }
     }
 
     private fun buildNotification(): Notification {
@@ -253,12 +344,17 @@ class RecorderService : Service() {
             this, 1, Intent(this, RecorderService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE
         )
+        // Required by Android for background mic use; kept as quiet as the OS allows:
+        // min-importance channel (no status-bar icon), no content, and since the app
+        // never asks for POST_NOTIFICATIONS it is not shown at all on Android 13+.
+        @Suppress("DEPRECATION")
         return builder(this)
             .setSmallIcon(R.drawable.ic_mic)
-            .setContentTitle(status)
-            .setContentText(lastText.ifEmpty { "Đang ghi âm → text" })
+            .setContentTitle("VoiceNote")
             .setOngoing(true)
+            .setShowWhen(false)
             .setOnlyAlertOnce(true)
+            .setPriority(Notification.PRIORITY_MIN)
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(null, "Dừng", stop).build())
             .build()
@@ -266,7 +362,7 @@ class RecorderService : Service() {
 
     companion object {
         private const val TAG = "VoiceNote"
-        private const val CHANNEL = "rec"
+        private const val CHANNEL = "rec_quiet"
         private const val NOTIF_ID = 1
         private const val NOTIF_TAP_ID = 2
         private const val SAMPLE_RATE = 16000
@@ -278,9 +374,41 @@ class RecorderService : Service() {
             private set
         @Volatile var isRunning = false
             private set
+        /** What is being said right now (not yet final); shown live in the UI. */
+        @Volatile var partial = ""
+            private set
+        /** Mic loudness 0..1 for the UI meter. */
+        @Volatile var level = 0f
+            private set
 
-        fun transcriptDir(ctx: Context): File =
-            ctx.getExternalFilesDir("transcripts") ?: File(ctx.filesDir, "transcripts")
+        /** Start time of the current recording session (0 when stopped). */
+        @Volatile var sessionStart = 0L
+            private set
+        /** File the current session writes to (null until the first entry). */
+        @Volatile var sessionFile: File? = null
+            private set
+        private var sessionDay = ""
+        private val sessionEntries = ArrayList<Entry>()
+        /** Bumped on every new entry, so the UI only copies the list when it changed. */
+        @Volatile var entriesVersion = 0
+            private set
+
+        fun entries(): List<Entry> = synchronized(sessionEntries) { ArrayList(sessionEntries) }
+
+        private fun beginSession() {
+            sessionStart = System.currentTimeMillis()
+            sessionFile = null
+            sessionDay = ""
+            synchronized(sessionEntries) { sessionEntries.clear() }
+            entriesVersion++
+        }
+
+        private fun addEntry(e: Entry) {
+            synchronized(sessionEntries) { sessionEntries.add(e) }
+            entriesVersion++
+        }
+
+        fun transcriptDir(ctx: Context): File = Transcripts.dir(ctx)
 
         fun start(ctx: Context) {
             Prefs(ctx).wantRunning = true
@@ -318,8 +446,13 @@ class RecorderService : Service() {
 
         private fun createChannel(ctx: Context) {
             if (Build.VERSION.SDK_INT < 26) return
-            val ch = NotificationChannel(CHANNEL, "Ghi âm", NotificationManager.IMPORTANCE_LOW)
-            ctx.getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
+            val nm = ctx.getSystemService(NotificationManager::class.java)
+            runCatching { nm.deleteNotificationChannel("rec") } // v1 channel showed content
+            val ch = NotificationChannel(CHANNEL, "Ghi âm nền", NotificationManager.IMPORTANCE_MIN).apply {
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+            }
+            nm.createNotificationChannel(ch)
         }
 
         @Suppress("DEPRECATION")

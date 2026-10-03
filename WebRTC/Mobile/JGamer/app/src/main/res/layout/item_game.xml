@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:background="?attr/selectableItemBackground"
+    android:background="@drawable/focus_bg"
+    android:focusable="true"
     android:gravity="center_vertical"
     android:paddingHorizontal="16dp"
     android:paddingVertical="14dp">
@@ -43,4 +45,16 @@
             android:textSize="12sp"
             android:alpha="0.7" />
     </LinearLayout>
+
+    <!-- Visible delete action (long-press still opens the full item menu). -->
+    <ImageButton
+        android:id="@+id/gameDelete"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/focus_round_bg"
+        android:focusable="true"
+        android:contentDescription="@string/action_delete"
+        android:src="@drawable/ic_delete"
+        app:tint="?android:attr/textColorSecondary" />
 </LinearLayout>

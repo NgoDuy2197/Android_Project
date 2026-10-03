@@ -1,43 +1,84 @@
 package com.dsoft.voicenote
 
+import android.content.Context
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** One transcript entry: time label + what was said. */
+data class Entry(val time: String, val text: String)
+
 /**
- * Appends entries to one UTF-8 file per day:
+ * Appends entries in this format:
  *
  *     08:15:32:
  *     - Nội dung câu nói
  *     (blank line)
  *
- * Every write is opened, fsynced and closed, so a crash loses at most the
- * entry still being spoken.
+ * [target] picks the file for an entry (per session or per day). Every write is
+ * opened, fsynced and closed, so a crash loses at most the entry being spoken.
  */
-class TranscriptWriter(private val dir: File, timeFormat: String) {
+class TranscriptWriter(timeFormat: String, private val target: (Long) -> File) {
     private val timeFmt = try {
         SimpleDateFormat(timeFormat, Locale.getDefault())
     } catch (e: IllegalArgumentException) {
         SimpleDateFormat(Prefs.DEFAULT_TIME_FORMAT, Locale.getDefault())
     }
-    private val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
+    /** Returns the time label that was written. */
     @Synchronized
-    fun write(startMs: Long, text: String) {
-        if (!dir.exists()) dir.mkdirs()
-        val date = Date(startMs)
-        FileOutputStream(fileFor(dir, dayFmt.format(date)), true).use { out ->
-            out.write("${timeFmt.format(date)}:\n- $text\n\n".toByteArray(Charsets.UTF_8))
+    fun write(startMs: Long, text: String): String {
+        val label = timeFmt.format(Date(startMs))
+        val file = target(startMs)
+        file.parentFile?.mkdirs()
+        FileOutputStream(file, true).use { out ->
+            out.write("$label:\n- $text\n\n".toByteArray(Charsets.UTF_8))
             out.fd.sync()
+        }
+        return label
+    }
+}
+
+/** The transcript folder and its files. */
+object Transcripts {
+    private val badChars = Regex("[\\\\/:*?\"<>|\\r\\n\\t]")
+
+    fun dir(ctx: Context): File =
+        ctx.getExternalFilesDir("transcripts") ?: File(ctx.filesDir, "transcripts")
+
+    /** Newest first. */
+    fun list(ctx: Context): List<File> =
+        dir(ctx).listFiles { f -> f.isFile && f.name.endsWith(".txt") }
+            ?.sortedByDescending { it.lastModified() }
+            .orEmpty()
+
+    fun sessionFileName(startMs: Long): String =
+        SimpleDateFormat("yyyy-MM-dd HH-mm-ss", Locale.US).format(Date(startMs)) + ".txt"
+
+    fun dayFileName(startMs: Long): String =
+        "transcript_" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(startMs)) + ".txt"
+
+    /** Display/rename-safe file name, without extension; empty if nothing usable is left. */
+    fun cleanName(name: String): String = name.replace(badChars, " ").trim().trimEnd('.').take(80)
+
+    /** Reads a transcript back into entries (tolerates hand-edited files). */
+    fun parse(f: File): List<Entry> {
+        val text = runCatching { f.readText() }.getOrDefault("")
+        return text.split(Regex("\\n\\s*\\n")).mapNotNull { block ->
+            val lines = block.trim().lines().filter { it.isNotBlank() }
+            when {
+                lines.isEmpty() -> null
+                lines.size > 1 && lines[0].endsWith(":") ->
+                    Entry(lines[0].dropLast(1), lines.drop(1).joinToString("\n") { it.removePrefix("- ") })
+                else -> Entry("", lines.joinToString("\n") { it.removePrefix("- ") })
+            }
         }
     }
 
-    companion object {
-        fun fileFor(dir: File, day: String) = File(dir, "transcript_$day.txt")
-        fun today(dir: File) = fileFor(dir, SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()))
-    }
+    fun countEntries(f: File): Int =
+        runCatching { f.useLines { s -> s.count { it.startsWith("- ") } } }.getOrDefault(0)
 }
 
 /**
