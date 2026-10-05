@@ -61,7 +61,7 @@ object AppCatalog {
         }
 
         rows.sortWith(
-            compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }
+            compareBy<AppRow, String>(String.CASE_INSENSITIVE_ORDER) { it.label }
                 .thenBy { it.packageName }
         )
 
