@@ -1,0 +1,8 @@
+.venv/
+build/
+dist/
+*.spec
+icon.ico
+TryOn.exe
+models/*.task
+__pycache__/
