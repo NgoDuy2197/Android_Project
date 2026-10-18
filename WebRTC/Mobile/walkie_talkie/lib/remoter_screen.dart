@@ -672,9 +672,9 @@ class _ReorderScreenState extends State<_ReorderScreen> {
       ),
       body: ReorderableListView.builder(
         itemCount: _items.length,
-        onReorder: (oldIndex, newIndex) {
+        // newIndex already accounts for the removed item.
+        onReorderItem: (oldIndex, newIndex) {
           setState(() {
-            if (newIndex > oldIndex) newIndex -= 1;
             final item = _items.removeAt(oldIndex);
             _items.insert(newIndex, item);
           });

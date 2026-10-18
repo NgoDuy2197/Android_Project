@@ -20,12 +20,12 @@ google-services.json
 
 # Prebuilt libretro cores too large for GitHub (34-65 MB each).
 # Download from https://buildbot.libretro.com/nightly/android/latest/arm64-v8a/
-# (and .../armeabi-v7a/ for 32-bit TVs) and drop into JGamer/app/src/main/jniLibs/<abi>/
-# before building JGamer. The ** patterns cover both ABIs.
-WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/mame2010_libretro_android.so
-WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/fbneo_libretro_android.so
-WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/mame2003_plus_libretro_android.so
-WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/mame2003_libretro_android.so
+# and drop into JGamer/app/src/main/jniLibs/arm64-v8a/ with a "lib" prefix (e.g. libfbneo_libretro_android.so),
+# before building JGamer (Android only extracts native libs named lib*.so).
+WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/libmame2010_libretro_android.so
+WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/libfbneo_libretro_android.so
+WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/libmame2003_plus_libretro_android.so
+WebRTC/Mobile/JGamer/app/src/main/jniLibs/**/libmame2003_libretro_android.so
 
 # Build outputs
 *.apk

@@ -1,8 +1,7 @@
 @echo off
 REM ============================================================================
 REM  JGamer (NES / SNES / PICO-8 emulator) - one-click APK builder for Windows
-REM    build.bat            -> debug APKs; copies JGamer-arm64.apk, JGamer-arm32.apk
-REM                            and JGamer.apk (= arm64) to root
+REM    build.bat            -> release APK for phones (arm64, debug-signed) -> JGamer.apk
 REM    build.bat install    -> build + adb install to a connected device
 REM    build.bat clean      -> clean outputs
 REM  Auto-detects Android Studio's JDK (JBR) and the SDK.
@@ -31,18 +30,32 @@ if not exist "local.properties" (
 
 if /I "%TASK%"=="clean" ( call "%GRADLEW%" clean & goto :eof )
 
-REM ABI splits: one APK per ABI. arm64 = phones; arm32 (armeabi-v7a) = 32-bit TVs.
-set "OUTDIR=app\build\outputs\apk\debug"
-set "APK=%OUTDIR%\app-arm64-v8a-debug.apk"
-set "APK32=%OUTDIR%\app-armeabi-v7a-debug.apk"
+REM Single phone APK (arm64-v8a).
+set "APK=app\build\outputs\apk\release\app-release.apk"
 
 if /I "%TASK%"=="install" (
-    call "%GRADLEW%" assembleDebug || goto :fail
+    call "%GRADLEW%" assembleRelease || goto :fail
     where adb >nul 2>nul && ( echo [build] Installing... & adb install -r "%APK%" ) || echo [build] adb not on PATH.
     goto :report
 )
 
-call "%GRADLEW%" assembleDebug || goto :fail
+call "%GRADLEW%" assembleRelease || goto :fail
+
+:report
+echo.
+if exist "%APK%" (
+    copy /Y "%APK%" "%~dp0JGamer.apk" >nul
+    echo [build] SUCCESS. APK moi: %~dp0JGamer.apk
+) else (
+    echo [build] Built, but APK not found at %APK%
+)
+goto :eof
+:fail
+    where adb >nul 2>nul && ( echo [build] Installing... & adb install -r "%APK%" ) || echo [build] adb not on PATH.
+    goto :report
+)
+
+call "%GRADLEW%" assembleRelease || goto :fail
 
 :report
 echo.

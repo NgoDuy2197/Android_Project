@@ -11,16 +11,18 @@ android {
         applicationId = "com.dsoft.jgamer"
         minSdk = 21
         targetSdk = 34
-        versionCode = 1
+        // > 12 (last per-ABI split build) so it updates existing installs.
+        versionCode = 13
         versionName = "1.0.0"
         vectorDrawables { useSupportLibrary = true }
-        // ABIs come from splits below (AGP rejects ndk.abiFilters together
-        // with ABI splits): arm64-v8a for phones, armeabi-v7a for 32-bit TVs
-        // (e.g. many Sony Bravia). LibretroDroid's x86 libs are left out.
+        // Phones only: a single arm64 APK (32-bit / x86 cores left out to keep it small).
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     buildTypes {
         release {
+            // Non-debuggable release signed with the debug key (updates existing installs).
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -34,18 +36,8 @@ android {
 
     buildFeatures { viewBinding = true }
 
-    // One APK per ABI so each carries only its own ~100-200 MB of cores.
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a")
-            isUniversalApk = false
-        }
-    }
-
-    // Extract native libs (cores) to the install dir so LibretroDroid can load
-    // them by filename from nativeLibraryDir.
+    // Compress cores in the APK and extract them on install (smaller download);
+    // LibretroDroid loads them by filename from nativeLibraryDir.
     packaging {
         jniLibs { useLegacyPackaging = true }
     }
@@ -64,18 +56,4 @@ dependencies {
 
     // Emulation engine (libretro frontend, GPLv3).
     implementation("com.github.swordfish90:libretrodroid:0.13.2")
-}
-
-// Per-ABI versionCode: arm64 > v7a, so a 64-bit device offered both picks arm64.
-val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2)
-androidComponents {
-    onVariants { variant ->
-        variant.outputs.forEach { output ->
-            val abi = output.filters.find {
-                it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI
-            }?.identifier
-            val code = abiCodes[abi] ?: return@forEach
-            output.versionCode.set((output.versionCode.orNull ?: 1) * 10 + code)
-        }
-    }
 }

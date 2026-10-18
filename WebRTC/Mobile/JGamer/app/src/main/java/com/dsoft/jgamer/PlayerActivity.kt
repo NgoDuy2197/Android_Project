@@ -281,9 +281,12 @@ class PlayerActivity : AppCompatActivity(), GamepadOverlay.PadListener {
         val attempt = intent.getIntExtra(EXTRA_CORE_ATTEMPT, 0)
         coreFileName = prefs.getGameCore(entry.id)
             ?: system.cores.getOrElse(attempt) { system.cores.first() }.file
-        val core = File(applicationInfo.nativeLibraryDir, coreFileName)
+        // Cores ship as lib<name>.so: Android only extracts native libs whose name starts
+        // with "lib", so the un-prefixed name would never reach nativeLibraryDir.
+        val libDir = applicationInfo.nativeLibraryDir
+        val core = listOf("lib$coreFileName", coreFileName).map { File(libDir, it) }.firstOrNull { it.exists() }
         val data = GLRetroViewData(this).apply {
-            coreFilePath = if (core.exists()) core.absolutePath else coreFileName
+            coreFilePath = core?.absolutePath ?: "lib$coreFileName"
             gameFilePath = entry.localPath
             systemDirectory = File(filesDir, "system").apply { runCatching { mkdirs() } }.absolutePath
             savesDirectory = File(filesDir, "saves").apply { runCatching { mkdirs() } }.absolutePath

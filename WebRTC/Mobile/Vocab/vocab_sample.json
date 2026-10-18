@@ -1,0 +1,52 @@
+{
+ "format": "vocab-collections",
+ "version": 1,
+ "collections": [
+  {
+   "id": "sample-travel-3lang",
+   "name": "Du lịch – Anh · Trung · Nhật",
+   "fields": [
+    { "name": "English", "lang": "en" },
+    { "name": "中文", "lang": "zh" },
+    { "name": "日本語", "lang": "ja" }
+   ],
+   "words": [
+    { "id": "travel-001", "values": ["Airport", "机场", "空港"], "learned": false },
+    { "id": "travel-002", "values": ["Hotel", "酒店", "ホテル"], "learned": false },
+    { "id": "travel-003", "values": ["Ticket", "票", "切符"], "learned": false },
+    { "id": "travel-004", "values": ["Where is the station?", "车站在哪里？", "駅はどこですか？"], "learned": false },
+    { "id": "travel-005", "values": ["How much is this?", "这个多少钱？", "これはいくらですか？"], "learned": false }
+   ]
+  },
+  {
+   "id": "sample-hsk2-food",
+   "name": "HSK 2 – Đồ ăn",
+   "fields": [
+    { "name": "Hán tự", "lang": "zh" },
+    { "name": "Pinyin", "lang": "" },
+    { "name": "Nghĩa", "lang": "vi" }
+   ],
+   "words": [
+    { "id": "hsk2-food-001", "values": ["米饭", "mǐfàn", "cơm"], "learned": false },
+    { "id": "hsk2-food-002", "values": ["面条", "miàntiáo", "mì sợi"], "learned": false },
+    { "id": "hsk2-food-003", "values": ["鸡蛋", "jīdàn", "trứng gà"], "learned": false },
+    { "id": "hsk2-food-004", "values": ["牛奶", "niúnǎi", "sữa bò"], "learned": false },
+    { "id": "hsk2-food-005", "values": ["西瓜", "xīguā", "dưa hấu"], "learned": false }
+   ]
+  },
+  {
+   "id": "sample-ielts-verbs",
+   "name": "IELTS – Động từ",
+   "fields": [
+    { "name": "English", "lang": "en" },
+    { "name": "Nghĩa", "lang": "vi" }
+   ],
+   "words": [
+    { "id": "ielts-verb-001", "values": ["achieve", "đạt được"], "learned": false },
+    { "id": "ielts-verb-002", "values": ["contribute", "đóng góp"], "learned": false },
+    { "id": "ielts-verb-003", "values": ["emphasize", "nhấn mạnh"], "learned": false },
+    { "id": "ielts-verb-004", "values": ["maintain", "duy trì"], "learned": false }
+   ]
+  }
+ ]
+}

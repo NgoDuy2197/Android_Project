@@ -6,9 +6,9 @@ behind Lemuroid) with standard **libretro cores**:
 
 | System  | Core (bundled, arm64-v8a)          | ROMs / carts        |
 |---------|------------------------------------|---------------------|
-| NES     | `fceumm_libretro_android.so`       | `.nes` `.fds` `.unf`|
-| SNES    | `snes9x_libretro_android.so`       | `.sfc` `.smc` `.swc`|
-| PICO-8  | `retro8_libretro_android.so`       | `.p8` `.p8.png`     |
+| NES     | `libfceumm_libretro_android.so`       | `.nes` `.fds` `.unf`|
+| SNES    | `libsnes9x_libretro_android.so`       | `.sfc` `.smc` `.swc`|
+| PICO-8  | `libretro8_libretro_android.so`       | `.p8` `.p8.png`     |
 
 ## Flow
 Home has tabs **Recent / NES / SNES / PICO-8**. Import ROMs with **+** (system
@@ -47,4 +47,8 @@ Requirements: JDK 17+ (Android Studio's JBR is fine), Android SDK, NDK not neede
 ## Where cores come from
 Prebuilt from the libretro buildbot / LibretroDroid sample, in
 `app/src/main/jniLibs/arm64-v8a/`. To add more systems later, drop the matching
-`*_libretro_android.so` there and add an entry in `model/GameSystem.kt`.
+`lib*_libretro_android.so` there (the `lib` prefix is required: Android only extracts native libs named `lib*.so`) and add an entry in `model/GameSystem.kt`.
+
+## Build
+
+`build.bat` → một file **`JGamer.apk`** cho điện thoại (arm64, release ký bằng debug key, ~56 MB). Core trong `app/src/main/jniLibs/arm64-v8a/` phải có tiền tố `lib` (vd. `libfbneo_libretro_android.so`) để Android giải nén khi cài.
