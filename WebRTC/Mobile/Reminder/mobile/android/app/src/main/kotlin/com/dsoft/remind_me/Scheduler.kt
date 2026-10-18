@@ -137,6 +137,7 @@ object Scheduler {
         val arr = root.optJSONArray("reminders") ?: JSONArray()
         val now = System.currentTimeMillis()
         var missed = 0
+        Upcoming.cancelAll(ctx) // re-posted below for whatever is still within 5 minutes
         for (i in 0 until arr.length()) {
             val r = arr.getJSONObject(i)
             val id = r.optString("id")
@@ -152,9 +153,13 @@ object Scheduler {
                 if (r.optString("type") != "repeat") r.put("enabled", false)
             }
             cancel(ctx, id)
+            Upcoming.disarm(ctx, id)
             val nf = if (r.optBoolean("enabled", true)) next(r, now) else 0
             r.put("nextFire", nf)
-            if (nf > 0) schedule(ctx, id, nf)
+            if (nf > 0) {
+                schedule(ctx, id, nf)
+                Upcoming.arm(ctx, id, r, nf)
+            }
         }
         save(ctx, root)
         missed
@@ -171,7 +176,10 @@ object Scheduler {
             if (r.optString("type") == "repeat") {
                 val nf = next(r, System.currentTimeMillis() + 1000)
                 r.put("nextFire", nf)
-                if (nf > 0) schedule(ctx, id, nf)
+                if (nf > 0) {
+                    schedule(ctx, id, nf)
+                    Upcoming.arm(ctx, id, r, nf)
+                }
             } else {
                 r.put("enabled", false)
                 r.put("nextFire", 0)
@@ -185,6 +193,14 @@ object Scheduler {
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val id = intent.getStringExtra("id") ?: return
+        if (intent.action == ACTION_PRE) {
+            Scheduler.find(ctx, id)?.let { r ->
+                val at = r.optLong("nextFire")
+                if (r.optBoolean("enabled", true) && at > System.currentTimeMillis()) Upcoming.show(ctx, id, r, at)
+            }
+            return
+        }
+        Upcoming.cancel(ctx, id)
         if (intent.action == ACTION_FIRE) Scheduler.onFired(ctx, id)
         AlarmService.ring(ctx, id)
     }
@@ -192,6 +208,7 @@ class AlarmReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_FIRE = "com.dsoft.remind_me.FIRE"
         const val ACTION_SNOOZE_FIRE = "com.dsoft.remind_me.SNOOZE_FIRE"
+        const val ACTION_PRE = "com.dsoft.remind_me.PRE"
     }
 }
 

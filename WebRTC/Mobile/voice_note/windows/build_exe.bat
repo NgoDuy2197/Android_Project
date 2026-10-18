@@ -28,6 +28,7 @@ set "PY=.venv\Scripts\python.exe"
     voicenote.py || goto :fail
 
 copy /Y "dist\VoiceNote.exe" "VoiceNote.exe" >nul
+call "%~dp0..\..\_copy_result.bat" "%~dp0VoiceNote.exe"
 echo.
 echo [build] SUCCESS: %~dp0VoiceNote.exe
 goto :eof

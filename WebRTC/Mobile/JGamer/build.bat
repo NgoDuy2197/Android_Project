@@ -45,6 +45,7 @@ call "%GRADLEW%" assembleRelease || goto :fail
 echo.
 if exist "%APK%" (
     copy /Y "%APK%" "%~dp0JGamer.apk" >nul
+    call "%~dp0..\_copy_result.bat" "%~dp0JGamer.apk"
     echo [build] SUCCESS. APK moi: %~dp0JGamer.apk
 ) else (
     echo [build] Built, but APK not found at %APK%
@@ -61,6 +62,7 @@ call "%GRADLEW%" assembleRelease || goto :fail
 echo.
 if exist "%APK%" (
     copy /Y "%APK%" "%~dp0JGamer-arm64.apk" >nul
+    call "%~dp0..\_copy_result.bat" "%~dp0JGamer-arm64.apk"
     REM JGamer.apk = arm64 copy, kept for existing habits / scripts.
     copy /Y "%APK%" "%~dp0JGamer.apk" >nul
     echo [build] SUCCESS. APK moi:
@@ -71,6 +73,7 @@ if exist "%APK%" (
 )
 if exist "%APK32%" (
     copy /Y "%APK32%" "%~dp0JGamer-arm32.apk" >nul
+    call "%~dp0..\_copy_result.bat" "%~dp0JGamer-arm32.apk"
     echo         %~dp0JGamer-arm32.apk   [32-bit TV, armeabi-v7a]
 ) else (
     echo [build] arm32 APK not found at %APK32%

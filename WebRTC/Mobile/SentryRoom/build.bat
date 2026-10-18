@@ -5,6 +5,7 @@ pyinstaller --onefile --name SentryRoom --icon icon.ico ^
   --add-data "web;web" ^
   --hidden-import engineio.async_drivers.aiohttp ^
   server.py
+call "%~dp0..\_copy_result.bat" "%~dp0dist\SentryRoom.exe"
 echo.
 echo Done. File: dist\SentryRoom.exe  (chay truc tiep, khong can Python)
 pause

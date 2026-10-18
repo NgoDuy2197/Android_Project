@@ -183,7 +183,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Map<String, bool> _perms = {};
   Timer? _tick;
   bool _tipDone = true;
-  Map<String, dynamic> _ka = {};
 
   @override
   void initState() {
@@ -210,13 +209,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final list = await ReminderStore.load();
     final perms = await Native.permissions();
     final tipDone = await ReminderStore.tipDone();
-    final ka = await Native.keepAliveStatus();
     if (!mounted) return;
     setState(() {
       _list = list;
       _perms = perms;
       _tipDone = tipDone;
-      _ka = ka;
     });
     if (missed > 0) _showMissed(missed);
   }
@@ -242,67 +239,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ],
     ),
   );
-
-  /// Shell watchdog status (same mechanism as volte_guard), via Shizuku.
-  Widget _watchdogCard() {
-    final installed = _ka['installed'] == true, running = _ka['running'] == true, permitted = _ka['permitted'] == true;
-    final wd = _ka['watchdog'];
-    final (String status, Color color) = !installed
-        ? ('Chưa cài Shizuku', Colors.black45)
-        : !running
-        ? ('Shizuku chưa chạy', Colors.orange)
-        : !permitted
-        ? ('Chưa cấp quyền Shizuku cho app', Colors.orange)
-        : wd == true
-        ? ('Watchdog đang chạy — app bị tắt sẽ tự bật lại', const Color(0xFF16A34A))
-        : ('Watchdog đang tắt', Colors.orange);
-    return Glass(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.shield_moon_outlined, color: kAccent),
-              SizedBox(width: 8),
-              Text('Bảo vệ chạy nền', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(status, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-          if (!permitted)
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: Text(
-                'Có Shizuku: app tự chạy watchdog. Không có: cắm máy tính và chạy keepalive.bat (chạy lại sau mỗi lần khởi động máy).',
-                style: TextStyle(color: Colors.black54, fontSize: 12),
-              ),
-            ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (running && !permitted)
-                GlassButton(icon: Icons.key_rounded, label: 'Cấp quyền Shizuku', onPressed: () async {
-                  await Native.shizukuRequest();
-                  Future.delayed(const Duration(seconds: 2), _reload);
-                }),
-              if (permitted && wd != true)
-                GlassButton(icon: Icons.play_arrow_rounded, label: 'Bật watchdog', onPressed: () async {
-                  await Native.keepAliveStart();
-                  _reload();
-                }),
-              if (permitted && wd == true)
-                GlassButton(icon: Icons.stop_rounded, label: 'Tắt', tint: Colors.redAccent, onPressed: () async {
-                  await Native.keepAliveStop();
-                  _reload();
-                }),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   /// How to keep the app alive on phones that kill swiped-away apps.
   Widget _keepAliveTip() => Glass(
@@ -367,6 +303,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _delete(Reminder r) async {
     _list.removeWhere((e) => e.id == r.id);
     if (r.recording.isNotEmpty) File(r.recording).delete().ignore();
+    if (r.bgImage.isNotEmpty) File(r.bgImage).delete().ignore();
     await _save();
   }
 
@@ -428,8 +365,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
             ),
           for (final r in sorted) ...[_tile(r), const SizedBox(height: 12)],
-          const SizedBox(height: 12),
-          _watchdogCard(),
         ],
       ),
     );
@@ -438,11 +373,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _tile(Reminder r) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final left = r.enabled && r.nextFire > now ? Duration(milliseconds: r.nextFire - now) : null;
-    final icon = switch (r.type) {
-      RType.countdown => Icons.hourglass_bottom_rounded,
-      RType.repeat => Icons.repeat_rounded,
-      RType.once => Icons.event_rounded,
-    };
     return Dismissible(
       key: ValueKey(r.id),
       direction: DismissDirection.endToStart,
@@ -465,9 +395,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 height: 46,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
-                  gradient: const LinearGradient(colors: [Color(0xFF34D399), kAccent]),
+                  gradient: LinearGradient(colors: [
+                    const Color(0xFF34D399).withValues(alpha: 0.35),
+                    kAccent.withValues(alpha: 0.35),
+                  ]),
                 ),
-                child: Icon(icon, color: Colors.white),
+                alignment: Alignment.center,
+                child: Text(r.emoji, style: const TextStyle(fontSize: 26)),
               ),
               const SizedBox(width: 12),
               Expanded(

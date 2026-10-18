@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static shortcuts MacroDroid (and the launcher long-press) can trigger. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="location"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_location"
+        android:shortcutShortLabel="@string/sc_location_short"
+        android:shortcutLongLabel="@string/sc_location_long">
+        <intent
+            android:action="com.dsoft.macrointegrate.SEND_LOCATION"
+            android:targetPackage="com.dsoft.macrointegrate"
+            android:targetClass="com.dsoft.macrointegrate.ActionActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="screenshot"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_screenshot"
+        android:shortcutShortLabel="@string/sc_screenshot_short"
+        android:shortcutLongLabel="@string/sc_screenshot_long">
+        <intent
+            android:action="com.dsoft.macrointegrate.SEND_SCREENSHOT"
+            android:targetPackage="com.dsoft.macrointegrate"
+            android:targetClass="com.dsoft.macrointegrate.ActionActivity" />
+    </shortcut>
+</shortcuts>

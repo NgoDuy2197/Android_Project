@@ -12,6 +12,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.text.SimpleDateFormat
+import java.util.Locale
 
 /** Grouped iOS-style settings; every change is saved and applied immediately. */
 class SettingsActivity : Activity() {
@@ -32,18 +33,45 @@ class SettingsActivity : Activity() {
         root.addView(text("Cài đặt", 34f, p.text, 700).apply { setPadding(dp(4), dp(6), 0, dp(4)) })
 
         // recognition
-        root.addView(sectionHeader(p, "Nhận dạng"))
+        root.addView(sectionHeader(p, "Nhận dạng (Google)"))
+        val langs = listOf("auto") + Prefs.LANGS.keys.toList()
+        val langLabels = listOf("Tự động", "Việt", "Anh", "Nhật", "Trung")
         root.addView(group(p,
-            row(p, "Engine", segmented(listOf("Google", "Vosk"), if (prefs.engine == "vosk") 1 else 0) {
-                prefs.engine = if (it == 1) "vosk" else "google"
-                apply()
-            }),
-            row(p, "Ngôn ngữ", segmented(listOf("Tiếng Việt", "English"), if (prefs.language == "en") 1 else 0) {
-                prefs.language = if (it == 1) "en" else "vi"
+            row(p, "Ngôn ngữ", segmented(langLabels, langs.indexOf(prefs.language).coerceAtLeast(0)) {
+                prefs.language = langs[it]
                 apply()
             }),
         ))
-        root.addView(footnote(p, "Google: nhanh và chuẩn, cần mạng (giống voice_ai). Vosk: offline, tiếng Việt kém hơn."))
+        root.addView(footnote(p, "Dùng bộ nhận dạng giọng nói Google của máy, cần mạng. " +
+            "\"Tự động\" nhờ engine tự phát hiện ngôn ngữ (phụ thuộc máy và phiên bản Android; không phải máy nào cũng hỗ trợ)."))
+
+        // translate
+        root.addView(sectionHeader(p, "Dịch"))
+        val tgt = Prefs.LANGS.keys.toList()
+        root.addView(group(p,
+            row(p, "Dịch sang", segmented(listOf("Việt", "Anh", "Nhật", "Trung"), tgt.indexOf(prefs.targetLang).coerceAtLeast(0)) {
+                prefs.targetLang = tgt[it]
+            }),
+        ))
+        root.addView(footnote(p, "Ngôn ngữ mục tiêu cho nút \"Dịch\" cạnh mỗi đoạn. Dịch bằng Google Dịch qua mạng."))
+
+        // line breaks
+        root.addView(sectionHeader(p, "Ngắt dòng (mặc định)"))
+        root.addView(group(p,
+            row(p, "Thời gian chờ nghe (giây)", inlineField(p, fmtSec(prefs.waitMs), numeric = true) { v ->
+                val sec = v.replace(',', '.').toDoubleOrNull()
+                if (sec == null) toast("Nhập số giây, vd 1 hoặc 1.5")
+                else prefs.waitMs = (sec * 1000).toLong()
+            }),
+            row(p, "Mức yên lặng (%)", inlineField(p, (prefs.silenceLevel * 100).toInt().toString(), numeric = true) { v ->
+                val pct = v.replace(',', '.').toFloatOrNull()
+                if (pct == null) toast("Nhập phần trăm 2–90, vd 25")
+                else prefs.silenceLevel = pct / 100f
+            }),
+        ))
+        root.addView(footnote(p, "Khi âm thanh nhỏ hơn mức yên lặng liên tục bằng thời gian chờ nghe, câu đang nói được " +
+            "chốt thành một dòng (chỉ một lần, im lặng lâu cũng không thêm dòng trống). " +
+            "Đây là giá trị mặc định cho phiên mới; trong phiên có thể chỉnh trực tiếp."))
 
         // background
         root.addView(sectionHeader(p, "Chạy nền"))
@@ -70,26 +98,8 @@ class SettingsActivity : Activity() {
                     apply()
                 } else toast("Định dạng giờ không hợp lệ (vd HH:mm:ss)")
             }),
-            row(p, "Gộp câu nếu nghỉ dưới (ms)", inlineField(p, prefs.pauseMs.toString(), numeric = true) { v ->
-                prefs.pauseMs = v.toLongOrNull() ?: Prefs.DEFAULT_PAUSE_MS
-                apply()
-            }),
         ))
         root.addView(footnote(p, "Mỗi phiên: mỗi lần bấm ghi là một file, đổi tên được trong Thư mục."))
-
-        // vosk
-        root.addView(sectionHeader(p, "Vosk (offline)"))
-        root.addView(group(p,
-            row(p, "Model URL", inlineField(p, prefs.modelUrl(), wide = true) { v ->
-                prefs.setModelUrl(prefs.language, v)
-                apply()
-            }),
-            row(p, "Lọc nhiễu (0–1)", inlineField(p, prefs.minConfidence.toString(), numeric = true) { v ->
-                prefs.minConfidence = v.toFloatOrNull() ?: Prefs.DEFAULT_MIN_CONF
-                apply()
-            }),
-        ))
-        root.addView(footnote(p, "Model URL áp dụng cho ngôn ngữ đang chọn; tự tải một lần."))
 
         setContentView(ScrollView(this).apply { addView(root) })
     }
@@ -118,6 +128,8 @@ class SettingsActivity : Activity() {
             runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
         }
     }
+
+    private fun fmtSec(ms: Long) = if (ms % 1000 == 0L) (ms / 1000).toString() else "%.1f".format(Locale.US, ms / 1000.0)
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 }

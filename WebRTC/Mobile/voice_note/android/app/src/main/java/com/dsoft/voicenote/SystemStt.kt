@@ -18,7 +18,11 @@ import android.speech.SpeechRecognizer
  * All calls must happen on the main thread; errors never stop the loop, they
  * only back off.
  */
-class SystemStt(private val ctx: Context, private val locale: String, private val cb: Callback) {
+class SystemStt(private val ctx: Context, private val lang: String, private val cb: Callback) {
+    private val auto = lang == "auto"
+    // In auto mode start from the system language and let the engine detect/switch.
+    private val locale = if (auto) java.util.Locale.getDefault().toLanguageTag() else (Prefs.LOCALES[lang] ?: "vi-VN")
+
     interface Callback {
         fun onStatus(s: String)
         fun onSpeechStart()
@@ -38,6 +42,9 @@ class SystemStt(private val ctx: Context, private val locale: String, private va
         errors = 0
         listenOnce()
     }
+
+    /** Ends the current utterance now; its final result arrives through onFinal. */
+    fun finish() = main.post { runCatching { rec?.stopListening() } }
 
     fun stop() = main.post {
         running = false
@@ -94,6 +101,14 @@ class SystemStt(private val ctx: Context, private val locale: String, private va
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
             putExtra("android.speech.extra.DICTATION_MODE", true)
+            if (auto) {
+                // Ask the recognizer to detect / switch languages where it can
+                // (Google on-device, Android 13+). Harmless on engines that ignore it.
+                putExtra("android.speech.extra.ENABLE_LANGUAGE_DETECTION", true)
+                val allowed = arrayListOf("vi-VN", "en-US", "ja-JP", "zh-CN")
+                putStringArrayListExtra("android.speech.extra.LANGUAGE_DETECTION_ALLOWED_LANGUAGES", allowed)
+                putStringArrayListExtra("android.speech.extra.LANGUAGE_SWITCH_ALLOWED_LANGUAGES", allowed)
+            }
         }
         try {
             r.startListening(intent)
@@ -118,7 +133,7 @@ class SystemStt(private val ctx: Context, private val locale: String, private va
 
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
-            cb.onStatus("Đang nghe (${Prefs.LANGS[locale.take(2)] ?: locale}, Google)…")
+            cb.onStatus("Đang nghe (${if (auto) "Tự động" else Prefs.LANGS[lang] ?: locale})…")
         }
 
         override fun onBeginningOfSpeech() = cb.onSpeechStart()
@@ -139,13 +154,14 @@ class SystemStt(private val ctx: Context, private val locale: String, private va
         override fun onResults(results: Bundle?) {
             errors = 0
             cb.onPartial("")
-            first(results).let { if (it.isNotBlank()) cb.onFinal(it) }
+            cb.onFinal(first(results))
             schedule(150)
         }
 
         override fun onError(error: Int) {
             cb.onPartial("")
             cb.onLevel(0f)
+            cb.onFinal("") // lets the segmenter keep the last partial / close a pending line
             when (error) {
                 // Silence / nothing understood: normal while nobody talks.
                 SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {

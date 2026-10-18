@@ -44,6 +44,7 @@ call "%GRADLEW%" assembleDebug || goto :fail
 echo.
 if not exist "%APK%" ( echo [build] Built, but APK not found at %APK% & exit /b 1 )
 copy /Y "%APK%" "%OUT%" >nul
+call "%~dp0..\_copy_result.bat" "%OUT%"
 echo [build] SUCCESS. APK moi:
 echo         %OUT%
 

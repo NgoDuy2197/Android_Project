@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BookShelf</string>
+    <string name="ch_tts">Đọc sách thành tiếng</string>
+    <string name="ch_jobs">Tác vụ nền (trích xuất, dịch, MP3)</string>
+
+    <!-- Library -->
+    <string name="library_title">Tủ sách</string>
+    <plurals name="book_count">
+        <item quantity="one">%d cuốn sách</item>
+        <item quantity="other">%d cuốn sách</item>
+    </plurals>
+    <string name="add_books">Thêm sách</string>
+    <string name="search_hint">Tìm theo tên sách…</string>
+    <string name="empty_library">Tủ sách đang trống.\nNhấn + để thêm sách PDF hoặc TXT.</string>
+    <string name="sort_by">Sắp xếp</string>
+    <string name="sort_recent">Đọc gần đây</string>
+    <string name="sort_title">Tên sách (A–Z)</string>
+    <string name="sort_added">Mới thêm</string>
+    <string name="importing">Đang thêm %1$d tệp…</string>
+    <string name="import_failed">Không thêm được %1$d tệp.</string>
+    <string name="err_no_picker">Không mở được trình chọn tệp.</string>
+    <string name="err_cover">Không đọc được ảnh bìa.</string>
+
+    <!-- Book menu -->
+    <string name="menu_open">Mở sách</string>
+    <string name="menu_listen">Nghe tiếp (đọc thành tiếng)</string>
+    <string name="menu_rename">Đổi tên</string>
+    <string name="menu_cover">Đổi ảnh bìa…</string>
+    <string name="menu_cover_reset">Dùng lại bìa mặc định</string>
+    <string name="menu_extract">Trích xuất văn bản (PDF → TXT)</string>
+    <string name="menu_translate">Dịch sách…</string>
+    <string name="menu_translate_title">Dịch “%1$s”</string>
+    <string name="menu_mp3">Tạo sách nói MP3…</string>
+    <string name="menu_mp3_title">Sách nói MP3: “%1$s”</string>
+    <string name="menu_jobs">Xem tiến trình / tác vụ</string>
+    <string name="menu_delete">Xóa sách</string>
+    <string name="delete">Xóa</string>
+    <string name="delete_confirm">Xóa “%1$s” khỏi tủ sách? Tệp, vị trí đọc và tác vụ liên quan sẽ bị xóa.</string>
+    <string name="need_extract_title">Cần trích xuất văn bản</string>
+    <string name="need_extract_msg">Để đọc thành tiếng, dịch hoặc tạo MP3 từ PDF, ứng dụng cần trích xuất văn bản trước (lớp chữ có sẵn hoặc OCR). Bắt đầu trích xuất ngay?</string>
+    <string name="back">Quay lại</string>
+
+    <!-- Readers -->
+    <string name="goto_page">Đến trang</string>
+    <string name="goto_position">Đến vị trí</string>
+    <string name="goto_percent_hint">hoặc nhập phần trăm (0–100)</string>
+    <string name="empty_text_hint">Sách chưa có nội dung</string>
+    <string name="err_pdf_open">Không mở được tệp PDF</string>
+    <string name="reading_style">Kiểu chữ</string>
+    <string name="font_size">Cỡ chữ</string>
+    <string name="line_spacing">Giãn dòng</string>
+    <string name="margins">Lề</string>
+    <string name="font_serif">Có chân (Serif)</string>
+    <string name="font_sans">Không chân (Sans)</string>
+    <string name="read_from_here">Đọc từ đây</string>
+    <string name="set_listen_mark">Đánh dấu nghe từ đây</string>
+    <string name="listen_mark_set">Đã đặt dấu. “Nghe tiếp” sẽ bắt đầu từ câu này.</string>
+    <string name="copy_paragraph">Sao chép đoạn</string>
+    <string name="copied">Đã sao chép</string>
+
+    <!-- TTS -->
+    <string name="tts_starting">Đang bắt đầu đọc…</string>
+    <string name="tts_loading">Đang tải…</string>
+    <string name="tts_play">Đọc</string>
+    <string name="tts_prev">Đoạn trước</string>
+    <string name="tts_next">Đoạn sau</string>
+    <string name="tts_stop">Dừng đọc</string>
+    <string name="err_tts_init">Không khởi động được bộ đọc (TTS). Hãy cài “Dịch vụ lời nói của Google”.</string>
+    <string name="err_tts_synth">Lỗi tổng hợp giọng nói (mã %1$d)</string>
+    <string name="err_tts_timeout">Bộ đọc không phản hồi (quá thời gian)</string>
+
+    <!-- Jobs -->
+    <string name="jobs_title">Tiến trình</string>
+    <string name="jobs_for_book">Tác vụ của “%1$s”</string>
+    <string name="jobs_empty">Chưa có tác vụ nào.\nDùng menu ⋮ của mỗi cuốn sách để trích xuất, dịch hoặc tạo MP3.</string>
+    <string name="jobs_footer">Tiến độ được lưu sau mỗi trang / lô / đoạn. Nếu bị dừng (lỗi mạng, hết hạn mức, ứng dụng bị tắt), nhấn “Tiếp tục” để chạy tiếp từ phần chưa xong.</string>
+    <string name="jobs_show_all">Xem tất cả tác vụ</string>
+    <string name="job_title_extract">Trích xuất: %1$s</string>
+    <string name="job_title_translate">Dịch: %1$s → %2$s</string>
+    <string name="job_title_audio">MP3: %1$s</string>
+    <string name="job_queued">Đã thêm vào hàng đợi</string>
+    <string name="job_starting">Đang chuẩn bị…</string>
+    <string name="job_interrupted">Bị gián đoạn (ứng dụng bị tắt). Nhấn Tiếp tục.</string>
+    <string name="job_ocr_page">Đang OCR trang %1$d…</string>
+    <string name="job_detecting">Đang nhận diện ngôn ngữ…</string>
+    <string name="job_model_download">Đang tải mô hình dịch (~30MB mỗi ngôn ngữ)…</string>
+    <string name="job_model_download_wifi">Đang chờ Wi-Fi để tải mô hình dịch (~30MB)…</string>
+    <string name="job_tts_init">Đang khởi động giọng đọc…</string>
+    <string name="job_publishing">Đang lưu vào Music/BookShelf…</string>
+    <string name="unit_page">Trang %1$s</string>
+    <string name="unit_batch">Lô %1$s</string>
+    <string name="unit_chunk">Đoạn %1$s</string>
+    <string name="skipped_units">bỏ qua %1$d</string>
+    <string name="extract_detail">Lớp chữ PDF + OCR (ML Kit)</string>
+    <string name="st_running">Đang chạy</string>
+    <string name="st_queued">Đang chờ</string>
+    <string name="st_paused">Tạm dừng</string>
+    <string name="st_error">Lỗi</string>
+    <string name="st_done">Hoàn tất</string>
+    <string name="st_cancelled">Đã hủy</string>
+    <string name="btn_continue">Tiếp tục</string>
+    <string name="btn_pause">Tạm dừng</string>
+    <string name="btn_cancel">Hủy</string>
+    <string name="btn_open_result">Mở kết quả</string>
+    <string name="btn_share">Chia sẻ</string>
+    <string name="btn_remove">Xóa khỏi danh sách</string>
+    <string name="btn_start">Bắt đầu</string>
+    <string name="cancel_confirm">Hủy tác vụ này? Phần đã làm xong vẫn được giữ lại.</string>
+    <string name="title_extracted">%1$s (văn bản)</string>
+
+    <!-- Job errors -->
+    <string name="err_book_missing">Không tìm thấy sách</string>
+    <string name="err_not_pdf">Sách này không phải PDF</string>
+    <string name="err_need_text">Chưa có văn bản. Hãy trích xuất văn bản từ PDF trước.</string>
+    <string name="err_wait_extract">Đang chờ trích xuất văn bản xong. Hãy tiếp tục tác vụ trích xuất trước.</string>
+    <string name="err_empty_text">Văn bản trống</string>
+    <string name="err_detect">Không nhận diện được ngôn ngữ nguồn. Hãy chọn ngôn ngữ nguồn cụ thể.</string>
+    <string name="err_same_lang">Ngôn ngữ nguồn và đích giống nhau</string>
+    <string name="err_no_key">Chưa nhập Gemini API key</string>
+    <string name="err_model_download">Không tải được mô hình dịch: %1$s</string>
+    <string name="err_quota">Hết hạn mức / bị giới hạn tốc độ (%1$s). Đã tạm dừng — nhấn Tiếp tục sau.</string>
+    <string name="err_network">Lỗi mạng (%1$s). Nhấn Tiếp tục khi có mạng.</string>
+    <string name="err_oom">Hết bộ nhớ</string>
+    <string name="err_no_player">Không có ứng dụng phát nhạc</string>
+
+    <!-- Translate dialog -->
+    <string name="tr_engine">Công cụ dịch</string>
+    <string name="engine_mlkit">Google ML Kit (trên máy)</string>
+    <string name="engine_mlkit_note">Miễn phí, không giới hạn, dùng offline sau khi tải mô hình ~30MB/ngôn ngữ. Mặc định.</string>
+    <string name="engine_google">Google Dịch (online)</string>
+    <string name="engine_google_note">Cổng miễn phí KHÔNG chính thức, bị giới hạn tốc độ; tự chờ khi gặp HTTP 429.</string>
+    <string name="engine_gemini">Gemini API</string>
+    <string name="engine_gemini_note">gemini-2.5-flash-lite, cần API key của bạn. Dịch tự nhiên hơn.</string>
+    <string name="gemini_key">Gemini API key</string>
+    <string name="gemini_key_hint">Dán API key (AIza…)</string>
+    <string name="gemini_key_sub">Lấy key miễn phí tại aistudio.google.com</string>
+    <string name="tr_from">Từ</string>
+    <string name="tr_to">Sang</string>
+    <string name="lang_auto">Tự nhận diện</string>
+    <string name="tr_will_extract">PDF chưa có văn bản: ứng dụng sẽ trích xuất trước rồi mới dịch.</string>
+    <string name="tr_resume_note">Kết quả được ghi dần vào một cuốn sách TXT mới. Nếu bị lỗi hoặc hết hạn mức, tác vụ tạm dừng và có thể Tiếp tục từ lô chưa dịch.</string>
+
+    <!-- MP3 dialog -->
+    <string name="mp3_explain">Đọc toàn bộ sách bằng giọng “%1$s” và ghi thành MỘT tệp MP3 (lưu vào %2$s). Có thể mất nhiều thời gian; tác vụ chạy nền và tiếp tục được nếu bị dừng.</string>
+    <string name="mp3_quality">Chất lượng</string>
+    <string name="mp3_resume_note">Mỗi đoạn được tổng hợp bằng TextToSpeech rồi mã hóa MP3 (jump3r/LAME) và nối vào cuối tệp. Tiến độ lưu sau mỗi đoạn.</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Cài đặt</string>
+    <string name="sec_appearance">Giao diện</string>
+    <string name="theme_light">Sáng</string>
+    <string name="theme_dark">Tối</string>
+    <string name="theme_sepia">Sepia</string>
+    <string name="theme_system">Hệ thống</string>
+    <string name="language">Ngôn ngữ</string>
+    <string name="sec_reading">Đọc sách</string>
+    <string name="auto_open">Tự mở sách đang đọc khi mở app</string>
+    <string name="auto_open_sub">Mở ngay cuốn sách cuối cùng tại đúng vị trí đang đọc</string>
+    <string name="keep_screen_on">Giữ màn hình sáng khi đọc</string>
+    <string name="pdf_night">Chế độ đêm cho PDF</string>
+    <string name="pdf_night_sub">Đảo màu trang PDF (chữ sáng trên nền tối)</string>
+    <string name="sec_comfort">Bảo vệ mắt (chỉ trong ứng dụng)</string>
+    <string name="bluelight">Lọc ánh sáng xanh</string>
+    <string name="bluelight_sub">Phủ lớp màu hổ phách lên ứng dụng này, không cần quyền hệ thống</string>
+    <string name="bluelight_strength">Cường độ</string>
+    <string name="bluelight_warmth">Độ ấm</string>
+    <string name="dim">Giảm độ sáng</string>
+    <string name="dim_sub">Đặt độ sáng màn hình riêng khi dùng ứng dụng</string>
+    <string name="dim_level">Độ sáng</string>
+    <string name="sec_tts">Giọng đọc (TTS)</string>
+    <string name="tts_engine">Bộ máy</string>
+    <string name="tts_engine_default">Mặc định của máy</string>
+    <string name="tts_voice">Giọng</string>
+    <string name="voice_default">Tự động theo ngôn ngữ</string>
+    <string name="voice_network">cần mạng</string>
+    <string name="tts_rate">Tốc độ</string>
+    <string name="tts_pitch">Cao độ</string>
+    <string name="tts_test">Nghe thử</string>
+    <string name="no_voices">Không tìm thấy giọng đọc nào</string>
+    <string name="tts_footer">Khuyên dùng “Dịch vụ lời nói của Google” (com.google.android.tts) có giọng Tiếng Việt chất lượng cao. Giọng “cần mạng” không dùng được khi offline.</string>
+    <string name="sec_translate">Dịch sách</string>
+    <string name="tr_default_target">Ngôn ngữ đích mặc định</string>
+    <string name="wifi_only">Chỉ tải mô hình qua Wi-Fi</string>
+    <string name="wifi_only_sub">Mô hình ML Kit khoảng 30MB mỗi ngôn ngữ</string>
+    <string name="engines_footer">ML Kit: miễn phí, offline, không giới hạn. Google Dịch online: cổng không chính thức, có thể bị chặn tạm thời (HTTP 429). Gemini: cần API key, có hạn mức theo tài khoản.</string>
+    <string name="mlkit_models">Mô hình dịch đã tải</string>
+    <string name="no_models">Chưa tải mô hình nào</string>
+    <string name="download_model">Tải mô hình…</string>
+    <string name="downloading_model">Đang tải mô hình %1$s…</string>
+    <string name="model_ready">Đã tải xong mô hình</string>
+    <string name="sec_ocr">Nhận dạng chữ (OCR) cho PDF scan</string>
+    <string name="ocr_auto">Tự động</string>
+    <string name="ocr_footer">Trang PDF không có lớp chữ sẽ được OCR bằng ML Kit (Latin, Trung, Nhật). Mô hình OCR do Google Play services tải về.</string>
+    <string name="sec_about">Thông tin</string>
+    <string name="storage_used">Dung lượng đã dùng</string>
+    <string name="not_set">Chưa đặt</string>
+    <string name="menu_play">Phát (sách nói)</string>
+    <string name="menu_share">Chia sẻ sách</string>
+    <string name="theme_pastel">Pastel</string>
+    <string name="allow_cellular">Cho phép tải mô hình bằng dữ liệu di động (3G/4G)</string>
+    <string name="btn_continue_cell">Tải bằng DĐ</string>
+    <string name="job_synth_chunk">Đang đọc đoạn %1$d / %2$d</string>
+    <string name="job_synth_retry">Đọc lại đoạn %1$d (lần %2$d)…</string>
+    <string name="err_tts_chunk_failed">Không đọc được đoạn %1$d: %2$s</string>
+    <string name="err_audio_missing">Không tìm thấy tệp âm thanh</string>
+    <string name="err_share">Không chia sẻ được tệp</string>
+    <string name="nav_opacity">Độ mờ nút lật trang (PDF)</string>
+    <string name="err_model_missing">Chưa có mô hình dịch. Nhấn “Tải mô hình” để tải, rồi “Tiếp tục”.</string>
+    <string name="btn_download_model">Tải mô hình</string>
+    <string name="model_download_ready">Sẽ tải mô hình cho: %1$s (~30MB mỗi ngôn ngữ).</string>
+    <string name="model_downloading">Đang tải mô hình… Vui lòng chờ, đừng đóng.</string>
+</resources>

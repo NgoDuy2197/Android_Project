@@ -38,6 +38,10 @@ class Palette(val dark: Boolean) {
     val indigo = if (dark) 0xFF5E5CE6.toInt() else 0xFF5856D6.toInt()
     val red = if (dark) 0xFFFF453A.toInt() else 0xFFFF3B30.toInt()
     val pink = if (dark) 0xFFFF375F.toInt() else 0xFFFF2D55.toInt()
+    /** Soft pastel pinks for the record / stop controls. */
+    val rose = if (dark) 0xFFF48FB1.toInt() else 0xFFF8A5C2.toInt()
+    val roseDeep = if (dark) 0xFFE57BA5.toInt() else 0xFFF06D9B.toInt()
+    val roseLight = if (dark) 0xFFF8BBD0.toInt() else 0xFFFFD1E0.toInt()
     val green = if (dark) 0xFF30D158.toInt() else 0xFF34C759.toInt()
     val ripple = if (dark) 0x33FFFFFF else 0x1A000000
 }

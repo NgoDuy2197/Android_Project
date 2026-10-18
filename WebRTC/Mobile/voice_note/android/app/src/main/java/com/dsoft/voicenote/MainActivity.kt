@@ -85,7 +85,7 @@ class MainActivity : Activity() {
             setLineSpacing(0f, 1.2f)
         }
         stage.addView(hint)
-        stopPill = text("Dừng ghi", 15f, p.red, 500).apply {
+        stopPill = text("Dừng ghi", 15f, p.roseDeep, 500).apply {
             gravity = Gravity.CENTER
             background = pressable(rounded(p.fill, dp(18).toFloat()), p.ripple)
             setPadding(dp(22), dp(9), dp(22), dp(9))
@@ -165,8 +165,7 @@ class MainActivity : Activity() {
         record.recording = running
         record.level = RecorderService.level
         bars.push(if (running) RecorderService.level else 0f)
-        val engine = if (prefs.engine == "google") "Google" else "Vosk"
-        chip.text = "$engine · ${Prefs.LANGS[prefs.language]}"
+        chip.text = "Google · ${if (prefs.language == "auto") "Tự động" else Prefs.LANGS[prefs.language]}"
         hint.text = if (running) "${elapsed(RecorderService.sessionStart)} · ${RecorderService.status}\nChạm để mở phiên"
         else "Chạm để bắt đầu ghi"
         stopPill.visibility = if (running) TextView.VISIBLE else TextView.GONE
@@ -218,7 +217,7 @@ fun Activity.fileRow(f: File, trailing: android.view.View? = null, onClick: () -
         background = pressable(null, p.ripple)
         setOnClickListener { onClick() }
         addView(icon(R.drawable.ic_doc, android.graphics.Color.WHITE, 34).apply {
-            background = gradient(dp(9).toFloat(), if (active) p.pink else p.blue, if (active) p.red else p.indigo)
+            background = gradient(dp(9).toFloat(), if (active) p.rose else p.blue, if (active) p.roseDeep else p.indigo)
             setPadding(dp(7), dp(7), dp(7), dp(7))
         })
         val texts = LinearLayout(context).apply {
@@ -230,7 +229,7 @@ fun Activity.fileRow(f: File, trailing: android.view.View? = null, onClick: () -
             })
             val meta = SimpleDateFormat("d/M · HH:mm", Locale.getDefault()).format(Date(f.lastModified())) +
                 " · ${Transcripts.countEntries(f)} đoạn" + if (active) " · đang ghi" else ""
-            addView(text(meta, 13f, if (active) p.red else p.secondary).apply { setPadding(0, dp(3), 0, 0) })
+            addView(text(meta, 13f, if (active) p.roseDeep else p.secondary).apply { setPadding(0, dp(3), 0, 0) })
         }
         addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         addView(trailing ?: chevron(p))

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MacroIntegrate</string>
+    <string name="sc_location_short">Gửi vị trí</string>
+    <string name="sc_location_long">Gửi vị trí đến Discord</string>
+    <string name="sc_screenshot_short">Ảnh màn hình</string>
+    <string name="sc_screenshot_long">Gửi ảnh màn hình đến Discord</string>
+</resources>

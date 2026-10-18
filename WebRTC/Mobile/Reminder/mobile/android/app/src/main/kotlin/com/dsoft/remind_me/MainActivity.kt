@@ -22,6 +22,7 @@ class MainActivity : FlutterActivity() {
     private var recStart = 0L
     private var preview: MediaPlayer? = null
     private var pendingRecord: Pair<String, MethodChannel.Result>? = null
+    private var pendingPick: Pair<String, MethodChannel.Result>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,6 +79,20 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "stopRecording" -> result.success(stopRecording())
+                "pickImage" -> {
+                    pendingPick?.second?.success(false)
+                    pendingPick = call.argument<String>("dest").orEmpty() to result
+                    try {
+                        @Suppress("DEPRECATION")
+                        startActivityForResult(
+                            Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"),
+                            REQ_PICK,
+                        )
+                    } catch (_: Exception) {
+                        pendingPick = null
+                        result.success(false)
+                    }
+                }
                 "play" -> {
                     stopPreview()
                     preview = try {
@@ -200,6 +215,26 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_PICK) return
+        val (dest, result) = pendingPick ?: return
+        pendingPick = null
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) return result.success(false)
+        Thread {
+            val ok = try {
+                java.io.File(dest).parentFile?.mkdirs()
+                contentResolver.openInputStream(uri)!!.use { inp -> java.io.File(dest).outputStream().use { inp.copyTo(it) } }
+                true
+            } catch (_: Exception) {
+                false
+            }
+            runOnUiThread { result.success(ok) }
+        }.start()
+    }
+
     override fun onDestroy() {
         stopRecording()
         stopPreview()
@@ -209,6 +244,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val REQ_NOTIF = 1
         private const val REQ_MIC = 2
+        private const val REQ_PICK = 3
         private const val WATCHDOG_SEC = 30
     }
 }

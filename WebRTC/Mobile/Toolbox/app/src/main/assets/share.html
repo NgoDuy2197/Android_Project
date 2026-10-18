@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bảng chia sẻ</title>
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#ffffff; --text:#1c1c1e; --sub:#8e8e93; --sep:#d1d1d6;
+    --blue:#007aff; --green:#34c759; --red:#ff3b30; --fill:#78788033;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#000; --card:#1c1c1e; --text:#fff; --sub:#98989f; --sep:#38383a; --blue:#0a84ff; --green:#30d158; --red:#ff453a; --fill:#78788052; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+    -webkit-tap-highlight-color:transparent}
+  header{position:sticky;top:0;background:var(--bg);padding:16px;padding-top:max(16px,env(safe-area-inset-top));
+    display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--sep);z-index:5}
+  h1{font-size:22px;margin:0;flex:1;font-weight:800}
+  main{padding:16px;max-width:820px;margin:0 auto}
+  .btn{border:none;border-radius:12px;padding:10px 16px;font-size:15px;font-weight:600;cursor:pointer;
+    background:var(--blue);color:#fff}
+  .btn.ghost{background:var(--fill);color:var(--blue)}
+  .btn.red{background:var(--red)}
+  .card{background:var(--card);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px #0001}
+  .row{display:flex;align-items:center;gap:10px}
+  .ttl{font-size:17px;font-weight:700;border:none;background:transparent;color:var(--text);flex:1;outline:none}
+  textarea{width:100%;min-height:240px;margin-top:10px;border:1px solid var(--sep);border-radius:12px;padding:12px;
+    font-size:16px;background:var(--bg);color:var(--text);resize:vertical;font-family:inherit}
+  .files{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+  .file{display:flex;align-items:center;gap:10px;background:var(--fill);border-radius:10px;padding:8px 12px;font-size:14px}
+  .file .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file .sz{color:var(--sub);font-size:12px}
+  .file a,.file button{color:var(--blue);text-decoration:none;font-weight:600;border:none;background:none;cursor:pointer;font-size:14px}
+  .sub{color:var(--sub);font-size:13px}
+  .tag{font-size:11px;color:var(--sub);border:1px solid var(--sep);border-radius:6px;padding:1px 6px}
+  .back{color:var(--blue);background:none;border:none;font-size:16px;cursor:pointer;font-weight:600}
+  .empty{color:var(--sub);text-align:center;padding:60px 20px}
+  .list-item{cursor:pointer}
+  .list-item h3{margin:0 0 4px;font-size:17px}
+</style>
+</head>
+<body>
+<header>
+  <button class="back" id="back" style="display:none">‹ Danh sách</button>
+  <h1 id="title">Bảng chia sẻ</h1>
+  <button class="btn" id="add">+ Mục</button>
+</header>
+<main id="app"><div class="empty">Đang tải…</div></main>
+<script src="app.js"></script>
+</body>
+</html>

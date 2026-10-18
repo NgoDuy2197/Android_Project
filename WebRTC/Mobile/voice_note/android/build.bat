@@ -44,6 +44,7 @@ call "%GRADLEW%" assembleDebug || goto :fail
 echo.
 if exist "%APK%" (
     copy /Y "%APK%" "%~dp0VoiceNote.apk" >nul
+    call "%~dp0..\..\_copy_result.bat" "%~dp0VoiceNote.apk"
     echo [build] SUCCESS. APK moi:
     echo         %~dp0VoiceNote.apk
 ) else (

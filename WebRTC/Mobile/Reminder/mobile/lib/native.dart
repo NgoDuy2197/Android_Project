@@ -31,4 +31,8 @@ class Native {
   static Future<int> stopRecording() async => await _ch.invokeMethod<int>('stopRecording') ?? 0;
   static Future<void> play(String path) => _ch.invokeMethod('play', {'path': path});
   static Future<void> stopPlay() => _ch.invokeMethod('stopPlay');
+
+  /// Lets the user pick a photo and copies it to [dest]. Returns false if cancelled.
+  static Future<bool> pickImage(String dest) async =>
+      await _ch.invokeMethod<bool>('pickImage', {'dest': dest}) ?? false;
 }

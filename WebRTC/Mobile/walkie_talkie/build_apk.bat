@@ -52,6 +52,7 @@ set "APK=build\app\outputs\flutter-apk\app-release.apk"
 REM --- Copy APK ra thu muc goc + doi ten theo app ---
 set "OUT=%~dp0walkie_talkie.apk"
 if exist "%APK%" copy /Y "%APK%" "%OUT%" >nul
+call "%~dp0..\_copy_result.bat" "%OUT%"
 echo.
 echo ============================================
 echo   BUILD THANH CONG

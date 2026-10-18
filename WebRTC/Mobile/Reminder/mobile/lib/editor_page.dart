@@ -28,6 +28,7 @@ class _EditorPageState extends State<EditorPage> {
   int _recMs = 0;
   Timer? _recTimer;
   String? _pendingRecording; // new file not yet saved
+  bool _saved = false;
 
   @override
   void initState() {
@@ -54,6 +55,8 @@ class _EditorPageState extends State<EditorPage> {
     // Unsaved fresh recording: throw it away.
     final p = _pendingRecording;
     if (p != null && p != r.recording) File(p).delete().ignore();
+    // Cancelled edit: drop a newly picked background photo.
+    if (!_saved && r.bgImage.isNotEmpty && r.bgImage != widget.reminder?.bgImage) File(r.bgImage).delete().ignore();
     super.dispose();
   }
 
@@ -113,6 +116,9 @@ class _EditorPageState extends State<EditorPage> {
       _pendingRecording = null;
     }
     if (r.useRecording && r.recording.isEmpty) r.useRecording = false;
+    final origBg = widget.reminder?.bgImage ?? '';
+    if (origBg.isNotEmpty && origBg != r.bgImage) File(origBg).delete().ignore();
+    _saved = true;
     if (r.type == RType.countdown) r.startedAt = DateTime.now().millisecondsSinceEpoch;
     r.enabled = true;
     Navigator.pop(context, r);
@@ -198,6 +204,8 @@ class _EditorPageState extends State<EditorPage> {
           Glass(child: _typeEditor()),
           const SizedBox(height: 16),
           Glass(child: _soundEditor(t)),
+          const SizedBox(height: 16),
+          Glass(child: _lookEditor()),
           if (widget.reminder != null) ...[
             const SizedBox(height: 16),
             Center(
@@ -290,6 +298,144 @@ class _EditorPageState extends State<EditorPage> {
           onTap: () => _pickDateTime(r.at, (v) => r.at = v),
         );
     }
+  }
+
+  static const _emojis = [
+    '⏰', '🔔', '⏳', '📅', '💊', '💧', '🍚', '☕', '🍵', '🥗', '🏃', '🧘', '💪', '🚶', '😴', '🛏️',
+    '📚', '✍️', '💻', '📞', '📧', '🧹', '🧺', '🛒', '🚗', '🚌', '✈️', '🏠', '👶', '🐶', '🐱', '🌱',
+    '💰', '🧾', '🎂', '🎁', '❤️', '⭐', '🔥', '⚠️', '✅', '🎯', '🎵', '🎮', '📺', '🙏', '🌙', '☀️',
+  ];
+
+  Future<void> _pickEmoji() async {
+    final custom = TextEditingController();
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white.withValues(alpha: 0.96),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (c) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(c).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Chọn biểu tượng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            GridView.count(
+              crossAxisCount: 8,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                for (final e in _emojis)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => Navigator.pop(c, e),
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: e == r.emoji ? kAccent.withValues(alpha: 0.15) : null,
+                      ),
+                      child: Text(e, style: const TextStyle(fontSize: 26)),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: custom,
+                    decoration: const InputDecoration(hintText: 'Hoặc gõ emoji bất kỳ từ bàn phím'),
+                    style: const TextStyle(fontSize: 22),
+                    onSubmitted: (v) => Navigator.pop(c, v),
+                  ),
+                ),
+                TextButton(onPressed: () => Navigator.pop(c, custom.text), child: const Text('Dùng')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    final v = picked?.trim() ?? '';
+    if (v.isEmpty) return;
+    setState(() => r.emoji = v.characters.take(2).toString()); // one emoji (some are 2 graphemes, e.g. flags)
+  }
+
+  Future<void> _pickBackground() async {
+    final dir = await ReminderStore.backgroundsDir();
+    final dest = '${dir.path}/${r.id}_${DateTime.now().millisecondsSinceEpoch}.img';
+    if (!await Native.pickImage(dest)) return;
+    final old = r.bgImage;
+    setState(() => r.bgImage = dest);
+    // A photo picked earlier in this edit (not the saved one) is no longer needed.
+    if (old.isNotEmpty && old != widget.reminder?.bgImage) File(old).delete().ignore();
+  }
+
+  Widget _lookEditor() {
+    final hasBg = r.bgImage.isNotEmpty && File(r.bgImage).existsSync();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Giao diện khi reo', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Preview of the ringing screen.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                width: 96,
+                height: 170,
+                decoration: BoxDecoration(
+                  image: hasBg ? DecorationImage(image: FileImage(File(r.bgImage)), fit: BoxFit.cover) : null,
+                  gradient: hasBg
+                      ? null
+                      : const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF34D399), Color(0xFF2E7CF6), Color(0xFF5B50E6)],
+                        ),
+                ),
+                child: Container(
+                  color: hasBg ? Colors.black.withValues(alpha: 0.3) : null,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(r.emoji, style: const TextStyle(fontSize: 30)),
+                      Text(fmtTime(DateTime.now()),
+                          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  GlassButton(icon: Icons.emoji_emotions_outlined, label: 'Biểu tượng ${r.emoji}', onPressed: _pickEmoji),
+                  GlassButton(icon: Icons.image_outlined, label: hasBg ? 'Đổi ảnh nền' : 'Chọn ảnh nền', onPressed: _pickBackground),
+                  if (hasBg)
+                    GlassButton(
+                      icon: Icons.close_rounded,
+                      label: 'Bỏ ảnh',
+                      tint: Colors.redAccent,
+                      onPressed: () => setState(() => r.bgImage = ''),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _soundEditor(ThemeData t) {

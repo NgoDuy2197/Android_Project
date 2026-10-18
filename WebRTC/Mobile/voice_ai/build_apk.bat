@@ -9,6 +9,7 @@ call flutter build apk --release || (echo [LOI] Build that bai. & pause & exit /
 set "APK=build\app\outputs\flutter-apk\app-release.apk"
 set "OUT=%~dp0voice_ai.apk"
 if exist "%APK%" copy /Y "%APK%" "%OUT%" >nul
+call "%~dp0..\_copy_result.bat" "%OUT%"
 echo.
 echo BUILD THANH CONG - APK: %OUT%
 if exist "%OUT%" explorer /select,"%OUT%"

@@ -1,0 +1,2 @@
+# Copy to webhook.properties and fill in. Used when no webhook is set inside the app.
+DISCORD_WEBHOOK=https://discord.com/api/webhooks/123456789012345678/xxxxxxxxxxxxxxxxxxxxxxxx

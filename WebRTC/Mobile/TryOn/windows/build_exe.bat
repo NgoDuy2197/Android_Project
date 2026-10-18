@@ -57,6 +57,7 @@ echo [5/5] Dang build TryOn.exe...
     tryon.py || goto :fail
 
 copy /Y "dist\TryOn.exe" "TryOn.exe" >nul
+call "%~dp0..\..\_copy_result.bat" "%~dp0TryOn.exe"
 echo.
 echo ============================================
 echo   BUILD THANH CONG

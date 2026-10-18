@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Three books standing on a shelf (white glyph with soft shadow). Safe zone 21..87. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- shadow copy -->
+    <group android:translateX="1.2" android:translateY="2">
+        <path android:fillColor="#40501E00" android:pathData="M31,36h10a1.5,1.5 0 0 1 1.5,1.5V70h-13V37.5A1.5,1.5 0 0 1 31,36z" />
+        <path android:fillColor="#40501E00" android:pathData="M45.5,29h11a1.5,1.5 0 0 1 1.5,1.5V70h-14V30.5A1.5,1.5 0 0 1 45.5,29z" />
+        <group android:pivotX="72" android:pivotY="70" android:rotation="16">
+            <path android:fillColor="#40501E00" android:pathData="M62.5,38h10a1.5,1.5 0 0 1 1.5,1.5V70h-13V39.5A1.5,1.5 0 0 1 62.5,38z" />
+        </group>
+        <path android:fillColor="#40501E00" android:pathData="M25,70h58a2,2 0 0 1 2,2v3a2,2 0 0 1 -2,2H25a2,2 0 0 1 -2,-2v-3a2,2 0 0 1 2,-2z" />
+    </group>
+    <!-- book 1 -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M31,36h10a1.5,1.5 0 0 1 1.5,1.5V70h-13V37.5A1.5,1.5 0 0 1 31,36z" />
+    <path android:fillColor="#59D9822B" android:pathData="M29.5,41h13v2.2h-13zM29.5,62h13v2.2h-13z" />
+    <!-- book 2 (tallest) -->
+    <path android:fillColor="#FFFFF8EC" android:pathData="M45.5,29h11a1.5,1.5 0 0 1 1.5,1.5V70h-14V30.5A1.5,1.5 0 0 1 45.5,29z" />
+    <path android:fillColor="#66C2691E" android:pathData="M44,35h14v2.4h-14zM44,61h14v2.4h-14z" />
+    <path android:fillColor="#4DC2691E" android:pathData="M48,44h6v10h-6z" />
+    <!-- book 3 (leaning) -->
+    <group android:pivotX="72" android:pivotY="70" android:rotation="16">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M62.5,38h10a1.5,1.5 0 0 1 1.5,1.5V70h-13V39.5A1.5,1.5 0 0 1 62.5,38z" />
+        <path android:fillColor="#59D9822B" android:pathData="M61,43h13v2.2h-13zM61,63h13v2.2h-13z" />
+    </group>
+    <!-- shelf -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M25,70h58a2,2 0 0 1 2,2v3a2,2 0 0 1 -2,2H25a2,2 0 0 1 -2,-2v-3a2,2 0 0 1 2,-2z" />
+</vector>

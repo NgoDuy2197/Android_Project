@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glossy iOS-style launcher background: warm honey -> amber -> walnut, with wood grain and a glass highlight. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="10" android:startY="0" android:endX="98" android:endY="108">
+                <item android:offset="0" android:color="#FFFFD58A" />
+                <item android:offset="0.45" android:color="#FFE39A3E" />
+                <item android:offset="1" android:color="#FF8A4A1C" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- subtle wood grain -->
+    <path android:strokeColor="#1A5A2A08" android:strokeWidth="1.2"
+        android:pathData="M-4,22 C20,18 40,27 60,22 S96,17 112,23 M-4,40 C24,36 44,45 66,40 S100,35 112,41 M-4,60 C18,56 46,65 64,60 S98,55 112,61 M-4,80 C26,76 42,85 70,80 S102,75 112,81 M-4,96 C22,92 48,101 68,96 S100,91 112,97" />
+    <path android:strokeColor="#14FFFFFF" android:strokeWidth="0.8"
+        android:pathData="M-4,31 C22,27 42,36 62,31 S98,26 112,32 M-4,50 C20,46 44,55 64,50 S98,45 112,51 M-4,70 C24,66 44,75 66,70 S100,65 112,71 M-4,88 C20,84 46,93 66,88 S98,83 112,89" />
+    <!-- deep warm vignette bottom-right -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="100" android:centerY="104" android:gradientRadius="64">
+                <item android:offset="0" android:color="#806A2A0C" />
+                <item android:offset="1" android:color="#006A2A0C" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- light bloom top-left -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="26" android:centerY="12" android:gradientRadius="56">
+                <item android:offset="0" android:color="#99FFFFFF" />
+                <item android:offset="1" android:color="#00FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- glass highlight -->
+    <path android:pathData="M-4,-4H112V40C82,54 26,54 -4,40Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="0" android:endX="54" android:endY="50">
+                <item android:offset="0" android:color="#66FFFFFF" />
+                <item android:offset="1" android:color="#05FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

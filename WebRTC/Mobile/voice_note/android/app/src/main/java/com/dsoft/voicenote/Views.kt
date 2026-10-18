@@ -67,8 +67,8 @@ class RecordButton(ctx: Context) : View(ctx) {
         val cy = height / 2f
         val r = min(width, height) / 2f * 0.62f
         shownLevel += (level - shownLevel) * if (level > shownLevel) 0.6f else 0.12f
-        val top = if (recording) p.pink else 0xFFFF6A88.toInt()
-        val bottom = if (recording) p.red else 0xFFFF2D55.toInt()
+        val top = p.roseLight
+        val bottom = if (recording) p.roseDeep else p.rose
 
         // halo rings
         if (recording) {
@@ -76,20 +76,20 @@ class RecordButton(ctx: Context) : View(ctx) {
                 val t = (phase + k * 0.5f) % 1f
                 val ring = r * (1.05f + 0.45f * t + 0.25f * shownLevel)
                 paint.shader = null
-                paint.color = withAlpha(p.pink, ((1f - t) * (70 + 120 * shownLevel)).toInt().coerceIn(0, 255))
+                paint.color = withAlpha(p.rose, ((1f - t) * (70 + 120 * shownLevel)).toInt().coerceIn(0, 255))
                 c.drawCircle(cx, cy, ring, paint)
             }
         } else {
             val breath = 0.5f + 0.5f * sin(System.currentTimeMillis() / 600.0 * PI).toFloat()
             paint.shader = null
-            paint.color = withAlpha(p.pink, (28 + 22 * breath).toInt())
+            paint.color = withAlpha(p.rose, (28 + 22 * breath).toInt())
             c.drawCircle(cx, cy, r * 1.16f, paint)
             postInvalidateDelayed(50)
         }
 
         // orb with glow
         paint.shader = LinearGradient(cx - r, cy - r, cx + r, cy + r, top, bottom, Shader.TileMode.CLAMP)
-        paint.setShadowLayer(r * 0.32f, 0f, r * 0.14f, withAlpha(bottom, 140))
+        paint.setShadowLayer(r * 0.32f, 0f, r * 0.14f, withAlpha(bottom, 110))
         c.drawCircle(cx, cy, r, paint)
         paint.clearShadowLayer()
 
@@ -122,7 +122,15 @@ class LevelBars(ctx: Context) : View(ctx) {
     private var head = 0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rect = RectF()
-    var color = ctx.palette().pink
+    var color = ctx.palette().roseDeep
+    /** Silence threshold (0..1) drawn as a dashed line; < 0 = hidden. */
+    var threshold = -1f
+        set(v) { field = v; invalidate() }
+    private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = ctx.dp(1.5f).toFloat()
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(ctx.dp(4).toFloat(), ctx.dp(3).toFloat()), 0f)
+    }
 
     fun push(v: Float) {
         values[head] = v.coerceIn(0f, 1f)
@@ -148,6 +156,15 @@ class LevelBars(ctx: Context) : View(ctx) {
             paint.color = color
             paint.alpha = (70 + 185 * (i + 1) / n)
             c.drawRoundRect(rect, bw / 2, bw / 2, paint)
+        }
+        if (threshold >= 0f) {
+            // bars grow from the middle: a level v reaches (height - h) / 2
+            val h = minH + threshold * (height - minH)
+            linePaint.color = context.palette().secondary
+            val y1 = (height - h) / 2
+            val y2 = (height + h) / 2
+            c.drawLine(0f, y1, width.toFloat(), y1, linePaint)
+            c.drawLine(0f, y2, width.toFloat(), y2, linePaint)
         }
     }
 }

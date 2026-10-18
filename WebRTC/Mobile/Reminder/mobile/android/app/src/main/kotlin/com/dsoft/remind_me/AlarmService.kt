@@ -9,7 +9,10 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
@@ -63,7 +66,11 @@ class AlarmService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_SNOOZE -> {
-                currentId?.let { Scheduler.schedule(this, it, System.currentTimeMillis() + SNOOZE_MS, snooze = true) }
+                currentId?.let {
+                    val at = System.currentTimeMillis() + SNOOZE_MS
+                    Scheduler.schedule(this, it, at, snooze = true)
+                    Upcoming.show(this, it, Scheduler.find(this, it), at, snooze = true)
+                }
                 stopAll()
                 return START_NOT_STICKY
             }
@@ -72,8 +79,10 @@ class AlarmService : Service() {
         val r = Scheduler.find(this, id)
         val title = r?.optString("title").orEmpty().ifEmpty { "Nhắc nhở" }
         val note = r?.optString("note").orEmpty()
+        val emoji = r?.optString("emoji").orEmpty().ifEmpty { "⏰" }
         currentId = id
-        startForegroundCompat(notification(id, title, note))
+        Upcoming.cancel(this, id)
+        startForegroundCompat(notification(id, "$emoji $title", note))
         wake = (getSystemService(POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "remind_me:ring").apply { acquire(6 * 60_000L) }
         startSound(
@@ -115,7 +124,7 @@ class AlarmService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_alarm)
-            .setContentTitle("⏰ $title")
+            .setContentTitle(title)
             .setContentText(note.ifEmpty { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()) })
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -267,6 +276,9 @@ class AlarmActivity : Activity() {
         }
         val title = intent.getStringExtra("title").orEmpty()
         val note = intent.getStringExtra("note").orEmpty()
+        val r = intent.getStringExtra("id")?.let { Scheduler.find(this, it) }
+        val emoji = r?.optString("emoji").orEmpty().ifEmpty { "⏰" }
+        val bg = r?.optString("bgImage").orEmpty().let { if (it.isNotEmpty() && File(it).exists()) it else "" }
         fun text(s: String, size: Float, bold: Boolean = false, alpha: Int = 255) = TextView(this).apply {
             text = s
             setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
@@ -294,11 +306,13 @@ class AlarmActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(32), dp(48), dp(32), dp(48))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Color.parseColor("#34D399"), Color.parseColor("#2E7CF6"), Color.parseColor("#5B50E6")),
-            )
-            addView(text("⏰", 64f))
+            if (bg.isEmpty()) {
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(Color.parseColor("#34D399"), Color.parseColor("#2E7CF6"), Color.parseColor("#5B50E6")),
+                )
+            }
+            addView(text(emoji, 72f))
             addView(text(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()), 72f, bold = true))
             addView(text(title.ifEmpty { "Nhắc nhở" }, 26f, bold = true))
             if (note.isNotEmpty()) addView(text(note, 17f, alpha = 220))
@@ -315,7 +329,35 @@ class AlarmActivity : Activity() {
                 })
             }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         }
-        setContentView(root)
+        if (bg.isEmpty()) {
+            setContentView(root)
+        } else {
+            // Custom photo, cropped to fill, with a dark scrim so the white text stays readable.
+            setContentView(FrameLayout(this).apply {
+                setBackgroundColor(Color.BLACK)
+                addView(ImageView(this@AlarmActivity).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    setImageBitmap(decode(bg))
+                }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+                addView(android.view.View(this@AlarmActivity).apply {
+                    background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                        intArrayOf(Color.parseColor("#66000000"), Color.parseColor("#33000000"), Color.parseColor("#99000000")))
+                }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+                addView(root, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            })
+        }
+    }
+
+    /** Decodes the photo at roughly screen size (full-size camera photos would use 50+ MB). */
+    private fun decode(path: String) = try {
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, o)
+        val target = maxOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
+        var sample = 1
+        while (maxOf(o.outWidth, o.outHeight) / (sample * 2) >= target) sample *= 2
+        BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+    } catch (_: Throwable) {
+        null
     }
 
     override fun onDestroy() {

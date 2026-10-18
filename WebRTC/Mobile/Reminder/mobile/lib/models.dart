@@ -34,6 +34,8 @@ class Reminder {
     this.vibrate = true,
     this.ringSeconds = 60,
     this.nextFire = 0,
+    this.emoji = '⏰',
+    this.bgImage = '',
   });
 
   final String id;
@@ -62,6 +64,10 @@ class Reminder {
 
   /// Computed by the native scheduler (0 = nothing scheduled).
   int nextFire;
+  /// Icon shown in the list, the notifications and the ringing screen.
+  String emoji;
+  /// Photo behind the ringing screen ('' = default gradient).
+  String bgImage;
 
   String describe() {
     switch (type) {
@@ -99,6 +105,8 @@ class Reminder {
     'vibrate': vibrate,
     'ringSeconds': ringSeconds,
     'nextFire': nextFire,
+    'emoji': emoji,
+    'bgImage': bgImage,
   };
 
   static Reminder fromJson(Map<String, dynamic> j) => Reminder(
@@ -119,6 +127,8 @@ class Reminder {
     vibrate: j['vibrate'] as bool? ?? true,
     ringSeconds: (j['ringSeconds'] as num?)?.toInt() ?? 60,
     nextFire: (j['nextFire'] as num?)?.toInt() ?? 0,
+    emoji: (j['emoji'] as String?)?.isNotEmpty == true ? j['emoji'] as String : '⏰',
+    bgImage: j['bgImage'] as String? ?? '',
   );
 
   Reminder copy() => Reminder.fromJson(toJson());
@@ -130,6 +140,12 @@ class ReminderStore {
 
   static Future<Directory> recordingsDir() async {
     final d = Directory('${(await getApplicationSupportDirectory()).path}/recordings');
+    await d.create(recursive: true);
+    return d;
+  }
+
+  static Future<Directory> backgroundsDir() async {
+    final d = Directory('${(await getApplicationSupportDirectory()).path}/backgrounds');
     await d.create(recursive: true);
     return d;
   }

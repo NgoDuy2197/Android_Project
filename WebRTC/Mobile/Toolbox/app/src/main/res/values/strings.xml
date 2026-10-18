@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tiện ích</string>
+    <string name="acc_label">Toolbox – Làm tối</string>
+    <string name="acc_desc">Cho phép lớp làm tối màn hình tối hơn 80% mà vẫn chạm được vào ứng dụng bên dưới. Không đọc nội dung màn hình.</string>
+    <string name="tile_label">Làm tối</string>
+</resources>

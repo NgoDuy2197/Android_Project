@@ -102,7 +102,7 @@ class FilesActivity : Activity() {
             .setView(box)
             .setPositiveButton("Lưu") { _, _ ->
                 val name = Transcripts.cleanName(input.text.toString())
-                val target = File(f.parentFile, "$name.txt")
+                val target = File(f.parentFile, "$name.${f.extension}")
                 when {
                     name.isEmpty() -> toast("Tên không hợp lệ")
                     target == f -> Unit
@@ -130,7 +130,7 @@ class FilesActivity : Activity() {
     }
 
     private fun share(f: File) {
-        val body = runCatching { f.readText() }.getOrDefault("")
+        val body = Transcripts.toText(Transcripts.read(f))
         if (body.isBlank()) return toast("File trống")
         val send = Intent(Intent.ACTION_SEND).setType("text/plain")
             .putExtra(Intent.EXTRA_SUBJECT, f.nameWithoutExtension)
