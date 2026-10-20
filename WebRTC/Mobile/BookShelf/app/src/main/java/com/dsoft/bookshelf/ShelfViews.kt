@@ -30,27 +30,27 @@ import kotlin.random.Random
  * Shelf wood colours; the whole shelf changes with the theme (oak / walnut / honey / lilac).
  * [glass] = frosted translucent shelf, so a custom background image shows through.
  */
-class Wood(dark: Boolean, sepia: Boolean = false, pastel: Boolean = false, glass: Boolean = false) {
-    constructor(p: Palette, glass: Boolean = false) : this(p.dark, p.sepia, p.pastel, glass)
+class Wood(dark: Boolean, sepia: Boolean = false, pastel: Boolean = false, glass: Boolean = false, kids: Boolean = false) {
+    constructor(p: Palette, glass: Boolean = false) : this(p.dark, p.sepia, p.pastel, glass, p.kids)
 
-    private val v = when { glass -> 4; dark -> 1; sepia -> 2; pastel -> 3; else -> 0 }
-    private fun pick(light: Long, dk: Long, sep: Long, pas: Long, gl: Long) =
-        when (v) { 1 -> dk; 2 -> sep; 3 -> pas; 4 -> gl; else -> light }.toInt()
+    private val v = when { glass -> 4; dark -> 1; sepia -> 2; pastel -> 3; kids -> 5; else -> 0 }
+    private fun pick(light: Long, dk: Long, sep: Long, pas: Long, gl: Long, kid: Long) =
+        when (v) { 1 -> dk; 2 -> sep; 3 -> pas; 4 -> gl; 5 -> kid; else -> light }.toInt()
 
-    val wallTop = pick(0xFFA87A4F, 0xFF24170F, 0xFFB98A54, 0xFFB4A6D6, 0x1FFFFFFF)
-    val wallBottom = pick(0xFFBF8F60, 0xFF35221A, 0xFFD0A066, 0xFFCBBEE6, 0x0FFFFFFF)
-    val wallGrain = pick(0x16000000, 0x14000000, 0x14000000, 0x10000000, 0x0A000000)
-    val wallGrainLight = pick(0x10FFFFFF, 0x08FFFFFF, 0x12FFFFFF, 0x16FFFFFF, 0x12FFFFFF)
-    val topLight = pick(0xFFF0CB98, 0xFF7A5232, 0xFFF5D9A8, 0xFFEEE6F8, 0x59FFFFFF)
-    val topDark = pick(0xFFDDAE74, 0xFF5E3D24, 0xFFE6BD82, 0xFFD6C9EC, 0x2EFFFFFF)
-    val frontTop = pick(0xFFCB9258, 0xFF6A4528, 0xFFD9A868, 0xFFC7BAE6, 0x70FFFFFF)
-    val frontBottom = pick(0xFF8E5A2C, 0xFF3E2716, 0xFFA06A34, 0xFF9C8ACB, 0x33FFFFFF)
-    val frontGrain = pick(0x26000000, 0x22000000, 0x22000000, 0x1A000000, 0x14FFFFFF)
-    val highlight = pick(0x66FFF4DC, 0x30FFFFFF, 0x66FFF0D0, 0x70FFFFFF, 0x3DFFFFFF)
-    val label = pick(0xE6FFF6E6, 0xCCE9D6BC, 0xE6FFF6E6, 0xF0FFFFFF, 0xF2FFFFFF).toInt()
-    val labelShadow = pick(0x804A2A10, 0xAA000000, 0x805A3416, 0x66604A80, 0x80000000).toInt()
-    val crownTop = pick(0xFFC48D58, 0xFF5A3A22, 0xFFD2A066, 0xFFC2B4E0, 0x4DFFFFFF)
-    val crownBottom = pick(0xFF8A5A30, 0xFF2E1D10, 0xFF9A6838, 0xFF9A88C4, 0x1FFFFFFF)
+    val wallTop = pick(0xFFA87A4F, 0xFF24170F, 0xFFB98A54, 0xFFB4A6D6, 0x1FFFFFFF, 0xFFFFD68A)
+    val wallBottom = pick(0xFFBF8F60, 0xFF35221A, 0xFFD0A066, 0xFFCBBEE6, 0x0FFFFFFF, 0xFFFFC266)
+    val wallGrain = pick(0x16000000, 0x14000000, 0x14000000, 0x10000000, 0x0A000000, 0x12000000)
+    val wallGrainLight = pick(0x10FFFFFF, 0x08FFFFFF, 0x12FFFFFF, 0x16FFFFFF, 0x12FFFFFF, 0x1AFFFFFF)
+    val topLight = pick(0xFFF0CB98, 0xFF7A5232, 0xFFF5D9A8, 0xFFEEE6F8, 0x59FFFFFF, 0xFFFFE8B4)
+    val topDark = pick(0xFFDDAE74, 0xFF5E3D24, 0xFFE6BD82, 0xFFD6C9EC, 0x2EFFFFFF, 0xFFF4C178)
+    val frontTop = pick(0xFFCB9258, 0xFF6A4528, 0xFFD9A868, 0xFFC7BAE6, 0x70FFFFFF, 0xFFFFCB7C)
+    val frontBottom = pick(0xFF8E5A2C, 0xFF3E2716, 0xFFA06A34, 0xFF9C8ACB, 0x33FFFFFF, 0xFFEC9C44)
+    val frontGrain = pick(0x26000000, 0x22000000, 0x22000000, 0x1A000000, 0x14FFFFFF, 0x14000000)
+    val highlight = pick(0x66FFF4DC, 0x30FFFFFF, 0x66FFF0D0, 0x70FFFFFF, 0x3DFFFFFF, 0x80FFFFFF)
+    val label = pick(0xE6FFF6E6, 0xCCE9D6BC, 0xE6FFF6E6, 0xF0FFFFFF, 0xF2FFFFFF, 0xF2FFFBEF).toInt()
+    val labelShadow = pick(0x804A2A10, 0xAA000000, 0x805A3416, 0x66604A80, 0x80000000, 0x80683E10).toInt()
+    val crownTop = pick(0xFFC48D58, 0xFF5A3A22, 0xFFD2A066, 0xFFC2B4E0, 0x4DFFFFFF, 0xFFFFD084)
+    val crownBottom = pick(0xFF8A5A30, 0xFF2E1D10, 0xFF9A6838, 0xFF9A88C4, 0x1FFFFFFF, 0xFFE89A44)
 }
 
 /**
@@ -393,9 +393,11 @@ class CoverView(ctx: Context) : View(ctx) {
         }
 
         // type + optional tag badges: tag chips flush to the LEFT edge, stacked on separate lines
-        val typeColor = when (b.type) {
-            "pdf" -> 0xF2D64540.toInt()
-            "audio" -> 0xF28E5CF7.toInt()
+        val typeColor = when {
+            b.type == "pdf" -> 0xF2D64540.toInt()
+            b.type == "audio" -> 0xF28E5CF7.toInt()
+            b.format == "epub" -> 0xF24C9A5A.toInt()   // EPUB: green
+            b.format == "mobi" -> 0xF2C9772E.toInt()   // MOBI: amber
             else -> 0xF22E7BD6.toInt()
         }
         var by = body.top + 9 * d
@@ -593,7 +595,9 @@ class CoverView(ctx: Context) : View(ctx) {
         paint.shader = RadialGradient(cx - rad * 0.3f, cy - rad * 0.3f, rad * 1.3f, 0xFFF6E3AE.toInt(), 0xFFB8913F.toInt(), Shader.TileMode.CLAMP)
         canvas.drawCircle(cx, cy, rad, paint)
         paint.shader = null
-        drawBookEmblem(canvas, cx, cy, rad, base)
+        // EPUB / MOBI have no real cover: stamp the format name in the medallion instead of the book emblem.
+        if (b.format.isNotEmpty()) drawFormatLabel(canvas, cx, cy, rad, base, b.format.uppercase())
+        else drawBookEmblem(canvas, cx, cy, rad, base)
         // title
         textPaint.color = 0xFFF5E6C4.toInt()
         textPaint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
@@ -604,6 +608,21 @@ class CoverView(ctx: Context) : View(ctx) {
         canvas.translate(cx - tw / 2f, cy + rad + 8 * d)
         layout.draw(canvas)
         canvas.restore()
+    }
+
+    /** Stamps a short format name ("EPUB" / "MOBI") inside the gold medallion for cover-less e-books. */
+    private fun drawFormatLabel(canvas: Canvas, cx: Float, cy: Float, rad: Float, base: Int, label: String) {
+        val ink = darken(base, 0.18f)
+        textPaint.color = ink
+        textPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        // shrink to fit inside the medallion
+        var ts = rad * 0.62f
+        textPaint.textSize = ts
+        val maxW = rad * 1.5f
+        if (textPaint.measureText(label) > maxW) { ts *= maxW / textPaint.measureText(label); textPaint.textSize = ts }
+        textPaint.textAlign = Paint.Align.CENTER
+        canvas.drawText(label, cx, cy - (textPaint.descent() + textPaint.ascent()) / 2, textPaint)
+        textPaint.textAlign = Paint.Align.LEFT
     }
 
     /** A small engraved open-book emblem inside the gold medallion (replaces the old "?"). */

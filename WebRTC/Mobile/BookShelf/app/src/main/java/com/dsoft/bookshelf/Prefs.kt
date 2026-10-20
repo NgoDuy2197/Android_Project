@@ -9,7 +9,7 @@ object Prefs {
     private fun edit(c: Context, block: SharedPreferences.Editor.() -> Unit) = sp(c).edit().apply(block).apply()
 
     // Appearance
-    fun theme(c: Context) = sp(c).getInt("theme", ThemeMode.SYSTEM)
+    fun theme(c: Context) = sp(c).getInt("theme", ThemeMode.LIGHT)
     fun setTheme(c: Context, v: Int) = edit(c) { putInt("theme", v) }
     /** "vi" (default), "en", "zh", "ja" */
     fun lang(c: Context): String = sp(c).getString("lang", "vi") ?: "vi"
@@ -79,9 +79,20 @@ object Prefs {
     fun setTrThreads(c: Context, v: Int) = edit(c) { putInt("tr_threads", v.coerceIn(0, MAX_TR_THREADS)) }
     const val MAX_TR_THREADS = 8
 
-    /** Read dialogue inside quotation marks with a slightly higher pitch (TTS + MP3). */
+    /** Read dialogue inside quotes / round brackets with a changed pitch (TTS + MP3). */
     fun quoteEmphasis(c: Context) = sp(c).getBoolean("quote_emphasis", true)
     fun setQuoteEmphasis(c: Context, v: Boolean) = edit(c) { putBoolean("quote_emphasis", v) }
+    /** Pitch change inside quotes/brackets, in percent (−40..+60; +18 = a bit higher). */
+    fun quotePitchPct(c: Context) = sp(c).getInt("quote_pitch_pct", 18).coerceIn(-40, 60)
+    fun setQuotePitchPct(c: Context, v: Int) = edit(c) { putInt("quote_pitch_pct", v.coerceIn(-40, 60)) }
+    /** Pitch multiplier applied to quoted/bracketed text. */
+    fun quotePitchMul(c: Context) = 1f + quotePitchPct(c) / 100f
+    /** Volume of quoted/bracketed text, percent of normal (30..100). */
+    fun quoteVolumePct(c: Context) = sp(c).getInt("quote_vol_pct", 100).coerceIn(30, 100)
+    fun setQuoteVolumePct(c: Context, v: Int) = edit(c) { putInt("quote_vol_pct", v.coerceIn(30, 100)) }
+    /** A different voice for quoted/bracketed text ("" = same as the main voice). */
+    fun quoteVoice(c: Context): String = sp(c).getString("quote_voice", "") ?: ""
+    fun setQuoteVoice(c: Context, v: String) = edit(c) { putString("quote_voice", v) }
 
     // Custom shelf background image (the shelf turns to glass to show it through).
     fun shelfBgOn(c: Context) = sp(c).getBoolean("shelf_bg_on", false)

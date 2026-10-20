@@ -198,6 +198,7 @@
     <string name="menu_play">Phát (sách nói)</string>
     <string name="menu_share">Chia sẻ sách</string>
     <string name="theme_pastel">Pastel</string>
+    <string name="theme_kids">Trẻ em</string>
     <string name="allow_cellular">Cho phép tải mô hình bằng dữ liệu di động (3G/4G)</string>
     <string name="btn_continue_cell">Tải bằng DĐ</string>
     <string name="job_synth_chunk">Đang đọc đoạn %1$d / %2$d</string>

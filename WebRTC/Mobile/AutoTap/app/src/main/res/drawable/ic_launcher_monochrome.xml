@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Monochrome: diagonal pointing hand + click sparkles. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="56" android:rotation="-40">
+        <path android:strokeColor="#FF000000" android:strokeWidth="3" android:strokeLineCap="round"
+            android:pathData="M54,24 L54,18" />
+        <path android:strokeColor="#FF000000" android:strokeWidth="3" android:strokeLineCap="round"
+            android:pathData="M44,27 L40,22.5" />
+        <path android:strokeColor="#FF000000" android:strokeWidth="3" android:strokeLineCap="round"
+            android:pathData="M64,27 L68,22.5" />
+        <group android:pivotX="54" android:pivotY="56" android:scaleX="0.78" android:scaleY="0.94">
+            <path android:fillColor="#FF000000"
+                android:pathData="M46,31 m0,0 h10 a5,5 0 0,1 5,5 v6 h4 a5,5 0 0,1 5,5 v2 h4 a5,5 0 0,1 5,5 v2 h3 a5,5 0 0,1 5,5 v10 a16,16 0 0,1 -16,16 h-18 a16,16 0 0,1 -14,-8 l-9,-16 a5.5,5.5 0 0,1 9,-6 l4,6 v-27 a5,5 0 0,1 5,-5 z" />
+        </group>
+    </group>
+</vector>

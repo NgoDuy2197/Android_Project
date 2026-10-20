@@ -10,10 +10,10 @@ data class Span(val start: Int, val end: Int) {
 }
 
 object TextLogic {
-    /** Quote marks that mark dialogue: straight, curly, and guillemets. */
-    const val QUOTE_CHARS = "\"“”«»‘’‹›"
-    private const val QUOTE_OPEN = "“«‘‹"
-    private const val QUOTE_CLOSE = "”»’›"
+    /** Marks that set apart dialogue / asides: straight & curly quotes, guillemets, and round brackets. */
+    const val QUOTE_CHARS = "\"“”«»‘’‹›()（）"
+    private const val QUOTE_OPEN = "“«‘‹(（"
+    private const val QUOTE_CLOSE = "”»’›)）"
 
     fun hasQuote(s: CharSequence) = s.any { it in QUOTE_CHARS }
 

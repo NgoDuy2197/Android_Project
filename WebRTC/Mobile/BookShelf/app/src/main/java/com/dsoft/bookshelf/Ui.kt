@@ -1,5 +1,6 @@
 package com.dsoft.bookshelf
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
@@ -15,6 +16,7 @@ import android.os.Build
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
@@ -31,23 +33,24 @@ import kotlin.math.roundToInt
 
 /** App theme modes. */
 object ThemeMode {
-    const val SYSTEM = 0
+    const val SYSTEM = 0   // retired (migrated to LIGHT); kept so old stored values stay valid
     const val LIGHT = 1
     const val DARK = 2
     const val SEPIA = 3
     const val PASTEL = 4
+    const val KIDS = 5
 }
 
-/** iOS-like system colors for light / dark / sepia / pastel. */
-class Palette(val dark: Boolean, val sepia: Boolean = false, val pastel: Boolean = false) {
-    val bg = when { dark -> 0xFF000000.toInt(); sepia -> 0xFFF3EAD7.toInt(); pastel -> 0xFFF4EFFB.toInt(); else -> 0xFFF2F2F7.toInt() }
-    val card = when { dark -> 0xFF1C1C1E.toInt(); sepia -> 0xFFFBF4E4.toInt(); pastel -> 0xFFFFFFFF.toInt(); else -> Color.WHITE }
-    val raised = when { dark -> 0xFF2C2C2E.toInt(); sepia -> 0xFFFFF9EC.toInt(); pastel -> 0xFFFFFFFF.toInt(); else -> Color.WHITE }
-    val text = when { dark -> 0xFFF2F2F7.toInt(); sepia -> 0xFF3B2F1E.toInt(); pastel -> 0xFF4A4160.toInt(); else -> Color.BLACK }
-    val secondary = when { dark -> 0xFF98989F.toInt(); sepia -> 0xFF8A7656.toInt(); pastel -> 0xFF9E92B8.toInt(); else -> 0xFF8E8E93.toInt() }
-    val separator = when { dark -> 0xFF38383A.toInt(); sepia -> 0xFFDCCBA8.toInt(); pastel -> 0xFFE6DEF3.toInt(); else -> 0xFFC6C6C8.toInt() }
-    val fill = when { dark -> 0x3D767680; sepia -> 0x24806A40; pastel -> 0x1F9B82D6; else -> 0x1F767680 }
-    val blue = when { dark -> 0xFF0A84FF.toInt(); pastel -> 0xFF7C6CE0.toInt(); else -> 0xFF007AFF.toInt() }
+/** iOS-like system colors for light / dark / sepia / pastel, plus a cheerful "kids" theme. */
+class Palette(val dark: Boolean, val sepia: Boolean = false, val pastel: Boolean = false, val kids: Boolean = false) {
+    val bg = when { dark -> 0xFF000000.toInt(); sepia -> 0xFFF3EAD7.toInt(); pastel -> 0xFFF4EFFB.toInt(); kids -> 0xFFFFF4E3.toInt(); else -> 0xFFF2F2F7.toInt() }
+    val card = when { dark -> 0xFF1C1C1E.toInt(); sepia -> 0xFFFBF4E4.toInt(); pastel -> 0xFFFFFFFF.toInt(); kids -> 0xFFFFFFFF.toInt(); else -> Color.WHITE }
+    val raised = when { dark -> 0xFF2C2C2E.toInt(); sepia -> 0xFFFFF9EC.toInt(); pastel -> 0xFFFFFFFF.toInt(); kids -> 0xFFFFFFFF.toInt(); else -> Color.WHITE }
+    val text = when { dark -> 0xFFF2F2F7.toInt(); sepia -> 0xFF3B2F1E.toInt(); pastel -> 0xFF4A4160.toInt(); kids -> 0xFF3D4A5C.toInt(); else -> Color.BLACK }
+    val secondary = when { dark -> 0xFF98989F.toInt(); sepia -> 0xFF8A7656.toInt(); pastel -> 0xFF9E92B8.toInt(); kids -> 0xFF93A0B2.toInt(); else -> 0xFF8E8E93.toInt() }
+    val separator = when { dark -> 0xFF38383A.toInt(); sepia -> 0xFFDCCBA8.toInt(); pastel -> 0xFFE6DEF3.toInt(); kids -> 0xFFF2E3CB.toInt(); else -> 0xFFC6C6C8.toInt() }
+    val fill = when { dark -> 0x3D767680; sepia -> 0x24806A40; pastel -> 0x1F9B82D6; kids -> 0x24FFB03A; else -> 0x1F767680 }
+    val blue = when { dark -> 0xFF0A84FF.toInt(); pastel -> 0xFF7C6CE0.toInt(); kids -> 0xFFFF7A4D.toInt(); else -> 0xFF007AFF.toInt() }
     val red = if (dark) 0xFFFF453A.toInt() else 0xFFFF3B30.toInt()
     val green = if (dark) 0xFF30D158.toInt() else 0xFF34C759.toInt()
     val orange = if (dark) 0xFFFF9F0A.toInt() else 0xFFFF9500.toInt()
@@ -56,21 +59,21 @@ class Palette(val dark: Boolean, val sepia: Boolean = false, val pastel: Boolean
     val teal = if (dark) 0xFF40C8E0.toInt() else 0xFF30B0C7.toInt()
     val indigo = if (dark) 0xFF5E5CE6.toInt() else 0xFF5856D6.toInt()
     val ripple = if (dark) 0x33FFFFFF else 0x1A000000
-    /** Reader page colors */
-    val paper = when { dark -> 0xFF121212.toInt(); sepia -> 0xFFF4ECD8.toInt(); pastel -> 0xFFFBF7FF.toInt(); else -> 0xFFFFFFFF.toInt() }
-    val ink = when { dark -> 0xFFD8D8D8.toInt(); sepia -> 0xFF433422.toInt(); pastel -> 0xFF4A4160.toInt(); else -> 0xFF1C1C1E.toInt() }
-    val highlight = when { dark -> 0x553A7BD5; sepia -> 0x66E8B04A; pastel -> 0x55C9B6F0; else -> 0x55FFD54F }
+    /** Reader page colors (dark reworked for a softer, warmer night read) */
+    val paper = when { dark -> 0xFF101013.toInt(); sepia -> 0xFFF4ECD8.toInt(); pastel -> 0xFFFBF7FF.toInt(); kids -> 0xFFFFF8EC.toInt(); else -> 0xFFFFFFFF.toInt() }
+    val ink = when { dark -> 0xFFCFD2D8.toInt(); sepia -> 0xFF433422.toInt(); pastel -> 0xFF4A4160.toInt(); kids -> 0xFF43372B.toInt(); else -> 0xFF1C1C1E.toInt() }
+    val highlight = when { dark -> 0x66E0A64A; sepia -> 0x66E8B04A; pastel -> 0x55C9B6F0; kids -> 0x66FFD23F; else -> 0x55FFD54F }
 }
 
 fun Context.isSystemDark() =
     (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
 fun Context.palette(): Palette = when (Prefs.theme(this)) {
-    ThemeMode.LIGHT -> Palette(false)
     ThemeMode.DARK -> Palette(true)
     ThemeMode.SEPIA -> Palette(false, sepia = true)
     ThemeMode.PASTEL -> Palette(false, pastel = true)
-    else -> Palette(isSystemDark())
+    ThemeMode.KIDS -> Palette(false, kids = true)
+    else -> Palette(false)   // LIGHT (and the retired SYSTEM default)
 }
 
 fun Context.dp(v: Number): Int = (v.toFloat() * resources.displayMetrics.density).roundToInt()
@@ -194,8 +197,57 @@ fun Context.iosSwitch(p: Palette, checked: Boolean, onChange: (Boolean) -> Unit)
 }
 
 /** Slider row: title + live value label + SeekBar. [toLabel] formats the value. */
+/**
+ * Slider row. The value shows as an accent pill that you can also **drag left/right** to adjust
+ * directly, or **tap** to type an exact number — in addition to the slider itself.
+ */
+@SuppressLint("ClickableViewAccessibility")
 fun Context.sliderRow(p: Palette, title: String, min: Int, max: Int, value: Int, toLabel: (Int) -> String, onChange: (Int) -> Unit): LinearLayout {
-    val label = text(toLabel(value), 14f, p.secondary)
+    val seek = SeekBar(this).apply {
+        this.max = max - min
+        progress = value - min
+        progressTintList = ColorStateList.valueOf(p.blue)
+        thumbTintList = ColorStateList.valueOf(p.blue)
+    }
+    val label = text(toLabel(value), 14f, p.blue, 600).apply {
+        setPadding(dp(12), dp(5), dp(12), dp(5))
+        background = rounded(p.fill, dpf(9))
+    }
+    fun setValue(nv: Int, fromUser: Boolean) {
+        val cv = nv.coerceIn(min, max)
+        label.text = toLabel(cv)
+        if (seek.progress != cv - min) seek.progress = cv - min
+        if (fromUser) onChange(cv)
+    }
+    seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) {
+            label.text = toLabel(v + min)
+            if (fromUser) onChange(v + min)
+        }
+        override fun onStartTrackingTouch(s: SeekBar?) {}
+        override fun onStopTrackingTouch(s: SeekBar?) {}
+    })
+    // drag the number pill to change the value; a plain tap opens a type-in dialog
+    val stepPx = dp(7).toFloat()
+    val slop = dp(6)
+    var downX = 0f
+    var startVal = value
+    var moved = false
+    label.setOnTouchListener { v, e ->
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { downX = e.rawX; startVal = min + seek.progress; moved = false; v.parent?.requestDisallowInterceptTouchEvent(true); true }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = e.rawX - downX
+                if (kotlin.math.abs(dx) > slop) moved = true
+                setValue(startVal + (dx / stepPx).toInt(), true); true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (!moved) promptNumber(p, title, min, max, min + seek.progress) { setValue(it, true) }
+                true
+            }
+            else -> false
+        }
+    }
     return LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(16), dp(10), dp(12), dp(6))
@@ -204,21 +256,24 @@ fun Context.sliderRow(p: Palette, title: String, min: Int, max: Int, value: Int,
             addView(text(title, 16f, p.text), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(label)
         })
-        addView(SeekBar(context).apply {
-            this.max = max - min
-            progress = value - min
-            progressTintList = ColorStateList.valueOf(p.blue)
-            thumbTintList = ColorStateList.valueOf(p.blue)
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) {
-                    label.text = toLabel(v + min)
-                    if (fromUser) onChange(v + min)
-                }
-                override fun onStartTrackingTouch(s: SeekBar?) {}
-                override fun onStopTrackingTouch(s: SeekBar?) {}
-            })
-        }, vlp().apply { topMargin = dp(4) })
+        addView(seek, vlp().apply { topMargin = dp(4) })
     }
+}
+
+/** Small numeric input dialog (tap a slider's value pill). */
+private fun Context.promptNumber(p: Palette, title: String, min: Int, max: Int, cur: Int, onOk: (Int) -> Unit) {
+    val field = EditText(this).apply {
+        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
+        setText(cur.toString())
+        setSelectAllOnFocus(true)
+        setTextColor(p.text)
+    }
+    AlertDialog.Builder(this, if (p.dark) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+        .setTitle("$title ($min…$max)")
+        .setView(field)
+        .setPositiveButton(android.R.string.ok) { _, _ -> field.text.toString().toIntOrNull()?.let { onOk(it.coerceIn(min, max)) } }
+        .setNegativeButton(android.R.string.cancel, null)
+        .show()
 }
 
 /** iOS segmented control. */

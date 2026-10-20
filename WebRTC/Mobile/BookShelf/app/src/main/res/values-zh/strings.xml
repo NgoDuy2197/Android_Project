@@ -187,6 +187,7 @@
     <string name="menu_play">播放（有声书）</string>
     <string name="menu_share">分享书籍</string>
     <string name="theme_pastel">马卡龙</string>
+    <string name="theme_kids">儿童</string>
     <string name="allow_cellular">允许使用移动数据下载模型（3G/4G）</string>
     <string name="btn_continue_cell">用移动数据</string>
     <string name="job_synth_chunk">正在朗读第 %1$d / %2$d 段</string>

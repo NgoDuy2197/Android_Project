@@ -66,14 +66,19 @@ object AudioMaker {
         val kbps = job.unitChars.takeIf { it in 32..192 } ?: 64
         val basePitch = Prefs.ttsPitch(ctx) / 100f
         val emphasis = Prefs.quoteEmphasis(ctx)
-        Log.i(TAG, "run start job=${job.id} chunks=${chunks.size} from=${job.index} voice=${job.engine} kbps=$kbps emphasis=$emphasis")
+        val quoteMul = Prefs.quotePitchMul(ctx)
+        val quoteVol = Prefs.quoteVolumePct(ctx) / 100f
+        val baseVoice = Prefs.ttsVoice(ctx)
+        val quoteVoice = Prefs.quoteVoice(ctx).ifEmpty { baseVoice }
+        Log.i(TAG, "run start job=${job.id} chunks=${chunks.size} from=${job.index} kbps=$kbps emphasis=$emphasis")
 
-        /** Synthesizes one text segment to PCM at [pitch], with the freeze-recovery retry loop. null = empty audio. */
-        fun synthPcm(i: Int, label: String, seg: String, pitch: Float): Pair<WavInfo, ShortArray>? {
+        /** Synthesizes one segment to PCM at [pitch]/[volume]/[voiceName], with the freeze-recovery retry loop. */
+        fun synthPcm(i: Int, label: String, seg: String, pitch: Float, volume: Float, voiceName: String): Pair<WavInfo, ShortArray>? {
             var lastErr = ""
             for (attempt in 0 until MAX_ATTEMPTS) {
                 ctl.checkStop(job.id)
                 if (attempt > 0) { ctl.message(job.id, ctx.getString(R.string.job_synth_retry, i + 1, attempt + 1)); recreate() }
+                runCatching { if (voiceName.isNotEmpty()) tts.voices?.firstOrNull { it.name == voiceName }?.let { tts.setVoice(it) } }
                 runCatching { tts.setPitch(pitch.coerceIn(0.3f, 2.0f)) }
                 val uid = "${job.id}_${label}_$attempt"
                 val latch = CountDownLatch(1)
@@ -81,7 +86,8 @@ object AudioMaker {
                 errors.remove(uid)
                 wav.delete()
                 try {
-                    val rc = tts.synthesizeToFile(seg, Bundle(), wav, uid)
+                    val params = Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f)) }
+                    val rc = tts.synthesizeToFile(seg, params, wav, uid)
                     if (rc != TextToSpeech.SUCCESS) { lastErr = ctx.getString(R.string.err_tts_synth, rc); continue }
                     // ColorOS/Hans freezes the Google TTS process after a few utterances, so onDone never fires.
                     // Detect that fast (short timeout) and recreate the engine on the next attempt, which wakes it.
@@ -121,8 +127,10 @@ object AudioMaker {
                 val parts = ArrayList<ShortArray>(segs.size)
                 segs.forEachIndexed { si, (seg, inQuote) ->
                     if (seg.isNotBlank()) {
-                        val pitch = basePitch * if (inQuote) QUOTE_PITCH_MUL else 1f
-                        synthPcm(i, "${i}_$si", seg, pitch)?.let { (info, pcm) ->
+                        val pitch = basePitch * if (inQuote) quoteMul else 1f
+                        val vol = if (inQuote) quoteVol else 1f
+                        val voice = if (inQuote) quoteVoice else baseVoice
+                        synthPcm(i, "${i}_$si", seg, pitch, vol, voice)?.let { (info, pcm) ->
                             sr = info.sampleRate; chn = info.channels.coerceIn(1, 2); parts.add(pcm)
                         }
                     }
@@ -160,7 +168,6 @@ object AudioMaker {
 
     private const val MAX_ATTEMPTS = 8          // short timeouts + engine recreate recover from Hans freezes
     private const val SYNTH_TIMEOUT_MS = 10_000L
-    private const val QUOTE_PITCH_MUL = 1.18f   // dialogue in quotes reads a bit higher
     private const val TAG = "BookShelfAudio"
 
     private fun createTts(ctx: Context, voice: String, text: String, l: UtteranceProgressListener): TextToSpeech {

@@ -70,6 +70,9 @@ class TtsService : Service() {
     private var errorsInRow = 0
     private var sleepRunnable: Runnable? = null
     private var sleepAtMs = 0L
+    /** Watchdog: last time an utterance started/finished; if it stalls the TTS engine is recreated. */
+    private var lastProgressAt = 0L
+    private var recreating = false
 
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(Locales.wrap(newBase))
     override fun onBind(intent: Intent?): IBinder? = null
@@ -151,11 +154,13 @@ class TtsService : Service() {
 
     private val listener = object : UtteranceProgressListener() {
         override fun onStart(id: String) {
-            val idx = id.substringAfter('#').toIntOrNull() ?: return
+            // "#i" (plain chunk) or "#i.si" (a quoted sub-segment): both map to chunk i for highlighting.
+            val idx = id.substringAfter('#').substringBefore('.').toIntOrNull() ?: return
             val gen = id.substringBefore('#').toIntOrNull() ?: return
             App.main.post {
                 if (gen != generation || !playing) return@post
                 errorsInRow = 0
+                lastProgressAt = System.currentTimeMillis()
                 current = idx
                 savePos()
                 publish()
@@ -167,6 +172,7 @@ class TtsService : Service() {
             val gen = id.substringBefore('#').toIntOrNull() ?: return
             App.main.post {
                 if (gen != generation || !playing) return@post
+                lastProgressAt = System.currentTimeMillis()
                 if (idx >= chunks.size - 1) {
                     // finished the book
                     current = chunks.size - 1
@@ -202,6 +208,12 @@ class TtsService : Service() {
         val t = tts ?: return
         val base = (Prefs.ttsPitch(this) / 100f).coerceIn(0.3f, 2f)
         val emphasis = Prefs.quoteEmphasis(this)
+        val quoteMul = Prefs.quotePitchMul(this)
+        val quoteVol = Prefs.quoteVolumePct(this) / 100f
+        val quoteVoice = Prefs.quoteVoice(this)
+        val baseVoice = Prefs.ttsVoice(this)
+        fun volBundle(v: Float) = Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, v.coerceIn(0f, 1f)) }
+        fun setVoiceByName(n: String) { if (n.isNotEmpty()) runCatching { t.voices?.firstOrNull { it.name == n }?.let { t.setVoice(it) } } }
         val target = minOf(chunks.size - 1, current + 2)
         while (queuedUpTo < target) {
             val i = queuedUpTo + 1
@@ -212,15 +224,20 @@ class TtsService : Service() {
                 // Dialogue in quotes reads a bit higher. Only the final segment carries the chunk's
                 // tracking id ("#i"); earlier ones use an id onStart/onDone ignore.
                 segs.forEachIndexed { si, (seg, inQ) ->
-                    runCatching { t.setPitch((base * if (inQ) 1.18f else 1f).coerceIn(0.3f, 2f)) }
+                    runCatching { t.setPitch((base * if (inQ) quoteMul else 1f).coerceIn(0.3f, 2f)) }
+                    setVoiceByName(if (inQ) quoteVoice.ifEmpty { baseVoice } else baseVoice)
                     val mode = if (flushFirst && si == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
-                    val id = if (si == segs.lastIndex) "$generation#$i" else "$generation#s$i-$si"
-                    t.speak(seg, mode, Bundle(), id)
+                    // Final segment carries the plain "#i" (advances the chunk on done); earlier segments carry
+                    // "#i.si" so onStart still highlights chunk i as soon as its first (quoted) part is spoken,
+                    // while onDone ignores them (so the chunk only advances when the whole chunk finishes).
+                    val id = if (si == segs.lastIndex) "$generation#$i" else "$generation#$i.$si"
+                    t.speak(seg, mode, volBundle(if (inQ) quoteVol else 1f), id)
                 }
                 runCatching { t.setPitch(base) }
+                setVoiceByName(baseVoice)
             } else {
                 runCatching { t.setPitch(base) }
-                t.speak(s, if (flushFirst) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, Bundle(), "$generation#$i")
+                t.speak(s, if (flushFirst) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, volBundle(1f), "$generation#$i")
             }
             queuedUpTo = i
         }
@@ -234,6 +251,8 @@ class TtsService : Service() {
         generation++
         queuedUpTo = current - 1
         fillQueue()
+        lastProgressAt = System.currentTimeMillis()
+        startWatchdog()
         publish()
     }
 
@@ -241,10 +260,55 @@ class TtsService : Service() {
         if (!playing) return
         playing = false
         generation++
+        stopWatchdog()
         stopSpeaking()
         savePos()
         releaseWake()
         publish()
+    }
+
+    // ---- stall watchdog ----
+    // Some ROMs (e.g. ColorOS) freeze the Google TTS process after a while: onStart/onDone stop firing and
+    // playback hangs. If no progress happens for [STALL_MS] while playing, recreate the engine and resume.
+    private val watchdog = object : Runnable {
+        override fun run() {
+            if (!playing) return
+            if (!recreating && tts != null && System.currentTimeMillis() - lastProgressAt > STALL_MS) {
+                recreateEngine()
+            }
+            App.main.postDelayed(this, WATCHDOG_TICK_MS)
+        }
+    }
+
+    private fun startWatchdog() {
+        App.main.removeCallbacks(watchdog)
+        App.main.postDelayed(watchdog, WATCHDOG_TICK_MS)
+    }
+
+    private fun stopWatchdog() = App.main.removeCallbacks(watchdog)
+
+    private fun recreateEngine() {
+        if (recreating) return
+        recreating = true
+        val gen = ++generation
+        try { tts?.shutdown() } catch (_: Exception) {}
+        tts = null
+        App.scope.launch(Dispatchers.IO) {
+            val engine = try { TtsUtil.create(this@TtsService) } catch (_: Throwable) { null }
+            withContext(Dispatchers.Main) {
+                recreating = false
+                if (engine == null) return@withContext
+                if (gen != generation || !playing) { try { engine.shutdown() } catch (_: Exception) {}; return@withContext }
+                tts = engine
+                engine.setOnUtteranceProgressListener(listener)
+                TtsUtil.apply(this@TtsService, engine, textSample = text.take(3000))
+                generation++
+                queuedUpTo = current - 1
+                lastProgressAt = System.currentTimeMillis()
+                fillQueue()
+                publish()
+            }
+        }
     }
 
     private fun skip(delta: Int) {
@@ -381,6 +445,7 @@ class TtsService : Service() {
 
     private fun stopAll() {
         if (playing) savePos()
+        stopWatchdog()
         sleepRunnable?.let { App.main.removeCallbacks(it) }; sleepRunnable = null; sleepAtMs = 0L; TtsBus.sleepAtMs = 0L
         playing = false
         generation++
@@ -394,6 +459,7 @@ class TtsService : Service() {
 
     override fun onDestroy() {
         if (playing) savePos()
+        stopWatchdog()
         generation++
         try { tts?.shutdown() } catch (_: Exception) {}
         tts = null
@@ -404,6 +470,8 @@ class TtsService : Service() {
     }
 
     companion object {
+        private const val STALL_MS = 7_000L          // no utterance progress this long => engine likely frozen
+        private const val WATCHDOG_TICK_MS = 2_000L
         const val NOTIF_ID = 43
         const val ACTION_PLAY = "play"
         const val ACTION_TOGGLE = "toggle"

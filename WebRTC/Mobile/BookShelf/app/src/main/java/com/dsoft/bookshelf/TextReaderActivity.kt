@@ -227,8 +227,8 @@ class TextReaderActivity : BaseActivity() {
             serif = it == 0; Prefs.setSerif(this, serif); restyle()
         }, vlp().apply { setMargins(dp(16), dp(10), dp(12), dp(6)) })
         val themes = listOf(getString(R.string.theme_light), getString(R.string.theme_dark), getString(R.string.theme_sepia),
-            getString(R.string.theme_pastel), getString(R.string.theme_system))
-        val modes = listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SEPIA, ThemeMode.PASTEL, ThemeMode.SYSTEM)
+            getString(R.string.theme_pastel), getString(R.string.theme_kids))
+        val modes = listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SEPIA, ThemeMode.PASTEL, ThemeMode.KIDS)
         col.addView(Segmented(this, p, themes, modes.indexOf(Prefs.theme(this)).coerceAtLeast(0)) {
             savePosition(); Prefs.setTheme(this, modes[it]); recreate()
         }, vlp().apply { setMargins(dp(16), dp(10), dp(12), dp(6)) })
@@ -264,12 +264,30 @@ class TextReaderActivity : BaseActivity() {
         val now = affected(hlStart, hlEnd)
         (old + now).toSet().forEach { rv.adapter?.notifyItemChanged(it) }
         // follow the voice unless the user scrolled recently
-        if (mine && s.playing && now.isNotEmpty() && System.currentTimeMillis() - lastUserScroll > 6000) {
-            val first = lm.findFirstCompletelyVisibleItemPosition()
-            val last = lm.findLastCompletelyVisibleItemPosition()
-            val target = now.first()
-            if (target < first || target > last) lm.scrollToPositionWithOffset(target, dp(80))
+        if (mine && s.playing && now.isNotEmpty() && System.currentTimeMillis() - lastUserScroll > 4500) {
+            rv.post { followHighlight(now.first(), hlStart) }
         }
+    }
+
+    /**
+     * Keeps the line currently being read inside a comfortable band of the screen. Unlike a paragraph-level
+     * scroll, this tracks the exact highlighted line, so a long paragraph still follows the voice line by line.
+     */
+    private fun followHighlight(targetPara: Int, hlOffset: Int) {
+        val h = rv.height
+        if (h == 0 || targetPara < 0 || targetPara >= paras.size) return
+        val band = (h * 0.32f).toInt()
+        val v = lm.findViewByPosition(targetPara) as? TextView
+        val layout = v?.layout
+        if (v == null || layout == null) {   // paragraph not laid out yet: jump near it
+            lm.scrollToPositionWithOffset(targetPara, band.coerceAtLeast(dp(60)))
+            return
+        }
+        val local = (hlOffset - paras[targetPara].start).coerceIn(0, v.text?.length ?: 0)
+        val yInRv = v.top + v.paddingTop + layout.getLineTop(layout.getLineForOffset(local))
+        val comfortTop = rv.paddingTop + h * 0.16f
+        val comfortBottom = rv.paddingTop + h * 0.60f
+        if (yInRv < comfortTop || yInRv > comfortBottom) rv.smoothScrollBy(0, yInRv - (rv.paddingTop + band))
     }
 
     private fun affected(s: Int, e: Int): List<Int> {

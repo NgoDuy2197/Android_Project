@@ -20,6 +20,7 @@ class SettingsActivity : BaseActivity() {
     private var tts: TextToSpeech? = null
     private var voices: List<Voice> = emptyList()
     private lateinit var voiceValue: TextView
+    private lateinit var quoteVoiceValue: TextView
     private lateinit var modelsBox: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,9 +29,9 @@ class SettingsActivity : BaseActivity() {
 
         // ---- appearance ----
         col.addView(sectionHeader(p, getString(R.string.sec_appearance)))
-        val modes = listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SEPIA, ThemeMode.PASTEL, ThemeMode.SYSTEM)
+        val modes = listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SEPIA, ThemeMode.PASTEL, ThemeMode.KIDS)
         val themeSeg = Segmented(this, p, listOf(getString(R.string.theme_light), getString(R.string.theme_dark),
-            getString(R.string.theme_sepia), getString(R.string.theme_pastel), getString(R.string.theme_system)),
+            getString(R.string.theme_sepia), getString(R.string.theme_pastel), getString(R.string.theme_kids)),
             modes.indexOf(Prefs.theme(this)).coerceAtLeast(0)) {
             Prefs.setTheme(this, modes[it]); recreate()
         }
@@ -111,10 +112,23 @@ class SettingsActivity : BaseActivity() {
             row(p, getString(R.string.tts_voice), LinearLayout(this).apply { addView(voiceValue); addView(chevron(p)) }) { pickVoice() },
             sliderRow(p, getString(R.string.tts_rate), 50, 250, Prefs.ttsRate(this), { String.format(Locale.US, "%.2fx", it / 100f) }) { Prefs.setTtsRate(this, it) },
             sliderRow(p, getString(R.string.tts_pitch), 50, 200, Prefs.ttsPitch(this), { String.format(Locale.US, "%.2f", it / 100f) }) { Prefs.setTtsPitch(this, it) },
-            row(p, "Lên giọng lời thoại trong ngoặc kép", iosSwitch(p, Prefs.quoteEmphasis(this)) { Prefs.setQuoteEmphasis(this, it) }, "Đọc phần trong “…” cao hơn một chút (khi nghe và khi tạo MP3)."),
             row(p, getString(R.string.tts_test), null) { testVoice() },
         ))
         col.addView(footnote(p, getString(R.string.tts_footer)))
+
+        // ---- dialogue inside quotes / brackets ----
+        col.addView(sectionHeader(p, "Giọng trong ngoặc"))
+        quoteVoiceValue = valueLabel(p, Prefs.quoteVoice(this).ifEmpty { "Như giọng chính" }).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.MIDDLE; maxWidth = dp(180)
+        }
+        col.addView(group(p,
+            row(p, "Bật", iosSwitch(p, Prefs.quoteEmphasis(this)) { Prefs.setQuoteEmphasis(this, it) }),
+            sliderRow(p, "Tông (%)", -40, 60, Prefs.quotePitchPct(this), { if (it > 0) "+$it%" else "$it%" }) { Prefs.setQuotePitchPct(this, it) },
+            sliderRow(p, "Âm lượng (%)", 30, 100, Prefs.quoteVolumePct(this), { "$it%" }) { Prefs.setQuoteVolumePct(this, it) },
+            row(p, "Giọng", LinearLayout(this).apply { addView(quoteVoiceValue); addView(chevron(p)) }) { pickQuoteVoice() },
+            row(p, "Nghe thử", text("▶", 17f, p.blue).apply { setPadding(dp(8), 0, dp(4), 0) }) { testQuoteVoice() },
+        ))
+        col.addView(footnote(p, "Áp dụng cho “…” và (…), khi nghe và khi tạo MP3. Kéo hoặc chạm số để chỉnh."))
 
         // ---- translation ----
         col.addView(sectionHeader(p, getString(R.string.sec_translate)))
@@ -226,6 +240,23 @@ class SettingsActivity : BaseActivity() {
         }.show()
     }
 
+    private fun pickQuoteVoice() = withTts { t ->
+        val all = try { t.voices?.toList() ?: emptyList() } catch (_: Exception) { emptyList() }
+        val ui = Locale.getDefault().language
+        voices = all.filter { !it.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) }
+            .sortedWith(compareBy<Voice>({ if (it.locale.language == "vi") 0 else if (it.locale.language == ui) 1 else 2 },
+                { it.locale.displayName }, { it.isNetworkConnectionRequired }, { it.name }))
+        if (voices.isEmpty()) { toast(R.string.no_voices); return@withTts }
+        val labels = listOf("Như giọng chính") + voices.map { TtsUtil.voiceLabel(it, getString(R.string.voice_network)) }
+        val cur = voices.indexOfFirst { it.name == Prefs.quoteVoice(this) } + 1
+        dialogBuilder(p).setTitle("Giọng cho lời thoại trong ngoặc").setSingleChoiceItems(labels.toTypedArray(), cur) { d, w ->
+            val name = if (w == 0) "" else voices[w - 1].name
+            Prefs.setQuoteVoice(this, name)
+            quoteVoiceValue.text = name.ifEmpty { "Như giọng chính" }
+            d.dismiss()
+        }.show()
+    }
+
     private fun testVoice() = withTts { t ->
         TtsUtil.apply(this, t)
         val sample = when (t.voice?.locale?.language ?: Prefs.lang(this)) {
@@ -235,6 +266,30 @@ class SettingsActivity : BaseActivity() {
             else -> "Xin chào! Đây là giọng đọc sách của bạn."
         }
         t.speak(sample, TextToSpeech.QUEUE_FLUSH, null, "test")
+    }
+
+    /** Preview: narration in the main voice, then the quoted part with the quote pitch / volume / voice. */
+    private fun testQuoteVoice() = withTts { t ->
+        TtsUtil.apply(this, t)
+        val basePitch = Prefs.ttsPitch(this) / 100f
+        val quoteMul = Prefs.quotePitchMul(this)
+        val quoteVol = Prefs.quoteVolumePct(this) / 100f
+        val quoteVoice = Prefs.quoteVoice(this)
+        val intro: String; val quoted: String
+        when (t.voice?.locale?.language ?: Prefs.lang(this)) {
+            "en" -> { intro = "She smiled and said,"; quoted = "“Nice to meet you!”" }
+            "zh" -> { intro = "她笑着说，"; quoted = "“很高兴见到你！”" }
+            "ja" -> { intro = "彼女は笑って言った、"; quoted = "「はじめまして！」" }
+            else -> { intro = "Cô ấy mỉm cười nói,"; quoted = "“Rất vui được gặp bạn!”" }
+        }
+        // narration in the main voice
+        t.setPitch(basePitch.coerceIn(0.3f, 2.0f))
+        t.speak(intro, TextToSpeech.QUEUE_FLUSH, null, "qtest0")
+        // quoted part with the quote voice / pitch / volume
+        if (quoteVoice.isNotEmpty()) runCatching { t.voices?.firstOrNull { it.name == quoteVoice }?.let { t.setVoice(it) } }
+        t.setPitch((basePitch * quoteMul).coerceIn(0.3f, 2.0f))
+        val params = Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, quoteVol.coerceIn(0f, 1f)) }
+        t.speak(quoted, TextToSpeech.QUEUE_ADD, params, "qtest1")
     }
 
     // ---- ML Kit models ----

@@ -3,4 +3,9 @@
     android:viewportWidth="108" android:viewportHeight="108">
     <path android:fillColor="#33000000" android:pathData="M18,33L90,18L72,90L54,66L66,36L42,60Z" android:translateY="1.5" />
     <path android:fillColor="#FFFFFFFF" android:pathData="M18,33L90,18L72,90L54,66L66,36L42,60Z" />
+
+        <!-- D-monogram (Dsoft): tiny round black badge, top-left -->
+    <path android:fillColor="#F2000000" android:pathData="M36,34 m-8.6,0 a8.6,8.6 0 1,1 17.2,0 a8.6,8.6 0 1,1 -17.2,0" />
+    <path android:strokeColor="#40FFFFFF" android:strokeWidth="1" android:fillColor="#00000000" android:pathData="M36,34 m-8.1,0 a8.1,8.1 0 1,1 16.2,0 a8.1,8.1 0 1,1 -16.2,0" />
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="M32,29 h3 a5,5 0 0,1 0,10 h-3 z M34.6,31.6 h0.6 a2.4,2.4 0 0,1 0,4.8 h-0.6 z" />
 </vector>

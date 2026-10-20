@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoTap</string>
+    <string name="acc_label">AutoTap – Tự động chạm</string>
+    <string name="acc_desc">Cho phép AutoTap thực hiện chạm, giữ và vuốt tự động để chạy các kịch bản bạn đã tạo. Không thu thập dữ liệu cá nhân.</string>
+</resources>

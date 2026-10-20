@@ -344,7 +344,8 @@ class MainActivity : BaseActivity() {
         val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/pdf", "text/plain", "application/epub+zip"))
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/pdf", "text/plain", "application/epub+zip",
+                "application/x-mobipocket-ebook", "application/x-mobi8-ebook"))
             putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         }
         try { startActivityForResult(i, REQ_IMPORT) } catch (_: Exception) { toast(R.string.err_no_picker) }
@@ -389,6 +390,17 @@ class MainActivity : BaseActivity() {
         }
     }
 
+    /** Reads up to [buf].size bytes, looping because a single InputStream.read may return fewer. */
+    private fun readFully(input: java.io.InputStream, buf: ByteArray): Int {
+        var n = 0
+        while (n < buf.size) {
+            val r = input.read(buf, n, buf.size - n)
+            if (r < 0) break
+            n += r
+        }
+        return n
+    }
+
     private fun importOne(uri: Uri): Book? {
         var name = "book"
         contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
@@ -396,11 +408,34 @@ class MainActivity : BaseActivity() {
         }
         if (name == "book") uri.lastPathSegment?.substringAfterLast('/')?.let { name = it }
         val mime = contentResolver.getType(uri) ?: ""
-        val head = ByteArray(5)
-        contentResolver.openInputStream(uri)?.use { it.read(head) } ?: return null
+        val head = ByteArray(68)
+        contentResolver.openInputStream(uri)?.use { readFully(it, head) } ?: return null
         val lower = name.lowercase()
         val isZip = head.size >= 4 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte() &&
             head[2] == 0x03.toByte() && head[3] == 0x04.toByte()
+        // MOBI / old-Kindle: either a known extension or the Palm-DB "BOOKMOBI" signature at offset 60.
+        val isMobiSig = String(head, 60, 8, Charsets.US_ASCII) == "BOOKMOBI"
+        if (lower.endsWith(".mobi") || lower.endsWith(".prc") || lower.endsWith(".azw") || isMobiSig) {
+            val mobiTmp = File.createTempFile("import_", ".mobi", cacheDir)
+            try {
+                contentResolver.openInputStream(uri)?.use { input -> mobiTmp.outputStream().use { input.copyTo(it, 64 * 1024) } }
+                    ?: run { mobiTmp.delete(); return null }
+                val res = Mobi.parse(mobiTmp)
+                if (res != null) {
+                    val title = res.title.trim().ifEmpty { TextLogic.titleFromFileName(name) }
+                    val mb = Book(Library.newId(), title, BookType.TEXT, System.currentTimeMillis(), format = "mobi")
+                    val mdir = Library.dir(mb.id).apply { mkdirs() }
+                    try { Files.writeAtomic(File(mdir, "book.txt"), res.text) }
+                    catch (e: Exception) { mdir.deleteRecursively(); throw e }
+                    Library.add(mb)
+                    return mb
+                }
+                // A declared/signed MOBI that failed to parse (e.g. DRM or HUFF/CDIC) is a hard failure.
+                if (lower.endsWith(".mobi") || lower.endsWith(".prc") || lower.endsWith(".azw") || isMobiSig) return null
+            } finally {
+                mobiTmp.delete()
+            }
+        }
         // EPUB: convert to plain text once at import, then store as an ordinary TEXT book so the
         // whole reader / TTS / translate pipeline works unchanged.
         if (mime == "application/epub+zip" || lower.endsWith(".epub") || isZip) {
@@ -411,7 +446,7 @@ class MainActivity : BaseActivity() {
                 val res = Epub.parse(epubTmp)
                 if (res != null) {
                     val title = res.title.trim().ifEmpty { TextLogic.titleFromFileName(name) }
-                    val eb = Book(Library.newId(), title, BookType.TEXT, System.currentTimeMillis())
+                    val eb = Book(Library.newId(), title, BookType.TEXT, System.currentTimeMillis(), format = "epub")
                     val edir = Library.dir(eb.id).apply { mkdirs() }
                     try { Files.writeAtomic(File(edir, "book.txt"), res.text) }
                     catch (e: Exception) { edir.deleteRecursively(); throw e }

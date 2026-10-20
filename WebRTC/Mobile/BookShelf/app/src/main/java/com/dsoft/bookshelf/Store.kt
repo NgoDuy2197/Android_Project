@@ -30,22 +30,29 @@ data class Book(
     /** Audio book: path + optional MediaStore uri of the MP3. */
     val audioPath: String = "",
     val audioUri: String = "",
+    /** Original import format of a TEXT book that had no real cover: "epub" | "mobi" (else ""). */
+    val format: String = "",
 ) {
     val isPdf get() = type == BookType.PDF
     val isAudio get() = type == BookType.AUDIO
     val isText get() = type == BookType.TEXT
     /** Badge shown at the bottom-left corner of the cover. */
-    val typeBadge get() = when (type) { BookType.PDF -> "PDF"; BookType.AUDIO -> "MP3"; else -> "TXT" }
+    val typeBadge get() = when {
+        type == BookType.PDF -> "PDF"
+        type == BookType.AUDIO -> "MP3"
+        format.isNotEmpty() -> format.uppercase()   // EPUB / MOBI instead of a generic TXT
+        else -> "TXT"
+    }
 
     fun toJson() = JSONObject().put("id", id).put("title", title).put("type", type).put("addedAt", addedAt)
         .put("openedAt", openedAt).put("customCover", customCover).put("textBookId", textBookId).put("sourceId", sourceId)
-        .put("tag", tag).put("audioPath", audioPath).put("audioUri", audioUri)
+        .put("tag", tag).put("audioPath", audioPath).put("audioUri", audioUri).put("format", format)
 
     companion object {
         fun fromJson(o: JSONObject) = Book(
             o.getString("id"), o.optString("title"), o.optString("type", BookType.TEXT), o.optLong("addedAt"),
             o.optLong("openedAt"), o.optBoolean("customCover"), o.optString("textBookId"), o.optString("sourceId"),
-            o.optString("tag"), o.optString("audioPath"), o.optString("audioUri"),
+            o.optString("tag"), o.optString("audioPath"), o.optString("audioUri"), o.optString("format"),
         )
     }
 }
