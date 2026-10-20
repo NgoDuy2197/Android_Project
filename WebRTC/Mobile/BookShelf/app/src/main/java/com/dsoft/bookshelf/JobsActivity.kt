@@ -180,6 +180,12 @@ class JobsActivity : BaseActivity() {
         }
         val dlg = dialogBuilder(p).setTitle(R.string.download_model).setView(col)
             .setPositiveButton(R.string.download_model, null)
+            // Escape hatch: if the offline model won't download (common on some ROMs), switch this
+            // job to the online Google engine and continue right away. ML Kit stays the default.
+            .setNeutralButton("Dùng Google online") { _, _ ->
+                JobManager.get(j.id)?.let { JobManager.put(it.copy(engine = Engines.GOOGLE)) }
+                JobManager.resume(this@JobsActivity, j.id)
+            }
             .setNegativeButton(R.string.back, null)
             .create()
         dlg.setOnShowListener {

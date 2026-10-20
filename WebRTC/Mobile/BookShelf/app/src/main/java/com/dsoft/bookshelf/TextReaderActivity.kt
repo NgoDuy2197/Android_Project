@@ -298,14 +298,64 @@ class TextReaderActivity : BaseActivity() {
     }
 
     private fun moreMenu() {
-        val items = arrayOf(getString(R.string.menu_translate), getString(R.string.menu_mp3), getString(R.string.tts_stop))
+        val items = arrayOf(getString(R.string.menu_translate), getString(R.string.menu_mp3), "Hẹn giờ tắt (nghe)", getString(R.string.tts_stop))
         dialogBuilder(p).setItems(items) { _, w ->
             when (w) {
                 0 -> BookDialogs.translate(this, book)
                 1 -> BookDialogs.audiobook(this, book)
-                2 -> TtsService.command(this, TtsService.ACTION_STOP)
+                2 -> sleepTimerDialog()
+                3 -> TtsService.command(this, TtsService.ACTION_STOP)
             }
         }.show()
+    }
+
+    private fun sleepTimerDialog() {
+        val mins = listOf(0, 5, 10, 15, 30, 45, 60)
+        val labels = mins.map { if (it == 0) "Tắt hẹn giờ" else "$it phút" }.toTypedArray()
+        val left = if (TtsBus.sleepAtMs > 0) " (còn ${((TtsBus.sleepAtMs - System.currentTimeMillis()) / 60000 + 1).coerceAtLeast(0)}′)" else ""
+        dialogBuilder(p).setTitle("Hẹn giờ tắt khi nghe$left").setItems(labels) { _, w ->
+            TtsService.sleep(this, mins[w])
+            toast(if (mins[w] == 0) "Đã tắt hẹn giờ" else "Sẽ dừng đọc sau ${mins[w]} phút")
+        }.show()
+    }
+
+    /** Double-tap a word → look it up with the online translator (no model needed) and show the meaning. */
+    private fun translateWord(word: String) {
+        val w = word.trim().trim('“', '”', '"', '\'', '«', '»', '(', ')', '.', ',', ';', ':', '!', '?', '…')
+        if (w.isEmpty()) return
+        val target = Prefs.trTarget(this)
+        val body = text("Đang dịch…", 16f, p.text).apply { setPadding(dp(4), dp(8), dp(4), 0) }
+        val dlg = dialogBuilder(p).setTitle(w)
+            .setView(dialogColumn().apply { addView(body, vlp()) })
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton("Copy") { _, _ ->
+                getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("text", "$w = ${body.text}"))
+                toast(R.string.copied)
+            }.create()
+        dlg.show()
+        Thread {
+            val res = try { GoogleFreeEngine(Langs.AUTO, target).translate(w) } catch (e: Exception) { null }
+            runOnUiThread { body.text = res?.takeIf { it.isNotBlank() } ?: "Không dịch được (cần mạng)" }
+        }.start()
+    }
+
+    private fun wordAt(s: String, off: Int): String {
+        if (s.isEmpty()) return ""
+        val i = off.coerceIn(0, s.length - 1)
+        fun isWord(c: Char) = Character.isLetterOrDigit(c) || c == '\'' || c == '-' || c == '_'
+        fun isCjk(c: Char) = c in '一'..'鿿' || c in '぀'..'ヿ' || c in '가'..'힣'
+        val c = s[i]
+        if (isCjk(c)) { // no spaces between words: grab a short run of CJK chars
+            var a = i; var b = i + 1
+            while (a > 0 && isCjk(s[a - 1]) && i - a < 5) a--
+            while (b < s.length && isCjk(s[b]) && b - i < 6) b++
+            return s.substring(a, b)
+        }
+        if (!isWord(c)) return ""
+        var a = i; var b = i + 1
+        while (a > 0 && isWord(s[a - 1])) a--
+        while (b < s.length && isWord(s[b])) b++
+        return s.substring(a, b)
     }
 
     override fun onPause() {
@@ -329,16 +379,27 @@ class TextReaderActivity : BaseActivity() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
             val tv = TextView(parent.context).apply {
                 layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) { touchX = e.x; touchY = e.y }; false }
-                isLongClickable = true
             }
             val vh = VH(tv)
-            tv.setOnLongClickListener {
-                val pos = vh.bindingAdapterPosition
-                if (pos != RecyclerView.NO_POSITION) paragraphMenu(pos, tv.getOffsetForPosition(touchX, touchY).coerceAtLeast(0))
-                true
-            }
-            tv.setOnClickListener { topBar.visibility = if (topBar.visibility == View.VISIBLE) View.GONE else View.VISIBLE }
+            val gd = android.view.GestureDetector(parent.context, object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent) = true
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    topBar.visibility = if (topBar.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                    return true
+                }
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    if (vh.bindingAdapterPosition != RecyclerView.NO_POSITION) {
+                        val off = tv.getOffsetForPosition(e.x, e.y).coerceAtLeast(0)
+                        translateWord(wordAt(tv.text?.toString() ?: "", off))
+                    }
+                    return true
+                }
+                override fun onLongPress(e: MotionEvent) {
+                    val pos = vh.bindingAdapterPosition
+                    if (pos != RecyclerView.NO_POSITION) paragraphMenu(pos, tv.getOffsetForPosition(e.x, e.y).coerceAtLeast(0))
+                }
+            })
+            tv.setOnTouchListener { _, e -> gd.onTouchEvent(e) }
             return vh
         }
 

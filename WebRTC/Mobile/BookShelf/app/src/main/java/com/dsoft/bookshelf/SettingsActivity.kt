@@ -1,5 +1,6 @@
 package com.dsoft.bookshelf
 
+import android.content.Intent
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
@@ -47,6 +48,24 @@ class SettingsActivity : BaseActivity() {
             },
         ))
 
+        // ---- shelf background image ----
+        col.addView(sectionHeader(p, "Ảnh nền giá sách"))
+        val hasBg = Covers.shelfBgFile(this).exists()
+        col.addView(group(p,
+            row(p, "Dùng ảnh nền (giá sách thành kính)", iosSwitch(p, Prefs.shelfBgOn(this)) {
+                Prefs.setShelfBgOn(this, it)
+                if (it && !Covers.shelfBgFile(this).exists()) pickShelfBg() else recreate()
+            }),
+            row(p, if (hasBg) "Đổi ảnh nền…" else "Chọn ảnh nền…", chevron(p)) { pickShelfBg() },
+            sliderRow(p, "Độ mờ (blur)", 0, 25, Prefs.shelfBgBlur(this), { "$it" }) { Prefs.setShelfBgBlur(this, it) },
+            sliderRow(p, "Tông sáng / tối", -80, 80, Prefs.shelfBgDim(this), { if (it > 0) "+$it" else "$it" }) { Prefs.setShelfBgDim(this, it) },
+            row(p, "Bỏ ảnh nền", null) {
+                Covers.shelfBgFile(this).delete(); Prefs.setShelfBgOn(this, false); recreate()
+            }.apply { (getChildAt(0) as? TextView)?.setTextColor(p.red) },
+        ))
+        col.addView(footnote(p, "Chọn một ảnh làm nền tủ sách; giá sách trở nên trong suốt như kính để nhìn thấy ảnh. " +
+            "Chỉnh độ mờ và tông sáng/tối cho dễ nhìn. Lưu xong quay lại để xem."))
+
         // ---- reading ----
         col.addView(sectionHeader(p, getString(R.string.sec_reading)))
         col.addView(group(p,
@@ -92,6 +111,7 @@ class SettingsActivity : BaseActivity() {
             row(p, getString(R.string.tts_voice), LinearLayout(this).apply { addView(voiceValue); addView(chevron(p)) }) { pickVoice() },
             sliderRow(p, getString(R.string.tts_rate), 50, 250, Prefs.ttsRate(this), { String.format(Locale.US, "%.2fx", it / 100f) }) { Prefs.setTtsRate(this, it) },
             sliderRow(p, getString(R.string.tts_pitch), 50, 200, Prefs.ttsPitch(this), { String.format(Locale.US, "%.2f", it / 100f) }) { Prefs.setTtsPitch(this, it) },
+            row(p, "Lên giọng lời thoại trong ngoặc kép", iosSwitch(p, Prefs.quoteEmphasis(this)) { Prefs.setQuoteEmphasis(this, it) }, "Đọc phần trong “…” cao hơn một chút (khi nghe và khi tạo MP3)."),
             row(p, getString(R.string.tts_test), null) { testVoice() },
         ))
         col.addView(footnote(p, getString(R.string.tts_footer)))
@@ -121,6 +141,26 @@ class SettingsActivity : BaseActivity() {
             row(p, getString(R.string.wifi_only), iosSwitch(p, Prefs.wifiOnly(this)) { Prefs.setWifiOnly(this, it) }, getString(R.string.wifi_only_sub)),
         ))
         col.addView(footnote(p, getString(R.string.engines_footer)))
+
+        // Parallel offline (ML Kit) translation threads + a measured suggestion.
+        fun threadLabel(n: Int) = if (n <= 0) "Tuần tự" else "$n luồng"
+        val threadValue = valueLabel(p, threadLabel(Prefs.trThreads(this)))
+        col.addView(group(p,
+            row(p, "Số luồng dịch offline",
+                LinearLayout(this).apply { addView(threadValue); addView(chevron(p)) },
+                "0 = tuần tự (mặc định). Chỉ áp dụng khi dịch offline ML Kit.") {
+                val items = (0..Prefs.MAX_TR_THREADS).map { if (it == 0) "0 (tuần tự)" else "$it luồng" }.toTypedArray()
+                dialogBuilder(p).setTitle("Số luồng dịch offline")
+                    .setItems(items) { _, w -> Prefs.setTrThreads(this, w); threadValue.text = threadLabel(w) }
+                    .setNegativeButton(R.string.back, null).show()
+            },
+        ))
+        val threadHint = footnote(p, "Đang đo gợi ý số luồng…")
+        col.addView(threadHint)
+        Thread {
+            val (s, c) = Bench.suggestThreads()
+            runOnUiThread { threadHint.text = "Gợi ý: tối đa $s luồng (máy $c nhân). Nhiều luồng dịch nhanh hơn nhưng tốn RAM; mỗi bản dịch vốn đã dùng nhiều nhân." }
+        }.start()
 
         col.addView(sectionHeader(p, getString(R.string.mlkit_models)))
         modelsBox = card(p)
@@ -234,10 +274,29 @@ class SettingsActivity : BaseActivity() {
         }.show()
     }
 
+    private fun pickShelfBg() {
+        try {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"), REQ_SHELF_BG)
+        } catch (_: Exception) { toast("Không mở được trình chọn ảnh") }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_SHELF_BG || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        uiScope.launch {
+            val ok = withContext(Dispatchers.IO) { Covers.saveShelfBg(this@SettingsActivity, uri) }
+            if (ok) { Prefs.setShelfBgOn(this@SettingsActivity, true); recreate() } else toast("Không lưu được ảnh")
+        }
+    }
+
     override fun onDestroy() {
         try { tts?.shutdown() } catch (_: Exception) {}
         super.onDestroy()
     }
+
+    private companion object { const val REQ_SHELF_BG = 71 }
 
     @Suppress("unused")
     private fun View.gone() { visibility = View.GONE }

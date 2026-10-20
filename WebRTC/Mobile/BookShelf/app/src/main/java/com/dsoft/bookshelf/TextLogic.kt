@@ -10,6 +10,34 @@ data class Span(val start: Int, val end: Int) {
 }
 
 object TextLogic {
+    /** Quote marks that mark dialogue: straight, curly, and guillemets. */
+    const val QUOTE_CHARS = "\"“”«»‘’‹›"
+    private const val QUOTE_OPEN = "“«‘‹"
+    private const val QUOTE_CLOSE = "”»’›"
+
+    fun hasQuote(s: CharSequence) = s.any { it in QUOTE_CHARS }
+
+    /**
+     * Splits [text] into consecutive runs tagged whether they are inside a quotation, so dialogue can be
+     * read with a different pitch. Curly/guillemet quotes use open/close; the straight " toggles.
+     */
+    fun quoteSplit(text: String): List<Pair<String, Boolean>> {
+        val out = ArrayList<Pair<String, Boolean>>()
+        val sb = StringBuilder()
+        var inQ = false
+        fun flush() { if (sb.isNotEmpty()) { out.add(sb.toString() to inQ); sb.setLength(0) } }
+        for (c in text) {
+            when {
+                c in QUOTE_OPEN -> { flush(); inQ = true; sb.append(c) }
+                c in QUOTE_CLOSE -> { sb.append(c); flush(); inQ = false }
+                c == '"' -> { if (inQ) { sb.append(c); flush(); inQ = false } else { flush(); inQ = true; sb.append(c) } }
+                else -> sb.append(c)
+            }
+        }
+        flush()
+        return out
+    }
+
     private const val TERMINATORS = ".!?。！？…"
     private const val CJK_TERMINATORS = "。！？…"
     private const val CLOSERS = "\"'”’»)]}）」』】》"

@@ -15,7 +15,8 @@ object Prefs {
     fun lang(c: Context): String = sp(c).getString("lang", "vi") ?: "vi"
     fun setLang(c: Context, v: String) = edit(c) { putString("lang", v) }
     /** Activities recreate themselves when this changes. */
-    fun styleStamp(c: Context) = "${theme(c)}|${lang(c)}"
+    fun styleStamp(c: Context) =
+        "${theme(c)}|${lang(c)}|${shelfBgOn(c)}|${shelfBgBlur(c)}|${shelfBgDim(c)}|${Covers.shelfBgFile(c).lastModified()}"
 
     // Library
     fun sort(c: Context) = sp(c).getInt("sort", 0) // 0 recent, 1 title, 2 added
@@ -70,7 +71,25 @@ object Prefs {
     fun setMp3Kbps(c: Context, v: Int) = edit(c) { putInt("mp3_kbps", v) }
 
     // Translation
+    // Default to ML Kit on-device (offline) translation, as the user prefers.
     fun engine(c: Context): String = sp(c).getString("tr_engine", Engines.MLKIT) ?: Engines.MLKIT
+
+    /** Parallel worker threads for offline (ML Kit) translation. 0 (default) or 1 = sequential. */
+    fun trThreads(c: Context): Int = sp(c).getInt("tr_threads", 0).coerceIn(0, MAX_TR_THREADS)
+    fun setTrThreads(c: Context, v: Int) = edit(c) { putInt("tr_threads", v.coerceIn(0, MAX_TR_THREADS)) }
+    const val MAX_TR_THREADS = 8
+
+    /** Read dialogue inside quotation marks with a slightly higher pitch (TTS + MP3). */
+    fun quoteEmphasis(c: Context) = sp(c).getBoolean("quote_emphasis", true)
+    fun setQuoteEmphasis(c: Context, v: Boolean) = edit(c) { putBoolean("quote_emphasis", v) }
+
+    // Custom shelf background image (the shelf turns to glass to show it through).
+    fun shelfBgOn(c: Context) = sp(c).getBoolean("shelf_bg_on", false)
+    fun setShelfBgOn(c: Context, v: Boolean) = edit(c) { putBoolean("shelf_bg_on", v) }
+    fun shelfBgBlur(c: Context) = sp(c).getInt("shelf_bg_blur", 8)       // 0..25
+    fun setShelfBgBlur(c: Context, v: Int) = edit(c) { putInt("shelf_bg_blur", v.coerceIn(0, 25)) }
+    fun shelfBgDim(c: Context) = sp(c).getInt("shelf_bg_dim", -20)        // -80 dark .. +80 bright
+    fun setShelfBgDim(c: Context, v: Int) = edit(c) { putInt("shelf_bg_dim", v.coerceIn(-80, 80)) }
     fun setEngine(c: Context, v: String) = edit(c) { putString("tr_engine", v) }
     fun geminiKey(c: Context): String = sp(c).getString("gemini_key", "") ?: ""
     fun setGeminiKey(c: Context, v: String) = edit(c) { putString("gemini_key", v) }

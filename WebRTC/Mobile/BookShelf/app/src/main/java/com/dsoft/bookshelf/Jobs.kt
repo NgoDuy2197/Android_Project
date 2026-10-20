@@ -66,7 +66,13 @@ object JobManager {
         synchronized(this) {
             val j = jobs[id] ?: return
             stopRequests += id
-            if (j.status == JobStatus.QUEUED) put(j.pause(now()))
+            when (j.status) {
+                // Queued: not running yet, pause right away.
+                JobStatus.QUEUED -> put(j.pause(now()))
+                // Running: the runner stops at its next check; show instant feedback meanwhile.
+                JobStatus.RUNNING -> { jobs[id] = j.copy(message = "Đang tạm dừng…"); notifyChanged(jobs[id]) }
+                else -> {}
+            }
         }
     }
 

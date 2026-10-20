@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.util.Log
 import android.provider.MediaStore
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -63,48 +64,84 @@ object AudioMaker {
 
         val wav = File(ctx.cacheDir, "chunk_${job.id}.wav")
         val kbps = job.unitChars.takeIf { it in 32..192 } ?: 64
+        val basePitch = Prefs.ttsPitch(ctx) / 100f
+        val emphasis = Prefs.quoteEmphasis(ctx)
+        Log.i(TAG, "run start job=${job.id} chunks=${chunks.size} from=${job.index} voice=${job.engine} kbps=$kbps emphasis=$emphasis")
+
+        /** Synthesizes one text segment to PCM at [pitch], with the freeze-recovery retry loop. null = empty audio. */
+        fun synthPcm(i: Int, label: String, seg: String, pitch: Float): Pair<WavInfo, ShortArray>? {
+            var lastErr = ""
+            for (attempt in 0 until MAX_ATTEMPTS) {
+                ctl.checkStop(job.id)
+                if (attempt > 0) { ctl.message(job.id, ctx.getString(R.string.job_synth_retry, i + 1, attempt + 1)); recreate() }
+                runCatching { tts.setPitch(pitch.coerceIn(0.3f, 2.0f)) }
+                val uid = "${job.id}_${label}_$attempt"
+                val latch = CountDownLatch(1)
+                latches[uid] = latch
+                errors.remove(uid)
+                wav.delete()
+                try {
+                    val rc = tts.synthesizeToFile(seg, Bundle(), wav, uid)
+                    if (rc != TextToSpeech.SUCCESS) { lastErr = ctx.getString(R.string.err_tts_synth, rc); continue }
+                    // ColorOS/Hans freezes the Google TTS process after a few utterances, so onDone never fires.
+                    // Detect that fast (short timeout) and recreate the engine on the next attempt, which wakes it.
+                    var done = false
+                    var waited = 0L
+                    while (waited < SYNTH_TIMEOUT_MS) {
+                        if (latch.await(300, TimeUnit.MILLISECONDS)) { done = true; break }
+                        waited += 300
+                        if (JobManager.shouldStop(job.id)) { runCatching { tts.stop() }; throw StopSignal() }
+                    }
+                    if (!done) { Log.w(TAG, "chunk $i seg $label TIMEOUT ${waited}ms (TTS likely frozen)"); runCatching { tts.stop() }; lastErr = ctx.getString(R.string.err_tts_timeout); continue }
+                    val err = errors.remove(uid)
+                    if (err != null) { Log.w(TAG, "chunk $i seg $label onError code=$err"); lastErr = ctx.getString(R.string.err_tts_synth, err); continue }
+                    return if (wav.length() > 44) Wav.read(wav) else null
+                } catch (e: StopSignal) {
+                    throw e
+                } catch (e: Throwable) {
+                    lastErr = (e.message ?: e.javaClass.simpleName)
+                } finally {
+                    latches.remove(uid)
+                }
+            }
+            Log.w(TAG, "chunk $i seg $label FAILED after $MAX_ATTEMPTS attempts: $lastErr")
+            throw UserError(ctx.getString(R.string.err_tts_chunk_failed, i + 1, lastErr))
+        }
+
         try {
             for (i in job.index until chunks.size) {
                 ctl.checkStop(job.id)
                 ctl.message(job.id, ctx.getString(R.string.job_synth_chunk, i + 1, chunks.size))
                 val s = text.substring(chunks[i].start, chunks[i].end)
-                // Bounded retry: a failing chunk never hangs the job. After the last attempt it throws,
-                // which marks the job ERROR (resumable) so the user can press "Tiếp tục" later.
-                var lastErr = ""
-                var bytes: ByteArray? = null
-                for (attempt in 0 until MAX_ATTEMPTS) {
-                    ctl.checkStop(job.id)
-                    if (attempt > 0) { ctl.message(job.id, ctx.getString(R.string.job_synth_retry, i + 1, attempt + 1)); recreate() }
-                    val uid = "${job.id}_${i}_$attempt"
-                    val latch = CountDownLatch(1)
-                    latches[uid] = latch
-                    errors.remove(uid)
-                    wav.delete()
-                    try {
-                        val rc = tts.synthesizeToFile(s, Bundle(), wav, uid)
-                        if (rc != TextToSpeech.SUCCESS) { lastErr = ctx.getString(R.string.err_tts_synth, rc); continue }
-                        if (!latch.await(90, TimeUnit.SECONDS)) { lastErr = ctx.getString(R.string.err_tts_timeout); continue }
-                        val err = errors.remove(uid)
-                        if (err != null) { lastErr = ctx.getString(R.string.err_tts_synth, err); continue }
-                        bytes = if (wav.length() > 44) {
-                            val (info, pcm) = Wav.read(wav)
-                            val bos = ByteArrayOutputStream(pcm.size / 4 + 1024)
-                            Mp3.encode(pcm, info.sampleRate, info.channels.coerceIn(1, 2), kbps, bos)
-                            bos.toByteArray()
-                        } else ByteArray(0)
-                        break
-                    } catch (e: StopSignal) {
-                        throw e
-                    } catch (e: Throwable) {
-                        lastErr = (e.message ?: e.javaClass.simpleName)
-                    } finally {
-                        latches.remove(uid)
+                // Split into dialogue / narration runs so quotes can be read with a higher pitch.
+                val segs = if (emphasis && TextLogic.hasQuote(s)) TextLogic.quoteSplit(s) else listOf(s to false)
+                Log.d(TAG, "chunk $i len=${s.length} segs=${segs.size} stopReq=${JobManager.shouldStop(job.id)}")
+                var sr = 0
+                var chn = 1
+                val parts = ArrayList<ShortArray>(segs.size)
+                segs.forEachIndexed { si, (seg, inQuote) ->
+                    if (seg.isNotBlank()) {
+                        val pitch = basePitch * if (inQuote) QUOTE_PITCH_MUL else 1f
+                        synthPcm(i, "${i}_$si", seg, pitch)?.let { (info, pcm) ->
+                            sr = info.sampleRate; chn = info.channels.coerceIn(1, 2); parts.add(pcm)
+                        }
                     }
                 }
-                if (bytes == null) throw UserError(ctx.getString(R.string.err_tts_chunk_failed, i + 1, lastErr))
+                val bytes = if (parts.isEmpty()) ByteArray(0) else {
+                    val all = ShortArray(parts.sumOf { it.size })
+                    var off = 0
+                    for (pp in parts) { System.arraycopy(pp, 0, all, off, pp.size); off += pp.size }
+                    val bos = ByteArrayOutputStream(all.size / 4 + 1024)
+                    Mp3.encode(all, sr.coerceAtLeast(16000), chn, kbps, bos)
+                    bos.toByteArray()
+                }
                 val newLen = if (bytes.isEmpty()) out.length() else Files.append(out, bytes)
                 job = ctl.save(job.advance(newLen, JobManager.now()))
+                Log.d(TAG, "chunk $i done mp3+=${bytes.size} total=$newLen status=${job.status}")
             }
+        } catch (e: Throwable) {
+            Log.w(TAG, "run exiting at index=${job.index} via ${e.javaClass.simpleName}: ${e.message}")
+            throw e
         } finally {
             wav.delete()
             try { tts.shutdown() } catch (_: Exception) {}
@@ -121,7 +158,10 @@ object AudioMaker {
         ctl.save(job.copy(outUri = uri, outBookId = outBookId).done(JobManager.now()))
     }
 
-    private const val MAX_ATTEMPTS = 3
+    private const val MAX_ATTEMPTS = 8          // short timeouts + engine recreate recover from Hans freezes
+    private const val SYNTH_TIMEOUT_MS = 10_000L
+    private const val QUOTE_PITCH_MUL = 1.18f   // dialogue in quotes reads a bit higher
+    private const val TAG = "BookShelfAudio"
 
     private fun createTts(ctx: Context, voice: String, text: String, l: UtteranceProgressListener): TextToSpeech {
         val tts = runBlocking { TtsUtil.create(ctx) }

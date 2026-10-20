@@ -26,22 +26,31 @@ import android.view.ViewGroup
 import kotlin.math.abs
 import kotlin.random.Random
 
-/** Wood colours for the shelf (light / dark walnut). */
-class Wood(dark: Boolean) {
-    val wallTop = if (dark) 0xFF24170F.toInt() else 0xFFA87A4F.toInt()
-    val wallBottom = if (dark) 0xFF35221A.toInt() else 0xFFBF8F60.toInt()
-    val wallGrain = if (dark) 0x14000000 else 0x16000000
-    val wallGrainLight = if (dark) 0x08FFFFFF else 0x10FFFFFF
-    val topLight = if (dark) 0xFF7A5232.toInt() else 0xFFF0CB98.toInt()
-    val topDark = if (dark) 0xFF5E3D24.toInt() else 0xFFDDAE74.toInt()
-    val frontTop = if (dark) 0xFF6A4528.toInt() else 0xFFCB9258.toInt()
-    val frontBottom = if (dark) 0xFF3E2716.toInt() else 0xFF8E5A2C.toInt()
-    val frontGrain = if (dark) 0x22000000 else 0x26000000
-    val highlight = if (dark) 0x30FFFFFF else 0x66FFF4DC
-    val label = if (dark) 0xCCE9D6BC.toInt() else 0xE6FFF6E6.toInt()
-    val labelShadow = if (dark) 0xAA000000.toInt() else 0x804A2A10.toInt()
-    val crownTop = if (dark) 0xFF5A3A22.toInt() else 0xFFC48D58.toInt()
-    val crownBottom = if (dark) 0xFF2E1D10.toInt() else 0xFF8A5A30.toInt()
+/**
+ * Shelf wood colours; the whole shelf changes with the theme (oak / walnut / honey / lilac).
+ * [glass] = frosted translucent shelf, so a custom background image shows through.
+ */
+class Wood(dark: Boolean, sepia: Boolean = false, pastel: Boolean = false, glass: Boolean = false) {
+    constructor(p: Palette, glass: Boolean = false) : this(p.dark, p.sepia, p.pastel, glass)
+
+    private val v = when { glass -> 4; dark -> 1; sepia -> 2; pastel -> 3; else -> 0 }
+    private fun pick(light: Long, dk: Long, sep: Long, pas: Long, gl: Long) =
+        when (v) { 1 -> dk; 2 -> sep; 3 -> pas; 4 -> gl; else -> light }.toInt()
+
+    val wallTop = pick(0xFFA87A4F, 0xFF24170F, 0xFFB98A54, 0xFFB4A6D6, 0x1FFFFFFF)
+    val wallBottom = pick(0xFFBF8F60, 0xFF35221A, 0xFFD0A066, 0xFFCBBEE6, 0x0FFFFFFF)
+    val wallGrain = pick(0x16000000, 0x14000000, 0x14000000, 0x10000000, 0x0A000000)
+    val wallGrainLight = pick(0x10FFFFFF, 0x08FFFFFF, 0x12FFFFFF, 0x16FFFFFF, 0x12FFFFFF)
+    val topLight = pick(0xFFF0CB98, 0xFF7A5232, 0xFFF5D9A8, 0xFFEEE6F8, 0x59FFFFFF)
+    val topDark = pick(0xFFDDAE74, 0xFF5E3D24, 0xFFE6BD82, 0xFFD6C9EC, 0x2EFFFFFF)
+    val frontTop = pick(0xFFCB9258, 0xFF6A4528, 0xFFD9A868, 0xFFC7BAE6, 0x70FFFFFF)
+    val frontBottom = pick(0xFF8E5A2C, 0xFF3E2716, 0xFFA06A34, 0xFF9C8ACB, 0x33FFFFFF)
+    val frontGrain = pick(0x26000000, 0x22000000, 0x22000000, 0x1A000000, 0x14FFFFFF)
+    val highlight = pick(0x66FFF4DC, 0x30FFFFFF, 0x66FFF0D0, 0x70FFFFFF, 0x3DFFFFFF)
+    val label = pick(0xE6FFF6E6, 0xCCE9D6BC, 0xE6FFF6E6, 0xF0FFFFFF, 0xF2FFFFFF).toInt()
+    val labelShadow = pick(0x804A2A10, 0xAA000000, 0x805A3416, 0x66604A80, 0x80000000).toInt()
+    val crownTop = pick(0xFFC48D58, 0xFF5A3A22, 0xFFD2A066, 0xFFC2B4E0, 0x4DFFFFFF)
+    val crownBottom = pick(0xFF8A5A30, 0xFF2E1D10, 0xFF9A6838, 0xFF9A88C4, 0x1FFFFFFF)
 }
 
 /**
@@ -49,8 +58,9 @@ class Wood(dark: Boolean) {
  * with [CoverView]s standing on it.
  */
 @SuppressLint("ViewConstructor")
-class ShelfRowView(ctx: Context, dark: Boolean) : ViewGroup(ctx) {
-    private val wood = Wood(dark)
+class ShelfRowView(ctx: Context, p: Palette, glass: Boolean = false) : ViewGroup(ctx) {
+    private val glassMode = glass
+    private val wood = Wood(p, glass)
     private val d = resources.displayMetrics.density
     var columns = 3
     var coverW = 100
@@ -124,16 +134,19 @@ class ShelfRowView(ctx: Context, dark: Boolean) : ViewGroup(ctx) {
         canvas.drawRect(0f, 0f, w, h, paint)
         paint.shader = null
         val rnd = Random(grainSeed)
-        paint.strokeWidth = 1f * d
-        paint.style = Paint.Style.STROKE
-        var x = rnd.nextFloat() * 18 * d
-        while (x < w) {
-            paint.color = if (rnd.nextBoolean()) wood.wallGrain else wood.wallGrainLight
-            val wobble = (rnd.nextFloat() - 0.5f) * 6 * d
-            canvas.drawLine(x, 0f, x + wobble, plankTop, paint)
-            x += (6 + rnd.nextFloat() * 22) * d
+        if (!glassMode) {
+            // vertical wood grain on the back wall (skipped for the clean glass look)
+            paint.strokeWidth = 1f * d
+            paint.style = Paint.Style.STROKE
+            var x = rnd.nextFloat() * 18 * d
+            while (x < w) {
+                paint.color = if (rnd.nextBoolean()) wood.wallGrain else wood.wallGrainLight
+                val wobble = (rnd.nextFloat() - 0.5f) * 6 * d
+                canvas.drawLine(x, 0f, x + wobble, plankTop, paint)
+                x += (6 + rnd.nextFloat() * 22) * d
+            }
+            paint.style = Paint.Style.FILL
         }
-        paint.style = Paint.Style.FILL
         // soft shadow at top of wall (under the previous plank / crown)
         paint.shader = LinearGradient(0f, 0f, 0f, 18 * d, 0x66000000, 0x00000000, Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, w, 18 * d, paint)
@@ -157,32 +170,33 @@ class ShelfRowView(ctx: Context, dark: Boolean) : ViewGroup(ctx) {
         paint.shader = LinearGradient(0f, frontTop, 0f, frontBottom, wood.frontTop, wood.frontBottom, Shader.TileMode.CLAMP)
         canvas.drawRect(0f, frontTop, w, frontBottom, paint)
         paint.shader = null
-        // grain on the front edge
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 0.8f * d
-        val grain = Path()
-        repeat(7) { k ->
-            paint.color = wood.frontGrain
-            val y0 = frontTop + (k + 1) * frontH / 8f + (rnd.nextFloat() - 0.5f) * 2 * d
-            grain.reset()
-            grain.moveTo(0f, y0)
-            var gx = 0f
-            while (gx < w) {
-                val step = (30 + rnd.nextFloat() * 50) * d
-                grain.rQuadTo(step / 2, (rnd.nextFloat() - 0.5f) * 3 * d, step, 0f)
-                gx += step
-            }
-            canvas.drawPath(grain, paint)
-        }
-        // a couple of knots
-        repeat(1 + rnd.nextInt(2)) {
-            val kx = rnd.nextFloat() * w
-            val ky = frontTop + frontH * (0.35f + rnd.nextFloat() * 0.3f)
+        if (!glassMode) {
+            // wood grain + knots on the front edge (skipped for the clean glass look)
+            paint.style = Paint.Style.STROKE
             paint.strokeWidth = 0.8f * d
-            canvas.drawOval(RectF(kx - 7 * d, ky - 2.2f * d, kx + 7 * d, ky + 2.2f * d), paint)
-            canvas.drawOval(RectF(kx - 3.5f * d, ky - 1f * d, kx + 3.5f * d, ky + 1f * d), paint)
+            val grain = Path()
+            repeat(7) { k ->
+                paint.color = wood.frontGrain
+                val y0 = frontTop + (k + 1) * frontH / 8f + (rnd.nextFloat() - 0.5f) * 2 * d
+                grain.reset()
+                grain.moveTo(0f, y0)
+                var gx = 0f
+                while (gx < w) {
+                    val step = (30 + rnd.nextFloat() * 50) * d
+                    grain.rQuadTo(step / 2, (rnd.nextFloat() - 0.5f) * 3 * d, step, 0f)
+                    gx += step
+                }
+                canvas.drawPath(grain, paint)
+            }
+            repeat(1 + rnd.nextInt(2)) {
+                val kx = rnd.nextFloat() * w
+                val ky = frontTop + frontH * (0.35f + rnd.nextFloat() * 0.3f)
+                paint.strokeWidth = 0.8f * d
+                canvas.drawOval(RectF(kx - 7 * d, ky - 2.2f * d, kx + 7 * d, ky + 2.2f * d), paint)
+                canvas.drawOval(RectF(kx - 3.5f * d, ky - 1f * d, kx + 3.5f * d, ky + 1f * d), paint)
+            }
+            paint.style = Paint.Style.FILL
         }
-        paint.style = Paint.Style.FILL
         // highlight on the front top edge
         paint.color = wood.highlight
         canvas.drawRect(0f, frontTop, w, frontTop + 1.3f * d, paint)
@@ -206,8 +220,8 @@ class ShelfRowView(ctx: Context, dark: Boolean) : ViewGroup(ctx) {
     }
 
     /** Thick top piece of the cabinet. */
-    class Crown(ctx: Context, dark: Boolean) : View(ctx) {
-        private val wood = Wood(dark)
+    class Crown(ctx: Context, p: Palette, glass: Boolean = false) : View(ctx) {
+        private val wood = Wood(p, glass)
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         override fun onDraw(canvas: Canvas) {
             val w = width.toFloat()
@@ -337,8 +351,9 @@ class CoverView(ctx: Context) : View(ctx) {
         canvas.drawRect(body, paint)
         val bmp = bitmap
         when {
-            b.isAudio -> drawDisc(canvas, body, b)
+            // Audiobooks keep the original book's cover too; the disc is only a fallback when there is none.
             bmp != null && !bmp.isRecycled -> drawBitmapCover(canvas, body, bmp)
+            b.isAudio -> drawDisc(canvas, body, b)
             else -> drawPlaceholder(canvas, body, b)
         }
 
@@ -385,7 +400,11 @@ class CoverView(ctx: Context) : View(ctx) {
         }
         var by = body.top + 9 * d
         by = drawBadge(canvas, body.left, by, b.typeBadge, typeColor)
-        if (b.tag.isNotEmpty() && b.tag != b.typeBadge) drawBadge(canvas, body.left, by, b.tag, 0xF21E9E5A.toInt())
+        if (b.tag.isNotEmpty() && b.tag != b.typeBadge) {
+            val flag = b.tag.lowercase()
+            if (flag in LANG_FLAGS) drawFlagBadge(canvas, body.left, by, flag)
+            else drawBadge(canvas, body.left, by, b.tag, 0xF21E9E5A.toInt())
+        }
         canvas.restore()
 
         // menu button
@@ -441,6 +460,57 @@ class CoverView(ctx: Context) : View(ctx) {
         return top + h + 5 * d
     }
 
+    /** Small national-flag chip (flush to the left edge) used for a translation's target language. */
+    private fun drawFlagBadge(canvas: Canvas, left: Float, top: Float, code: String): Float {
+        val h = 16 * d
+        val w = 24 * d
+        val rad = h / 2
+        chipPath.reset()
+        chipPath.addRoundRect(left, top, left + w, top + h, floatArrayOf(0f, 0f, rad, rad, rad, rad, 0f, 0f), Path.Direction.CW)
+        canvas.save()
+        canvas.clipPath(chipPath)
+        val cx = left + w / 2
+        val cy = top + h / 2
+        fun fill(c: Int) { paint.color = c; paint.style = Paint.Style.FILL; canvas.drawRect(left, top, left + w, top + h, paint) }
+        when (code) {
+            "vi" -> { fill(0xFFDA251D.toInt()); drawStar(canvas, cx, cy, h * 0.33f, 0xFFFFFF00.toInt()) }
+            "ja" -> { fill(Color.WHITE); paint.color = 0xFFBC002D.toInt(); canvas.drawCircle(cx, cy, h * 0.30f, paint) }
+            "zh" -> { fill(0xFFDE2910.toInt()); drawStar(canvas, left + w * 0.30f, cy, h * 0.34f, 0xFFFFDE00.toInt())
+                drawStar(canvas, left + w * 0.52f, top + h * 0.30f, h * 0.12f, 0xFFFFDE00.toInt()) }
+            "en" -> { // St George's cross (clean + recognisable for English)
+                fill(Color.WHITE)
+                paint.color = 0xFFCE1124.toInt()
+                val t = h * 0.22f
+                canvas.drawRect(cx - t / 2, top, cx + t / 2, top + h, paint)
+                canvas.drawRect(left, cy - t / 2, left + w, cy + t / 2, paint)
+            }
+            else -> {}
+        }
+        canvas.restore()
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 0.8f * d
+        paint.color = 0x33000000
+        canvas.drawPath(chipPath, paint)
+        paint.style = Paint.Style.FILL
+        return top + h + 5 * d
+    }
+
+    private fun drawStar(canvas: Canvas, cx: Float, cy: Float, r: Float, color: Int) {
+        val p = Path()
+        val inner = r * 0.42f
+        for (i in 0 until 10) {
+            val rr = if (i % 2 == 0) r else inner
+            val ang = -Math.PI / 2 + i * Math.PI / 5
+            val px = cx + (rr * Math.cos(ang)).toFloat()
+            val py = cy + (rr * Math.sin(ang)).toFloat()
+            if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
+        }
+        p.close()
+        paint.color = color
+        paint.style = Paint.Style.FILL
+        canvas.drawPath(p, paint)
+    }
+
     /** Vinyl/CD illustration for an audiobook cover. */
     private fun drawDisc(canvas: Canvas, body: RectF, b: Book) {
         // warm backdrop
@@ -493,7 +563,9 @@ class CoverView(ctx: Context) : View(ctx) {
     }
 
     /** Generated cover: cloth-like colour from the title hash, gold frame, a big "?" medallion and the title. */
-    private fun drawPlaceholder(canvas: Canvas, body: RectF, b: Book) {
+    private fun drawPlaceholder(canvas: Canvas, body: RectF, book: Book) {
+        // Derived books (translated / MP3) share the original's generated cover; badges tell them apart.
+        val b = Library.coverSource(book)
         val hues = intArrayOf(0xFFB5453E.toInt(), 0xFF2E7E97.toInt(), 0xFF3E8A57.toInt(), 0xFF7E55A6.toInt(),
             0xFFC07A24.toInt(), 0xFF3D5C94.toInt(), 0xFF9A3C66.toInt(), 0xFF5E7A34.toInt())
         val base = hues[abs(b.title.hashCode()) % hues.size]
@@ -521,11 +593,7 @@ class CoverView(ctx: Context) : View(ctx) {
         paint.shader = RadialGradient(cx - rad * 0.3f, cy - rad * 0.3f, rad * 1.3f, 0xFFF6E3AE.toInt(), 0xFFB8913F.toInt(), Shader.TileMode.CLAMP)
         canvas.drawCircle(cx, cy, rad, paint)
         paint.shader = null
-        textPaint.color = darken(base, 0.1f)
-        textPaint.textAlign = Paint.Align.CENTER
-        textPaint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
-        textPaint.textSize = rad * 1.45f
-        canvas.drawText("?", cx, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
+        drawBookEmblem(canvas, cx, cy, rad, base)
         // title
         textPaint.color = 0xFFF5E6C4.toInt()
         textPaint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
@@ -536,6 +604,39 @@ class CoverView(ctx: Context) : View(ctx) {
         canvas.translate(cx - tw / 2f, cy + rad + 8 * d)
         layout.draw(canvas)
         canvas.restore()
+    }
+
+    /** A small engraved open-book emblem inside the gold medallion (replaces the old "?"). */
+    private fun drawBookEmblem(canvas: Canvas, cx: Float, cy: Float, rad: Float, base: Int) {
+        val ink = darken(base, 0.12f)
+        val halfW = rad * 0.66f
+        val halfH = rad * 0.50f
+        val lift = rad * 0.14f   // spine sits a touch higher than the page corners
+        val left = Path().apply {
+            moveTo(cx, cy - halfH + lift); lineTo(cx - halfW, cy - halfH)
+            lineTo(cx - halfW, cy + halfH); lineTo(cx, cy + halfH - lift); close()
+        }
+        val right = Path().apply {
+            moveTo(cx, cy - halfH + lift); lineTo(cx + halfW, cy - halfH)
+            lineTo(cx + halfW, cy + halfH); lineTo(cx, cy + halfH - lift); close()
+        }
+        paint.style = Paint.Style.FILL
+        paint.color = ink
+        canvas.drawPath(left, paint); canvas.drawPath(right, paint)
+        // light page lines
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 0.9f * d
+        paint.color = 0xFFF6E3AE.toInt()
+        for (i in 1..3) {
+            val y = cy - halfH * 0.45f + i * halfH * 0.42f
+            canvas.drawLine(cx - halfW * 0.82f, y - lift * 0.5f, cx - halfW * 0.12f, y - lift * 0.9f, paint)
+            canvas.drawLine(cx + halfW * 0.12f, y - lift * 0.9f, cx + halfW * 0.82f, y - lift * 0.5f, paint)
+        }
+        // spine
+        paint.color = ink
+        paint.strokeWidth = 1.4f * d
+        canvas.drawLine(cx, cy - halfH + lift, cx, cy + halfH - lift, paint)
+        paint.style = Paint.Style.FILL
     }
 
     @Suppress("DEPRECATION")
@@ -558,5 +659,6 @@ class CoverView(ctx: Context) : View(ctx) {
         /** extra width for the page block + drop shadow; extra height for shadow below */
         fun extraW(d: Float) = (10 * d).toInt()
         fun extraH(d: Float) = (6 * d).toInt()
+        val LANG_FLAGS = setOf("vi", "en", "zh", "ja")
     }
 }

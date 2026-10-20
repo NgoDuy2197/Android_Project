@@ -58,13 +58,16 @@ class JobService : Service() {
                 var job = JobManager.put(next.start(JobManager.now()))
                 notifyProgress(job, force = true)
                 val ctl = JobCtl { notifyProgress(it, force = false) }
+                android.util.Log.i(TAG, "run ${job.type} ${job.id} from index=${job.index}")
                 try {
                     when (job.type) {
                         JobType.EXTRACT -> Extractor.run(this, job, ctl)
                         JobType.TRANSLATE -> Translator.run(this, job, ctl)
                         JobType.AUDIO -> AudioMaker.run(this, job, ctl)
                     }
+                    android.util.Log.i(TAG, "done ${job.id}")
                 } catch (e: StopSignal) {
+                    android.util.Log.i(TAG, "STOP ${job.id} (pause/cancel)")
                     job = JobManager.get(job.id) ?: continue
                     if (job.status != JobStatus.CANCELLED) JobManager.put(job.pause(JobManager.now()))
                 } catch (e: ModelMissingError) {
@@ -73,6 +76,7 @@ class JobService : Service() {
                     if (job.status != JobStatus.CANCELLED)
                         JobManager.put(job.pause(JobManager.now()).copy(error = getString(R.string.err_model_missing)))
                 } catch (e: Throwable) {
+                    android.util.Log.w(TAG, "FAIL ${job.id} ${e.javaClass.simpleName}: ${e.message}")
                     job = JobManager.get(job.id) ?: continue
                     val msg = when (e) {
                         is UserError -> e.message ?: "?"
@@ -153,6 +157,7 @@ class JobService : Service() {
     }
 
     companion object {
+        private const val TAG = "BookShelfJob"
         const val NOTIF_ID = 42
         const val ACTION_PAUSE = "pause"
         const val EXTRA_ID = "id"

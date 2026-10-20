@@ -64,6 +64,32 @@ class MainActivity : BaseActivity() {
     private lateinit var playerTitle: TextView
     private lateinit var playerToggle: ImageView
     private var query = ""
+
+    /** A custom shelf background is set and present → the shelf renders as frosted glass over it. */
+    private val shelfGlass get() = Prefs.shelfBgOn(this) && Covers.shelfBgFile(this).exists()
+
+    /** The blurred / brightness-adjusted background image behind the (glass) shelf, or null. */
+    private fun shelfBackgroundView(): View? {
+        if (!shelfGlass) return null
+        val bmp = Covers.loadShelfBg(this) ?: return null
+        val blur = Prefs.shelfBgBlur(this)
+        val dim = Prefs.shelfBgDim(this)
+        return ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            if (Build.VERSION.SDK_INT >= 31 && blur > 0) {
+                setImageBitmap(bmp)
+                val r = blur * 1.6f
+                setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, android.graphics.Shader.TileMode.CLAMP))
+            } else {
+                setImageBitmap(if (blur > 0) Covers.downscaleBlur(bmp, blur) else bmp)
+            }
+            // Brightness ("tông sáng/tối"): multiply RGB (<1 darkens, >1 brightens).
+            val s = 1f + dim / 100f
+            colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+                s, 0f, 0f, 0f, 0f, 0f, s, 0f, 0f, 0f, 0f, 0f, s, 0f, 0f, 0f, 0f, 0f, 1f, 0f,
+            )))
+        }
+    }
     private var pendingCoverFor: String? = null
     private val libListener: () -> Unit = { refresh() }
     private val ttsListener: (TtsBus.State) -> Unit = { updatePlayer(it) }
@@ -131,7 +157,13 @@ class MainActivity : BaseActivity() {
             imageTintList = ColorStateList.valueOf(Color.WHITE)
             val pad = dp(11)
             setPadding(pad, pad, pad, pad)
-            background = pressable(GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(0xFFFFC163.toInt(), 0xFFE07B1F.toInt())).apply {
+            // Follows the theme accent (changes with Light / Dark / Sepia / Pastel).
+            val accent = p.blue
+            fun lift(c: Int, f: Float) = Color.rgb(
+                (Color.red(c) + (255 - Color.red(c)) * f).toInt(),
+                (Color.green(c) + (255 - Color.green(c)) * f).toInt(),
+                (Color.blue(c) + (255 - Color.blue(c)) * f).toInt())
+            background = pressable(GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(lift(accent, 0.28f), accent)).apply {
                 shape = GradientDrawable.OVAL
             }, 0x40FFFFFF)
             elevation = dpf(4)
@@ -153,12 +185,13 @@ class MainActivity : BaseActivity() {
         }
         root.addView(searchField, vlp().apply { setMargins(dp(16), 0, dp(16), dp(10)) })
 
-        root.addView(ShelfRowView.Crown(this, p.dark), vlp(h = dp(14)))
+        root.addView(ShelfRowView.Crown(this, p, shelfGlass), vlp(h = dp(14)))
 
         val frame = FrameLayout(this)
+        shelfBackgroundView()?.let { frame.addView(it, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)) }
         rv = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
-            setBackgroundColor(Wood(p.dark).wallBottom)
+            setBackgroundColor(if (shelfGlass) android.graphics.Color.TRANSPARENT else Wood(p).wallBottom)
             overScrollMode = View.OVER_SCROLL_NEVER
             clipToPadding = false
             setPadding(0, 0, 0, dp(80))
@@ -276,7 +309,7 @@ class MainActivity : BaseActivity() {
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            val row = ShelfRowView(parent.context, p.dark)
+            val row = ShelfRowView(parent.context, p, shelfGlass)
             row.layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             return VH(row)
         }
@@ -311,7 +344,7 @@ class MainActivity : BaseActivity() {
         val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/pdf", "text/plain"))
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/pdf", "text/plain", "application/epub+zip"))
             putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         }
         try { startActivityForResult(i, REQ_IMPORT) } catch (_: Exception) { toast(R.string.err_no_picker) }
@@ -365,7 +398,33 @@ class MainActivity : BaseActivity() {
         val mime = contentResolver.getType(uri) ?: ""
         val head = ByteArray(5)
         contentResolver.openInputStream(uri)?.use { it.read(head) } ?: return null
-        val isPdf = mime == "application/pdf" || name.lowercase().endsWith(".pdf") || String(head, Charsets.US_ASCII).startsWith("%PDF")
+        val lower = name.lowercase()
+        val isZip = head.size >= 4 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte() &&
+            head[2] == 0x03.toByte() && head[3] == 0x04.toByte()
+        // EPUB: convert to plain text once at import, then store as an ordinary TEXT book so the
+        // whole reader / TTS / translate pipeline works unchanged.
+        if (mime == "application/epub+zip" || lower.endsWith(".epub") || isZip) {
+            val epubTmp = File.createTempFile("import_", ".epub", cacheDir)
+            try {
+                contentResolver.openInputStream(uri)?.use { input -> epubTmp.outputStream().use { input.copyTo(it, 64 * 1024) } }
+                    ?: run { epubTmp.delete(); return null }
+                val res = Epub.parse(epubTmp)
+                if (res != null) {
+                    val title = res.title.trim().ifEmpty { TextLogic.titleFromFileName(name) }
+                    val eb = Book(Library.newId(), title, BookType.TEXT, System.currentTimeMillis())
+                    val edir = Library.dir(eb.id).apply { mkdirs() }
+                    try { Files.writeAtomic(File(edir, "book.txt"), res.text) }
+                    catch (e: Exception) { edir.deleteRecursively(); throw e }
+                    Library.add(eb)
+                    return eb
+                }
+                // A declared EPUB that failed to parse is a hard failure; a bare zip just falls through.
+                if (mime == "application/epub+zip" || lower.endsWith(".epub")) return null
+            } finally {
+                epubTmp.delete()
+            }
+        }
+        val isPdf = mime == "application/pdf" || lower.endsWith(".pdf") || String(head, Charsets.US_ASCII).startsWith("%PDF")
         val b = Book(Library.newId(), TextLogic.titleFromFileName(name), if (isPdf) BookType.PDF else BookType.TEXT, System.currentTimeMillis())
         val dir = Library.dir(b.id).apply { mkdirs() }
         val dest = File(dir, if (isPdf) "book.pdf" else "book.txt")

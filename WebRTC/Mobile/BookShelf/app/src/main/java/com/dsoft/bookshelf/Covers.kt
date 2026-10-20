@@ -45,6 +45,12 @@ object Covers {
             val f = Library.customCoverFile(b.id)
             if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.let { return it }
         }
+        // Derived book (translated / extracted TXT, or MP3) with no cover of its own:
+        // reuse the original book's cover so it looks the same, just with extra badges.
+        if (b.sourceId.isNotEmpty()) {
+            val src = Library.coverSource(b)
+            if (src.id != b.id) return loadBlocking(src)
+        }
         if (!b.isPdf) return null
         val cf = Library.coverFile(b.id)
         if (cf.exists()) BitmapFactory.decodeFile(cf.absolutePath)?.let { return it }
@@ -80,6 +86,54 @@ object Covers {
 
     fun invalidate(id: String) {
         synchronized(versions) { versions[id] = (versions[id] ?: 0) + 1 }
+    }
+
+    // ---- shelf background image ----
+    fun shelfBgFile(ctx: Context) = java.io.File(ctx.filesDir, "shelf_bg.jpg")
+
+    /** Copies a picked image into app storage as the shelf background (downscaled to <= 1600 px). */
+    fun saveShelfBg(ctx: Context, uri: Uri): Boolean = copyScaled(ctx, uri, shelfBgFile(ctx), 1600)
+
+    /** The shelf background decoded at roughly screen size (blur/brightness applied by the view). */
+    fun loadShelfBg(ctx: Context): Bitmap? {
+        val f = shelfBgFile(ctx)
+        if (!f.exists()) return null
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(f.absolutePath, opts)
+        if (opts.outWidth <= 0) return null
+        val m = ctx.resources.displayMetrics
+        val target = maxOf(m.widthPixels, m.heightPixels)
+        var sample = 1
+        while (maxOf(opts.outWidth, opts.outHeight) / (sample * 2) >= target) sample *= 2
+        return BitmapFactory.decodeFile(f.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
+    /** Cheap blur for API < 31 (no RenderEffect): shrink then grow with bilinear filtering. */
+    fun downscaleBlur(src: Bitmap, blur: Int): Bitmap {
+        if (blur <= 0) return src
+        val factor = (1 + blur * 0.6f)
+        val w = (src.width / factor).toInt().coerceAtLeast(8)
+        val h = (src.height / factor).toInt().coerceAtLeast(8)
+        val small = Bitmap.createScaledBitmap(src, w, h, true)
+        return Bitmap.createScaledBitmap(small, src.width, src.height, true)
+    }
+
+    private fun copyScaled(ctx: Context, uri: Uri, dst: java.io.File, maxPx: Int): Boolean {
+        val cr = ctx.contentResolver
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
+        if (opts.outWidth <= 0) return false
+        var sample = 1
+        while (maxOf(opts.outWidth, opts.outHeight) / sample > maxPx * 2) sample *= 2
+        val bmp = cr.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+        } ?: return false
+        val scale = minOf(1f, maxPx.toFloat() / maxOf(bmp.width, bmp.height))
+        val out = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
+        val tmp = java.io.File(dst.parentFile, dst.name + ".tmp")
+        FileOutputStream(tmp).use { out.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        if (!tmp.renameTo(dst)) { dst.delete(); tmp.renameTo(dst) }
+        return true
     }
 
     /** Copies a picked image into app storage, downscaled to <= 900 px. Blocking. */

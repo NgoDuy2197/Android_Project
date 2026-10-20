@@ -138,4 +138,22 @@ class TextLogicTest {
         assertEquals("Sách hay", TextLogic.titleFromFileName("Sách_hay.pdf"))
         assertEquals("a_b_c", TextLogic.safeFileName("a/b:c"))
     }
+
+    @Test fun quoteSplitStraight() {
+        val r = TextLogic.quoteSplit("He said \"hello\" now.")
+        assertEquals(3, r.size)
+        assertEquals("He said " to false, r[0])
+        assertEquals("\"hello\"" to true, r[1])
+        assertEquals(" now." to false, r[2])
+        // reassembling the runs must give back the original text
+        assertEquals("He said \"hello\" now.", r.joinToString("") { it.first })
+    }
+
+    @Test fun quoteSplitCurlyAndNone() {
+        val r = TextLogic.quoteSplit("A “xin chào” B")
+        assertEquals(true, r.any { it.second && it.first.contains("xin") })
+        assertEquals("A “xin chào” B", r.joinToString("") { it.first })
+        assertEquals(false, TextLogic.hasQuote("khong co ngoac"))
+        assertEquals(listOf("no quotes" to false), TextLogic.quoteSplit("no quotes"))
+    }
 }

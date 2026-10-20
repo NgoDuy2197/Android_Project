@@ -54,7 +54,12 @@ object MlKitModels {
         )
         try {
             val cond = DownloadConditions.Builder().apply { if (wifiOnly) requireWifi() }.build()
-            Tasks.await(translator.downloadModelIfNeeded(cond), 30, TimeUnit.MINUTES)
+            // Bounded wait: on some ROMs Google Play Services never progresses the model download.
+            // Fail with a clear, actionable message instead of hanging for half an hour.
+            Tasks.await(translator.downloadModelIfNeeded(cond), 3, TimeUnit.MINUTES)
+        } catch (e: java.util.concurrent.TimeoutException) {
+            throw UserError("Tải mô hình quá lâu — Google Play Services không tải được trên máy này. " +
+                "Thử bật Wi‑Fi, hoặc dùng \"Google online\".")
         } finally {
             translator.close()
         }
@@ -94,14 +99,28 @@ object Translator {
         }
         if (src == job.tgt) throw UserError(ctx.getString(R.string.err_same_lang))
 
-        // ML Kit never auto-waits on a download: if the model is missing, pause and let the user download it.
-        if (job.engine == Engines.MLKIT && !MlKitModels.ready(src, job.tgt)) throw ModelMissingError()
+        // Offline ML Kit is used only when its model is already on the device. If it isn't, the job
+        // translates online with the SAME free Google endpoint the reader's double-tap uses, instead of
+        // pausing — so an "offline" job always completes just like double-tap. (Download the model in
+        // Settings to make it truly offline.)
+        var eng = job.engine
+        if (eng == Engines.MLKIT && !MlKitModels.ready(src, job.tgt)) {
+            eng = Engines.GOOGLE
+            ctl.message(job.id, "Chưa có mô hình offline — đang dịch bằng Google online (như double-tap)")
+        }
 
         val batches = TextLogic.batches(text, job.unitChars.takeIf { it > 0 } ?: 3000)
         job = ctl.save(job.withTotal(batches.size, JobManager.now()))
         if (job.index >= batches.size) { ctl.save(job.done(JobManager.now())); return }
 
-        val engine: TranslateEngine = when (job.engine) {
+        // ML Kit only: optional multi-threaded translation (results written strictly in order).
+        val threads = if (eng == Engines.MLKIT) Prefs.trThreads(ctx) else 0
+        if (threads >= 2) {
+            runParallelMlKit(ctx, job, ctl, text, batches, src, threads, out)
+            return
+        }
+
+        val engine: TranslateEngine = when (eng) {
             Engines.GOOGLE -> GoogleFreeEngine(src, job.tgt)
             Engines.GEMINI -> GeminiEngine(Prefs.geminiKey(ctx).ifBlank { throw UserError(ctx.getString(R.string.err_no_key)) }, src, job.tgt)
             else -> MlKitEngine(ctx, src, job.tgt, jobId = job.id) { ctl.message(job.id, it) }
@@ -114,12 +133,83 @@ object Translator {
                 val tr = if (core.isEmpty()) "" else engine.translate(core)
                 val newLen = Files.append(out, (lead + tr + trail).toByteArray(Charsets.UTF_8))
                 job = ctl.save(job.advance(newLen, JobManager.now()))
-                if (job.engine == Engines.GOOGLE) Thread.sleep(1200) // be gentle with the unofficial endpoint
+                if (eng == Engines.GOOGLE) Thread.sleep(1200) // be gentle with the unofficial endpoint
             }
         } finally {
             engine.close()
         }
         ctl.save(job.done(JobManager.now()))
+    }
+
+    /**
+     * Multi-threaded ML Kit translation. [threads] workers each own a Translator client and translate
+     * batches out of order; a single writer appends them to the output strictly in order and saves
+     * progress after every batch, so Pause/Cancel and resume keep working exactly like the serial path.
+     */
+    private fun runParallelMlKit(
+        ctx: Context, startJob: Job, ctl: JobCtl, text: String,
+        batches: List<Span>, src: String, threads: Int, out: java.io.File,
+    ) {
+        var job = startJob
+        val window = threads * 2                 // bound how far ahead workers run (memory)
+        val nextIndex = java.util.concurrent.atomic.AtomicInteger(job.index)
+        val results = java.util.concurrent.ConcurrentHashMap<Int, String>()
+        val errorRef = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+        val stop = java.util.concurrent.atomic.AtomicBoolean(false)
+        val sem = java.util.concurrent.Semaphore(window)
+        val lock = Object()
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(threads)
+        val engines = java.util.Collections.synchronizedList(ArrayList<TranslateEngine>())
+        val local = ThreadLocal.withInitial {
+            MlKitEngine(ctx, src, job.tgt, jobId = job.id) {}.also { engines.add(it) }
+        }
+        ctl.message(job.id, "Đang dịch song song ($threads luồng)…")
+        try {
+            repeat(threads) {
+                pool.execute {
+                    try {
+                        val engine = local.get()!!
+                        while (!stop.get() && errorRef.get() == null) {
+                            sem.acquire()
+                            if (stop.get() || errorRef.get() != null) { sem.release(); break }
+                            val i = nextIndex.getAndIncrement()
+                            if (i >= batches.size) { sem.release(); break }
+                            try {
+                                val chunk = text.substring(batches[i].start, batches[i].end)
+                                val (lead, core, trail) = TextLogic.padParts(chunk)
+                                val tr = if (core.isEmpty()) "" else engine.translate(core)
+                                results[i] = lead + tr + trail
+                            } catch (e: Throwable) {
+                                errorRef.compareAndSet(null, e)
+                                sem.release()
+                            }
+                            synchronized(lock) { lock.notifyAll() }
+                        }
+                    } catch (_: InterruptedException) {
+                    } finally {
+                        synchronized(lock) { lock.notifyAll() }
+                    }
+                }
+            }
+            var w = job.index
+            while (w < batches.size) {
+                ctl.checkStop(job.id)            // throws StopSignal -> handled in finally
+                synchronized(lock) {
+                    while (results[w] == null && errorRef.get() == null && !stop.get()) lock.wait(400)
+                }
+                errorRef.get()?.let { throw it }
+                val part = results.remove(w) ?: continue
+                val newLen = Files.append(out, part.toByteArray(Charsets.UTF_8))
+                job = ctl.save(job.advance(newLen, JobManager.now()))
+                w++
+                sem.release()                    // let one more batch start
+            }
+            ctl.save(job.done(JobManager.now()))
+        } finally {
+            stop.set(true)
+            pool.shutdownNow()
+            synchronized(engines) { engines.forEach { runCatching { it.close() } } }
+        }
     }
 
     /** ML Kit language-id on a sample of the text; returns a code from [Langs.codes] or null. */

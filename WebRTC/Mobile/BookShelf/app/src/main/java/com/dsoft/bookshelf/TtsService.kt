@@ -34,6 +34,8 @@ object TtsBus {
 
     @Volatile var state = State()
         private set
+    /** Epoch ms when the sleep timer will stop playback, or 0 if none. */
+    @Volatile var sleepAtMs = 0L
     private val listeners = ArrayList<(State) -> Unit>()
 
     fun set(s: State) {
@@ -66,6 +68,8 @@ class TtsService : Service() {
     private var playing = false
     private var generation = 0
     private var errorsInRow = 0
+    private var sleepRunnable: Runnable? = null
+    private var sleepAtMs = 0L
 
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(Locales.wrap(newBase))
     override fun onBind(intent: Intent?): IBinder? = null
@@ -100,6 +104,7 @@ class TtsService : Service() {
             ACTION_RESUME -> resume()
             ACTION_NEXT -> skip(1)
             ACTION_PREV -> skip(-1)
+            ACTION_SLEEP -> setSleep(intent.getIntExtra(EXTRA_MINUTES, 0))
             ACTION_STOP -> stopAll()
             else -> if (book == null) stopAll()
         }
@@ -195,11 +200,28 @@ class TtsService : Service() {
 
     private fun fillQueue() {
         val t = tts ?: return
+        val base = (Prefs.ttsPitch(this) / 100f).coerceIn(0.3f, 2f)
+        val emphasis = Prefs.quoteEmphasis(this)
         val target = minOf(chunks.size - 1, current + 2)
         while (queuedUpTo < target) {
             val i = queuedUpTo + 1
             val s = text.substring(chunks[i].start, chunks[i].end)
-            t.speak(s, if (queuedUpTo < current) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, Bundle(), "$generation#$i")
+            val flushFirst = queuedUpTo < current
+            val segs = if (emphasis && TextLogic.hasQuote(s)) TextLogic.quoteSplit(s).filter { it.first.isNotBlank() } else emptyList()
+            if (segs.size > 1) {
+                // Dialogue in quotes reads a bit higher. Only the final segment carries the chunk's
+                // tracking id ("#i"); earlier ones use an id onStart/onDone ignore.
+                segs.forEachIndexed { si, (seg, inQ) ->
+                    runCatching { t.setPitch((base * if (inQ) 1.18f else 1f).coerceIn(0.3f, 2f)) }
+                    val mode = if (flushFirst && si == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+                    val id = if (si == segs.lastIndex) "$generation#$i" else "$generation#s$i-$si"
+                    t.speak(seg, mode, Bundle(), id)
+                }
+                runCatching { t.setPitch(base) }
+            } else {
+                runCatching { t.setPitch(base) }
+                t.speak(s, if (flushFirst) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, Bundle(), "$generation#$i")
+            }
             queuedUpTo = i
         }
     }
@@ -239,6 +261,21 @@ class TtsService : Service() {
 
     private fun stopSpeaking() {
         try { tts?.stop() } catch (_: Exception) {}
+    }
+
+    /** Auto-stop reading after [minutes] (0 = cancel the timer). */
+    private fun setSleep(minutes: Int) {
+        sleepRunnable?.let { App.main.removeCallbacks(it) }
+        sleepRunnable = null
+        sleepAtMs = 0L
+        if (minutes > 0) {
+            sleepAtMs = System.currentTimeMillis() + minutes * 60_000L
+            val r = Runnable { sleepAtMs = 0L; sleepRunnable = null; pause() }
+            sleepRunnable = r
+            App.main.postDelayed(r, minutes * 60_000L)
+        }
+        TtsBus.sleepAtMs = sleepAtMs
+        publish()
     }
 
     private fun savePos() {
@@ -283,7 +320,9 @@ class TtsService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val snippet = chunks.getOrNull(current)?.let { text.substring(it.start, it.end).take(120) } ?: getString(R.string.tts_loading)
-        val progress = if (chunks.isNotEmpty()) " · ${(current + 1) * 100 / chunks.size}%" else ""
+        val sleepLeft = if (sleepAtMs > 0) ((sleepAtMs - System.currentTimeMillis()) / 60000 + 1).coerceAtLeast(0) else 0
+        val progress = (if (chunks.isNotEmpty()) " · ${(current + 1) * 100 / chunks.size}%" else "") +
+            (if (sleepLeft > 0) " · ⏰ ${sleepLeft}′" else "")
         return NotificationCompat.Builder(this, App.CH_TTS)
             .setSmallIcon(R.drawable.ic_stat_book)
             .setContentTitle((b?.title ?: getString(R.string.app_name)) + progress)
@@ -342,6 +381,7 @@ class TtsService : Service() {
 
     private fun stopAll() {
         if (playing) savePos()
+        sleepRunnable?.let { App.main.removeCallbacks(it) }; sleepRunnable = null; sleepAtMs = 0L; TtsBus.sleepAtMs = 0L
         playing = false
         generation++
         stopSpeaking()
@@ -372,8 +412,17 @@ class TtsService : Service() {
         const val ACTION_NEXT = "next"
         const val ACTION_PREV = "prev"
         const val ACTION_STOP = "stop"
+        const val ACTION_SLEEP = "sleep"
         const val EXTRA_BOOK = "book"
         const val EXTRA_FROM = "from"
+        const val EXTRA_MINUTES = "min"
+
+        /** Sets (minutes > 0) or cancels (0) the auto-stop sleep timer. */
+        fun sleep(ctx: Context, minutes: Int) {
+            try {
+                ctx.startService(Intent(ctx, TtsService::class.java).setAction(ACTION_SLEEP).putExtra(EXTRA_MINUTES, minutes))
+            } catch (_: Exception) {}
+        }
 
         /** Starts reading [book] from the saved position, or from char offset [from] of its text. */
         fun play(ctx: Context, book: Book, from: Int = -1) {

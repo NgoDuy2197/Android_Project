@@ -249,6 +249,17 @@ object Library {
         else -> get(b.textBookId)?.takeIf { file(it).exists() }
     }
 
+    /** The book whose cover a derived book (extract / translate / MP3) inherits: follows sourceId to the root. */
+    fun coverSource(b: Book): Book {
+        var cur = b
+        var guard = 0
+        val seen = HashSet<String>()
+        while (cur.sourceId.isNotEmpty() && guard++ < 8 && seen.add(cur.id)) {
+            cur = get(cur.sourceId) ?: break
+        }
+        return cur
+    }
+
     fun addListener(l: () -> Unit) = synchronized(listeners) { listeners += l }
     fun removeListener(l: () -> Unit) = synchronized(listeners) { listeners -= l }
     private fun notifyChanged() {
