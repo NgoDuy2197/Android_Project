@@ -150,6 +150,21 @@ object ProxyEngine {
         f.reqBody = extractBody(reqBody, hmap["content-type"] ?: "", maxBody)
         FlowStore.add(f)
 
+        // Rules: a mock rule returns a canned response without contacting the server.
+        val rules = RuleStore.matching(method, url)
+        rules.firstOrNull { it.mock }?.let { mk ->
+            val code = mk.status.toIntOrNull() ?: 200
+            val bodyBytes = mk.body.toByteArray(Charsets.UTF_8)
+            val ct = mk.contentType.ifBlank { "application/json; charset=utf-8" }
+            f.status = code; f.reason = "mock"
+            f.resHeaders = listOf("Content-Type" to ct)
+            f.resBody = extractBody(bodyBytes, ct, maxBody)
+            f.durationMs = 0
+            FlowStore.touched()
+            writeResponse(out, code, "OK", f.resHeaders, bodyBytes, connClose)
+            return !connClose
+        }
+
         val started = System.currentTimeMillis()
         try {
             val permits = !method.equals("GET", true) && !method.equals("HEAD", true)
@@ -165,8 +180,17 @@ object ProxyEngine {
             }
             rb2.method(method, rb)
             client.newCall(rb2.build()).execute().use { resp ->
-                val bodyBytes = resp.body?.bytes() ?: ByteArray(0)
-                f.status = resp.code
+                var code = resp.code
+                var bodyBytes = resp.body?.bytes() ?: ByteArray(0)
+                // Rules: modify the real response (status / whole body / find→replace in body).
+                for (r in rules) {
+                    if (r.mock) continue
+                    r.status.toIntOrNull()?.let { code = it }
+                    if (r.body.isNotEmpty()) bodyBytes = r.body.toByteArray(Charsets.UTF_8)
+                    else if (r.find.isNotEmpty())
+                        bodyBytes = String(bodyBytes, Charsets.UTF_8).replace(r.find, r.replace).toByteArray(Charsets.UTF_8)
+                }
+                f.status = code
                 f.reason = resp.message
                 val rh = ArrayList<Pair<String, String>>()
                 for (name in resp.headers.names()) {
@@ -178,7 +202,7 @@ object ProxyEngine {
                 f.resBody = extractBody(bodyBytes, resp.header("content-type") ?: "", maxBody)
                 f.durationMs = System.currentTimeMillis() - started
                 FlowStore.touched()
-                writeResponse(out, resp.code, resp.message, rh, bodyBytes, connClose)
+                writeResponse(out, code, resp.message, rh, bodyBytes, connClose)
             }
         } catch (e: Throwable) {
             f.error = e.message ?: e.javaClass.simpleName

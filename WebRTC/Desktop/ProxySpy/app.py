@@ -24,6 +24,7 @@ from mitmproxy import options
 from mitmproxy.tools.dump import DumpMaster
 
 from capture import Capture, FlowStore
+from rules import RuleStore, Rules
 from server import start_dashboard
 
 # When frozen (PyInstaller), keep the CA/config next to the .exe so it persists across runs;
@@ -105,7 +106,7 @@ def banner(args, ips):
     print(line, flush=True)
 
 
-async def amain(args, store, info):
+async def amain(args, store, info, rules):
     opts = options.Options(listen_host=args.host, listen_port=args.port)
     # Keep the config (CA + settings) inside the app folder so it's self-contained.
     for name, value in (("confdir", args.confdir), ("ssl_insecure", True)):
@@ -117,6 +118,7 @@ async def amain(args, store, info):
             except Exception:
                 pass
     master = DumpMaster(opts, with_termlog=True, with_dumper=False)
+    master.addons.add(Rules(rules))      # before Capture: rules modify, then capture records final
     master.addons.add(Capture(store))
     info["master"] = master
     await master.run()
@@ -147,6 +149,7 @@ def main():
 
     os.makedirs(args.confdir, exist_ok=True)
     store = FlowStore(max_body=args.max_body)
+    rules = RuleStore(os.path.join(args.confdir, "rules.json"))
     ips = lan_ips()
     info = {
         "proxyHost": ips[0] if ips else args.host, "proxyPort": args.port, "ips": ips,
@@ -154,7 +157,7 @@ def main():
     }
 
     try:
-        start_dashboard(args.dash_host, args.dash_port, store, info, args.confdir)
+        start_dashboard(args.dash_host, args.dash_port, store, info, args.confdir, rules)
     except OSError as e:
         print(f"[!] Không mở được dashboard ở cổng {args.dash_port}: {e}", file=sys.stderr)
         sys.exit(1)
@@ -168,7 +171,7 @@ def main():
             pass
 
     try:
-        asyncio.run(amain(args, store, info))
+        asyncio.run(amain(args, store, info, rules))
     except KeyboardInterrupt:
         print("\nĐã dừng ProxySpy.")
     except OSError as e:

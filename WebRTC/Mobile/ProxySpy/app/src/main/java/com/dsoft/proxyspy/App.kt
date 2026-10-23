@@ -13,6 +13,7 @@ class App : Application() {
         instance = this
         main = Handler(Looper.getMainLooper())
         CertManager.init(this)
+        RuleStore.init(this)
         if (Build.VERSION.SDK_INT >= 26) {
             val ch = NotificationChannel(CH, "ProxySpy", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(ch)

@@ -73,6 +73,10 @@
   .sheet h2{margin:0 0 6px;font-size:19px}
   .sheet ol{padding-left:20px;line-height:1.6;font-size:14px}
   .sheet code{background:var(--fill);padding:1px 6px;border-radius:5px;font:12px var(--mono)}
+  .sheet input,.sheet textarea{background:var(--bg);color:var(--text);border:1px solid var(--sep);border-radius:8px;padding:7px 9px;font-size:13px;font-family:inherit;outline:none}
+  .sheet textarea{font-family:var(--mono)}
+  .rule{border:1px solid var(--sep);border-radius:10px;padding:10px;margin:8px 0}
+  .rule .r-row{display:flex;gap:8px;margin-top:6px;align-items:center}
   .x{margin-left:auto}
   .closebtn{font-size:16px;line-height:1;padding:6px 10px}
   @media (max-width:760px){
@@ -91,6 +95,7 @@
   <button id="pauseBtn">⏸ Tạm dừng</button>
   <button id="clearBtn" class="warn">Xoá</button>
   <button id="caBtn">Tải CA</button>
+  <button id="rulesBtn">⚙ Rules</button>
   <button id="qrBtn">▣ QR</button>
   <button id="setupBtn" class="accent">Hướng dẫn</button>
 </header>
@@ -125,6 +130,23 @@
       <button class="closebtn x" id="mClose">✕</button>
     </div>
     <div id="setupBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="rulesModal">
+  <div class="sheet" style="max-width:660px;text-align:left">
+    <div style="display:flex;align-items:center">
+      <h2 style="flex:1">Rules — chặn &amp; sửa response</h2>
+      <button class="closebtn" id="rulesClose">✕</button>
+    </div>
+    <div id="rulesList"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+      <button id="ruleAdd">+ Thêm rule</button>
+      <span class="grow"></span>
+      <button class="accent" id="ruleSave">Lưu &amp; áp dụng</button>
+    </div>
+    <p class="tag" style="margin-top:8px"><b>match</b>: chuỗi con của URL (hoặc <code>re:regex</code>), rỗng = mọi URL.
+      <b>mock</b>: trả thẳng không gọi server. Không mock thì forward rồi đổi <b>status</b> / thay cả <b>body</b> / hoặc <b>find→replace</b> trong body.</p>
   </div>
 </div>
 
@@ -321,6 +343,66 @@ $("#qrBtn").onclick=()=>{
 };
 $("#qrClose").onclick=()=>$("#qrModal").classList.remove("show");
 $("#qrModal").onclick=e=>{ if(e.target===$("#qrModal")) $("#qrModal").classList.remove("show"); };
+
+// ---- rules ----
+let rules = [];
+function ruleCard(r,i){
+  return `<div class="rule" data-i="${i}">
+    <div class="r-row">
+      <input type="checkbox" class="r-en" ${r.enabled!==false?"checked":""} title="bật">
+      <input class="r-name" placeholder="tên rule" value="${esc(r.name||"")}" style="flex:1">
+      <button class="r-del warn">Xoá</button>
+    </div>
+    <div class="r-row">
+      <input class="r-match" placeholder="match URL (vd /login)" value="${esc(r.match||"")}" style="flex:2">
+      <input class="r-method" placeholder="method" value="${esc(r.method||"")}" style="width:84px">
+      <label style="white-space:nowrap"><input type="checkbox" class="r-mock" ${r.mock?"checked":""}> mock</label>
+    </div>
+    <div class="r-row">
+      <input class="r-status" placeholder="status (vd 200)" value="${esc(r.status||"")}" style="width:130px">
+      <input class="r-ct" placeholder="content-type (mock)" value="${esc(r.contentType||"")}" style="flex:1">
+    </div>
+    <textarea class="r-body" placeholder="body thay thế / mock (trống nếu dùng find→replace)" style="width:100%;margin-top:6px;min-height:52px">${esc(r.body||"")}</textarea>
+    <div class="r-row">
+      <input class="r-find" placeholder="find trong body" value="${esc(r.find||"")}" style="flex:1">
+      <input class="r-replace" placeholder="replace" value="${esc(r.replace||"")}" style="flex:1">
+    </div>
+  </div>`;
+}
+function renderRules(){
+  $("#rulesList").innerHTML = rules.map(ruleCard).join("");
+  document.querySelectorAll(".r-del").forEach(b=>b.onclick=()=>{
+    rules = collectRules(); rules.splice(+b.closest(".rule").dataset.i,1); renderRules();
+  });
+}
+function collectRules(){
+  const out=[];
+  document.querySelectorAll(".rule").forEach(el=>out.push({
+    enabled: el.querySelector(".r-en").checked,
+    name: el.querySelector(".r-name").value,
+    match: el.querySelector(".r-match").value,
+    method: el.querySelector(".r-method").value,
+    mock: el.querySelector(".r-mock").checked,
+    status: el.querySelector(".r-status").value,
+    contentType: el.querySelector(".r-ct").value,
+    body: el.querySelector(".r-body").value,
+    find: el.querySelector(".r-find").value,
+    replace: el.querySelector(".r-replace").value,
+  }));
+  return out;
+}
+$("#rulesBtn").onclick=async()=>{
+  try{ rules=(await (await fetch("/api/rules")).json()).rules||[]; }catch(e){ rules=[]; }
+  renderRules(); $("#rulesModal").classList.add("show");
+};
+$("#rulesClose").onclick=()=>$("#rulesModal").classList.remove("show");
+$("#rulesModal").onclick=e=>{ if(e.target===$("#rulesModal")) $("#rulesModal").classList.remove("show"); };
+$("#ruleAdd").onclick=()=>{ rules=collectRules(); rules.push({enabled:true,name:"rule mới",match:"",method:"",mock:false,status:"",contentType:"application/json; charset=utf-8",body:"",find:"",replace:""}); renderRules(); };
+$("#ruleSave").onclick=async()=>{
+  const data=collectRules();
+  try{ await fetch("/api/rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); }catch(e){}
+  rules=data; $("#rulesModal").classList.remove("show");
+};
 
 function fillSetup(){
   const ip=(info.ips&&info.ips[0])||"IP_MÁY_TÍNH";

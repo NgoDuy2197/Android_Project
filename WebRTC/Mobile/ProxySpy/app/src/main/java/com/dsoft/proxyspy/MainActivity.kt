@@ -84,8 +84,11 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(8), 0, dp(2))
         }
-        controls2.addView(pill("Máy khách (root) — đi qua máy khác", p.fill, p.purple) {
+        controls2.addView(pill("Máy khách (root)", p.fill, p.purple) {
             startActivity(Intent(this, ClientActivity::class.java))
+        }, lpRow())
+        controls2.addView(pill("⚙ Rules", p.fill, p.blue) {
+            startActivity(Intent(this, RulesActivity::class.java))
         }, lpRow())
         header.addView(controls2)
         root.addView(header)

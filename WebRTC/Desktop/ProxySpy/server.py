@@ -25,7 +25,7 @@ from urllib.parse import urlparse, parse_qs
 RES_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 
 
-def make_handler(store, info: dict, confdir: str):
+def make_handler(store, info: dict, confdir: str, rules=None):
     class Handler(BaseHTTPRequestHandler):
         # Keep the console clean; errors still surface via _send.
         def log_message(self, *args):
@@ -98,6 +98,8 @@ def make_handler(store, info: dict, confdir: str):
                         self._json(404, {"ok": False, "message": "Không còn flow này."})
                     else:
                         self._json(200, {"ok": True, "flow": rec})
+                elif p == "/api/rules":
+                    self._json(200, {"ok": True, "rules": rules.list() if rules else []})
                 elif p == "/api/qr":
                     data = parse_qs(u.query).get("data", [""])[0][:1024]
                     if not data:
@@ -130,6 +132,17 @@ def make_handler(store, info: dict, confdir: str):
             u = urlparse(self.path)
             p = u.path
             try:
+                if p == "/api/rules":
+                    length = int(self.headers.get("content-length", 0) or 0)
+                    raw = self.rfile.read(length) if length > 0 else b"[]"
+                    try:
+                        data = json.loads(raw.decode("utf-8"))
+                    except Exception:
+                        data = []
+                    if rules is not None:
+                        rules.set_all(data)
+                    self._json(200, {"ok": True, "count": len(data) if isinstance(data, list) else 0})
+                    return
                 if p == "/api/clear":
                     store.clear()
                     self._json(200, {"ok": True})
@@ -145,8 +158,8 @@ def make_handler(store, info: dict, confdir: str):
     return Handler
 
 
-def start_dashboard(host: str, port: int, store, info: dict, confdir: str) -> ThreadingHTTPServer:
-    httpd = ThreadingHTTPServer((host, port), make_handler(store, info, confdir))
+def start_dashboard(host: str, port: int, store, info: dict, confdir: str, rules=None) -> ThreadingHTTPServer:
+    httpd = ThreadingHTTPServer((host, port), make_handler(store, info, confdir, rules))
     httpd.daemon_threads = True
     t = threading.Thread(target=httpd.serve_forever, name="proxyspy-dashboard", daemon=True)
     t.start()
