@@ -1,0 +1,6 @@
+# HTTPS man-in-the-middle proxy engine (TLS cert generation, HTTP/2, WebSocket).
+# Pinned to a recent, stable major so the library API used in capture.py/app.py stays valid.
+mitmproxy>=10,<12
+
+# Pure-Python QR code generator (SVG output, no extra native deps) for the "QR link" button.
+segno>=1.6

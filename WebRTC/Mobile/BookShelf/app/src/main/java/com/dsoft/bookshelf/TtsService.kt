@@ -73,6 +73,7 @@ class TtsService : Service() {
     /** Watchdog: last time an utterance started/finished; if it stalls the TTS engine is recreated. */
     private var lastProgressAt = 0L
     private var recreating = false
+    private var recreateCount = 0
 
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(Locales.wrap(newBase))
     override fun onBind(intent: Intent?): IBinder? = null
@@ -160,6 +161,7 @@ class TtsService : Service() {
             App.main.post {
                 if (gen != generation || !playing) return@post
                 errorsInRow = 0
+                recreateCount = 0
                 lastProgressAt = System.currentTimeMillis()
                 current = idx
                 savePos()
@@ -172,6 +174,7 @@ class TtsService : Service() {
             val gen = id.substringBefore('#').toIntOrNull() ?: return
             App.main.post {
                 if (gen != generation || !playing) return@post
+                recreateCount = 0
                 lastProgressAt = System.currentTimeMillis()
                 if (idx >= chunks.size - 1) {
                     // finished the book
@@ -251,6 +254,7 @@ class TtsService : Service() {
         generation++
         queuedUpTo = current - 1
         fillQueue()
+        recreateCount = 0
         lastProgressAt = System.currentTimeMillis()
         startWatchdog()
         publish()
@@ -273,8 +277,16 @@ class TtsService : Service() {
     private val watchdog = object : Runnable {
         override fun run() {
             if (!playing) return
-            if (!recreating && tts != null && System.currentTimeMillis() - lastProgressAt > STALL_MS) {
-                recreateEngine()
+            val t = tts
+            // A long utterance (several sentences) legitimately takes many seconds; isSpeaking() stays true the
+            // whole time, so we only treat it as frozen when the engine is NOT speaking AND nothing has progressed.
+            val speaking = try { t?.isSpeaking == true } catch (_: Exception) { true }
+            if (!recreating && t != null && !speaking && System.currentTimeMillis() - lastProgressAt > STALL_MS) {
+                if (recreateCount >= MAX_RECREATE) {
+                    recreateCount = 0
+                    pause()   // engine really isn't responding: stop rather than loop forever
+                    toast(getString(R.string.err_tts_synth, -1))
+                } else recreateEngine()
             }
             App.main.postDelayed(this, WATCHDOG_TICK_MS)
         }
@@ -290,6 +302,7 @@ class TtsService : Service() {
     private fun recreateEngine() {
         if (recreating) return
         recreating = true
+        recreateCount++
         val gen = ++generation
         try { tts?.shutdown() } catch (_: Exception) {}
         tts = null
@@ -470,8 +483,9 @@ class TtsService : Service() {
     }
 
     companion object {
-        private const val STALL_MS = 7_000L          // no utterance progress this long => engine likely frozen
+        private const val STALL_MS = 12_000L         // not speaking AND no progress this long => engine frozen
         private const val WATCHDOG_TICK_MS = 2_000L
+        private const val MAX_RECREATE = 2            // give up (pause) after this many recoveries with no progress
         const val NOTIF_ID = 43
         const val ACTION_PLAY = "play"
         const val ACTION_TOGGLE = "toggle"

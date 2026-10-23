@@ -30,11 +30,13 @@ class ScenarioEditorActivity : android.app.Activity() {
 
     override fun onResume() {
         super.onResume()
-        AutoClickService.listener = { runOnUiThread { build() } }
+        AutoClickService.listener = { runOnUiThread { safeBuild() } }
         // Re-load in case Record mode appended steps while we were away.
         store.byId(scenario.id)?.let { scenario = it }
-        build()
+        safeBuild()
     }
+
+    private fun safeBuild() { try { build() } catch (_: Throwable) {} }
 
     override fun onPause() {
         super.onPause()
@@ -62,6 +64,8 @@ class ScenarioEditorActivity : android.app.Activity() {
         content.addView(group(p,
             row(p, if (AutoClickService.running) "■ Dừng" else "▶ Chạy thử", null) { testRun() },
         ))
+        content.addView(footnote(p, "Khi chạy: AutoTap thu nhỏ và đếm ngược vài giây để bạn mở ứng dụng đích; " +
+            "một thanh nổi hiện bước đang chạy và nút Dừng. Chỉnh thời gian đếm ngược trong Cài đặt."))
 
         // ---- steps ----
         val header = LinearLayout(this).apply {
@@ -259,15 +263,19 @@ class ScenarioEditorActivity : android.app.Activity() {
     }
 
     private fun testRun() {
-        if (AutoClickService.running) { AutoClickService.stop(); toast("Đã dừng"); build(); return }
-        if (!AutoClickService.isEnabled()) {
-            toast("Hãy bật dịch vụ Trợ năng AutoTap trước")
-            Access.openAccessibilitySettings(this)
-            return
+        try {
+            if (AutoClickService.running) { AutoClickService.stop(); toast("Đã dừng"); safeBuild(); return }
+            if (!AutoClickService.isEnabled()) {
+                toast("Hãy bật dịch vụ Trợ năng AutoTap trước")
+                Access.openAccessibilitySettings(this)
+                return
+            }
+            if (scenario.steps.isEmpty()) { toast("Chưa có bước nào"); return }
+            if (!AutoClickService.run(scenario)) { toast("Không chạy được"); return }
+            toast("Đang chạy — mở ứng dụng đích trong lúc đếm ngược")
+            moveTaskToBack(true)
+        } catch (_: Throwable) {
+            toast("Không chạy được")
         }
-        if (scenario.steps.isEmpty()) { toast("Chưa có bước nào"); return }
-        AutoClickService.run(scenario)
-        toast("Đang chạy… mở ứng dụng đích")
-        moveTaskToBack(true)
     }
 }

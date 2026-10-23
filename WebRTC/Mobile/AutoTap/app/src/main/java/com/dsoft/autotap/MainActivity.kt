@@ -33,11 +33,13 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        AutoClickService.listener = { runOnUiThread { build() } }
-        CaptureService.listener = { runOnUiThread { build() } }
-        ApiService.listener = { runOnUiThread { build() } }
-        build()
+        AutoClickService.listener = { runOnUiThread { safeBuild() } }
+        CaptureService.listener = { runOnUiThread { safeBuild() } }
+        ApiService.listener = { runOnUiThread { safeBuild() } }
+        safeBuild()
     }
+
+    private fun safeBuild() { try { build() } catch (_: Throwable) {} }
 
     override fun onPause() {
         super.onPause()
@@ -216,16 +218,20 @@ class MainActivity : Activity() {
     }
 
     private fun testRun(s: Scenario) {
-        if (!AutoClickService.isEnabled()) {
-            toast("Hãy bật dịch vụ Trợ năng AutoTap trước")
-            Access.openAccessibilitySettings(this)
-            return
+        try {
+            if (!AutoClickService.isEnabled()) {
+                toast("Hãy bật dịch vụ Trợ năng AutoTap trước")
+                Access.openAccessibilitySettings(this)
+                return
+            }
+            if (s.steps.isEmpty()) { toast("Kịch bản chưa có bước nào"); return }
+            if (AutoClickService.running) { AutoClickService.stop(); toast("Đã dừng"); return }
+            if (!AutoClickService.run(s)) { toast("Không chạy được"); return }
+            toast("Đang chạy \"${s.name}\" — mở ứng dụng đích trong lúc đếm ngược")
+            moveTaskToBack(true)
+        } catch (_: Throwable) {
+            toast("Không chạy được")
         }
-        if (s.steps.isEmpty()) { toast("Kịch bản chưa có bước nào"); return }
-        if (AutoClickService.running) { AutoClickService.stop(); toast("Đã dừng"); return }
-        AutoClickService.run(s)
-        toast("Đang chạy \"${s.name}\"… mở ứng dụng đích")
-        moveTaskToBack(true)
     }
 
     private fun toggleCapture() {

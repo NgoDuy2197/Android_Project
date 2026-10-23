@@ -34,6 +34,9 @@ class SettingsActivity : android.app.Activity() {
         // ---- playback ----
         col.addView(sectionHeader(p, "Chạy kịch bản"))
         col.addView(group(p,
+            row(p, "Đếm ngược trước khi chạy (giây)", inlineField(p, (prefs.startDelayMs / 1000).toString(), numeric = true) {
+                prefs.startDelayMs = (it.toLongOrNull() ?: 3L) * 1000
+            }),
             row(p, "Chờ mặc định giữa bước (ms)", inlineField(p, prefs.defaultDelayMs.toString(), numeric = true) {
                 prefs.defaultDelayMs = it.toLongOrNull() ?: 300
             }),

@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProxySpy</title>
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#fff; --text:#1c1c1e; --sec:#8e8e93; --sep:#d8d8dd;
+    --blue:#007aff; --green:#34c759; --red:#ff3b30; --orange:#ff9500; --purple:#af52de;
+    --fill:#e9e9ee; --rowhover:#f0f0f5; --sel:#e3f0ff; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#000; --card:#1c1c1e; --text:#f2f2f7; --sec:#98989f; --sep:#38383a;
+      --blue:#0a84ff; --green:#30d158; --red:#ff453a; --orange:#ff9f0a; --purple:#bf5af2;
+      --fill:#2c2c2e; --rowhover:#2c2c2e; --sel:#0a3a66; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);
+    display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  header{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--sep);flex-wrap:wrap}
+  .logo{font-weight:800;font-size:17px;letter-spacing:.2px}
+  .logo span{color:var(--blue)}
+  .grow{flex:1}
+  .addr{font:12px/1.3 var(--mono);color:var(--sec);white-space:nowrap}
+  .addr b{color:var(--text)}
+  input.search{flex:1;min-width:120px;max-width:420px;padding:7px 11px;border:1px solid var(--sep);border-radius:9px;
+    background:var(--bg);color:var(--text);font-size:14px;outline:none}
+  button{border:0;border-radius:9px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;background:var(--fill);color:var(--text)}
+  button:hover{filter:brightness(1.05)}
+  button.accent{background:var(--blue);color:#fff}
+  button.warn{background:var(--red);color:#fff}
+  button.on{background:var(--orange);color:#fff}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{padding:5px 10px;border-radius:20px;background:var(--fill);color:var(--sec);font-size:12px;font-weight:700;cursor:pointer;user-select:none}
+  .chip.active{background:var(--blue);color:#fff}
+  main{flex:1;display:flex;min-height:0}
+  .list{flex:1;overflow:auto;min-width:0}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--sep);text-align:left;
+    padding:7px 10px;color:var(--sec);font-weight:600;font-size:11px;letter-spacing:.3px;text-transform:uppercase}
+  tbody td{padding:6px 10px;border-bottom:1px solid var(--sep);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:var(--rowhover)}
+  tbody tr.sel{background:var(--sel)}
+  td.path{max-width:360px}
+  td.host{max-width:200px;color:var(--sec)}
+  .m{font-weight:800;font-size:11px;padding:2px 6px;border-radius:5px;background:var(--fill)}
+  .m.GET{color:var(--green)} .m.POST{color:var(--orange)} .m.PUT{color:var(--purple)}
+  .m.DELETE{color:var(--red)} .m.PATCH{color:var(--blue)}
+  .st{font-weight:700;font:12px var(--mono)}
+  .st.s2{color:var(--green)} .st.s3{color:var(--blue)} .st.s4{color:var(--orange)} .st.s5{color:var(--red)}
+  .pending{color:var(--sec);font-style:italic}
+  .https{color:var(--green);font-weight:800}
+  .detail{width:46%;min-width:320px;max-width:720px;border-left:1px solid var(--sep);background:var(--card);
+    overflow:auto;display:none;flex-direction:column}
+  .detail.show{display:flex}
+  .dhead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--sep);position:sticky;top:0;background:var(--card)}
+  .dhead .u{font:12px/1.4 var(--mono);word-break:break-all;flex:1}
+  .dbody{padding:4px 12px 24px}
+  .sec-title{font-size:12px;font-weight:800;color:var(--sec);text-transform:uppercase;letter-spacing:.4px;margin:16px 0 6px}
+  .kv{font:12px/1.5 var(--mono);border-bottom:1px solid var(--sep);padding:3px 0;display:flex;gap:8px}
+  .kv .k{color:var(--blue);min-width:150px;max-width:150px;word-break:break-all}
+  .kv .v{color:var(--text);word-break:break-all;flex:1}
+  pre{font:12px/1.45 var(--mono);background:var(--bg);border:1px solid var(--sep);border-radius:9px;padding:10px;
+    white-space:pre-wrap;word-break:break-word;max-height:none;margin:0}
+  .tag{font-size:11px;color:var(--sec)}
+  .empty{color:var(--sec);text-align:center;padding:40px 20px;font-size:14px}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:9}
+  .modal.show{display:flex}
+  .sheet{background:var(--card);border-radius:16px;max-width:560px;width:100%;max-height:85vh;overflow:auto;padding:18px}
+  .sheet h2{margin:0 0 6px;font-size:19px}
+  .sheet ol{padding-left:20px;line-height:1.6;font-size:14px}
+  .sheet code{background:var(--fill);padding:1px 6px;border-radius:5px;font:12px var(--mono)}
+  .x{margin-left:auto}
+  .closebtn{font-size:16px;line-height:1;padding:6px 10px}
+  @media (max-width:760px){
+    .detail{position:fixed;inset:0;width:100%;max-width:100%;z-index:8}
+    td.path{max-width:180px} td.host{display:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Proxy<span>Spy</span></div>
+  <div class="addr" id="proxyAddr">—</div>
+  <input class="search" id="search" placeholder="Lọc host / đường dẫn / nội dung…">
+  <div class="chips" id="methods"></div>
+  <span class="grow"></span>
+  <button id="pauseBtn">⏸ Tạm dừng</button>
+  <button id="clearBtn" class="warn">Xoá</button>
+  <button id="caBtn">Tải CA</button>
+  <button id="qrBtn">▣ QR</button>
+  <button id="setupBtn" class="accent">Hướng dẫn</button>
+</header>
+
+<main>
+  <div class="list" id="list">
+    <table>
+      <thead><tr>
+        <th style="width:52px">#</th><th style="width:66px">Method</th><th class="host">Host</th>
+        <th>Đường dẫn</th><th style="width:70px">Status</th><th style="width:88px">Kiểu</th>
+        <th style="width:72px">Size</th><th style="width:60px">ms</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty">Chưa có request nào. Đặt proxy trên điện thoại rồi mở app để bắt đầu.</div>
+  </div>
+
+  <div class="detail" id="detail">
+    <div class="dhead">
+      <span class="m" id="dMethod"></span>
+      <span class="u" id="dUrl"></span>
+      <button class="closebtn" id="dClose">✕</button>
+    </div>
+    <div class="dbody" id="dbody"></div>
+  </div>
+</main>
+
+<div class="modal" id="modal">
+  <div class="sheet">
+    <div style="display:flex;align-items:center">
+      <h2>Kết nối điện thoại qua ProxySpy</h2>
+      <button class="closebtn x" id="mClose">✕</button>
+    </div>
+    <div id="setupBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="qrModal">
+  <div class="sheet" style="max-width:360px;text-align:center">
+    <div style="display:flex;align-items:center">
+      <h2 style="flex:1">Quét để mở trên điện thoại</h2>
+      <button class="closebtn" id="qrClose">✕</button>
+    </div>
+    <div id="qrBox" style="background:#fff;border-radius:12px;padding:12px;display:inline-block;margin:6px 0"></div>
+    <div id="qrUrl" class="addr" style="word-break:break-all;margin-top:8px"></div>
+    <div id="qrNote" class="tag" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let sinceSeq = 0;
+let info = {};
+let flows = new Map();       // id -> summary
+let orderSeq = new Map();    // id -> seq (for sort)
+let selected = null;
+let stick = true;      // bám theo request mới nhất; tắt khi người dùng tự cuộn lên
+let methodFilter = "ALL";
+const METHODS = ["ALL","GET","POST","PUT","PATCH","DELETE"];
+
+function fmtSize(n){ if(n==null) return ""; if(n<1024) return n+" B"; if(n<1048576) return (n/1024).toFixed(1)+" KB"; return (n/1048576).toFixed(2)+" MB"; }
+function fmtTime(t){ if(!t) return ""; const d=new Date(t*1000); return d.toLocaleTimeString("vi-VN",{hour12:false})+"."+String(d.getMilliseconds()).padStart(3,"0"); }
+function stClass(s){ if(s==null) return ""; return "s"+String(s)[0]; }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+function methodChips(){
+  const box = $("#methods"); box.innerHTML="";
+  METHODS.forEach(m=>{
+    const c=document.createElement("div");
+    c.className="chip"+(m===methodFilter?" active":"");
+    c.textContent = m==="ALL"?"Tất cả":m;
+    c.onclick=()=>{ methodFilter=m; methodChips(); render(); };
+    box.appendChild(c);
+  });
+}
+
+function passFilter(f){
+  if(methodFilter!=="ALL" && f.method!==methodFilter) return false;
+  const q = $("#search").value.trim().toLowerCase();
+  if(!q) return true;
+  return (f.host||"").toLowerCase().includes(q) || (f.path||"").toLowerCase().includes(q);
+}
+
+function render(){
+  const rows = $("#rows");
+  const list = [...flows.values()].sort((a,b)=>a.seq-b.seq).filter(passFilter);
+  $("#empty").style.display = list.length? "none":"block";
+  const frag = document.createDocumentFragment();
+  let n=0;
+  for(const f of list){
+    n++;
+    const tr=document.createElement("tr");
+    tr.dataset.id=f.id;
+    if(selected===f.id) tr.className="sel";
+    const scheme = f.scheme==="https"?'<span class="https">🔒</span> ':'';
+    const status = f.pending? '<span class="pending">…</span>' : (f.error? '<span class="st s5">ERR</span>' : `<span class="st ${stClass(f.status)}">${f.status??""}</span>`);
+    tr.innerHTML =
+      `<td>${n}</td>`+
+      `<td><span class="m ${esc(f.method)}">${esc(f.method)}</span></td>`+
+      `<td class="host">${scheme}${esc(f.host)}</td>`+
+      `<td class="path" title="${esc(f.path)}">${esc(f.path)}</td>`+
+      `<td>${status}</td>`+
+      `<td class="tag">${esc((f.resType||"").replace("application/","").replace("text/",""))}</td>`+
+      `<td class="tag">${fmtSize(f.resSize||f.reqSize)}</td>`+
+      `<td class="tag">${f.durationMs??""}</td>`;
+    tr.onclick=()=>openDetail(f.id);
+    frag.appendChild(tr);
+  }
+  rows.replaceChildren(frag);
+  // Auto-cuộn theo request mới (dòng mới nằm dưới cùng) khi đang "bám đáy".
+  if(stick){ const l=$("#list"); l.scrollTop = l.scrollHeight; }
+}
+
+async function poll(){
+  try{
+    const r = await fetch("/api/flows?since="+sinceSeq);
+    const j = await r.json();
+    if(j.ok){
+      sinceSeq = j.seq;
+      for(const f of j.flows){ flows.set(f.id,f); }
+      // prune if server trimmed
+      if(flows.size > j.count+50){
+        const keep = new Set(j.flows.map(f=>f.id));
+        // can't know all ids; soft cap by seq
+      }
+      render();
+    }
+  }catch(e){}
+}
+
+async function loadInfo(){
+  try{
+    const r=await fetch("/api/info"); info=await r.json();
+    const ip = (info.ips&&info.ips[0])||info.proxyHost||"IP";
+    $("#proxyAddr").innerHTML = `Proxy <b>${esc(ip)}:${esc(info.proxyPort)}</b>`;
+    if(info.paused) setPausedUI(true);
+  }catch(e){}
+}
+
+function bodyBlock(title, body){
+  if(!body) return "";
+  let inner;
+  if(body.kind==="text"){
+    let t = body.text||"";
+    if((body.contentType||"").includes("json")){
+      try{ t = JSON.stringify(JSON.parse(t), null, 2); }catch(e){}
+    }
+    inner = `<pre>${esc(t)}</pre>`;
+  }else{
+    inner = `<pre>[nhị phân ${fmtSize(body.size)}] base64 (rút gọn):\n${esc((body.base64||"").slice(0,4000))}</pre>`;
+  }
+  const trunc = body.truncated? ` <span class="tag">(đã cắt, tổng ${fmtSize(body.size)})</span>`:"";
+  return `<div class="sec-title">${title} — ${esc(body.contentType||"?")} · ${fmtSize(body.size)}${trunc}</div>${inner}`;
+}
+
+function headersBlock(title, headers){
+  if(!headers||!headers.length) return "";
+  const rows = headers.map(h=>`<div class="kv"><span class="k">${esc(h[0])}</span><span class="v">${esc(h[1])}</span></div>`).join("");
+  return `<div class="sec-title">${title}</div>${rows}`;
+}
+
+async function openDetail(id){
+  selected=id; render();
+  $("#detail").classList.add("show");
+  $("#dbody").innerHTML = '<div class="empty">Đang tải…</div>';
+  try{
+    const r=await fetch("/api/flow/"+id); const j=await r.json();
+    if(!j.ok){ $("#dbody").innerHTML=`<div class="empty">${esc(j.message)}</div>`; return; }
+    const f=j.flow;
+    $("#dMethod").textContent=f.method; $("#dMethod").className="m "+f.method;
+    $("#dUrl").textContent=f.url;
+    let html="";
+    if(f.error) html+=`<div class="sec-title" style="color:var(--red)">Lỗi</div><pre>${esc(f.error)}</pre>`;
+    html+=`<div class="sec-title">Tổng quan</div>`;
+    html+=`<div class="kv"><span class="k">Thời gian</span><span class="v">${fmtTime(f.time)}</span></div>`;
+    html+=`<div class="kv"><span class="k">HTTP</span><span class="v">${esc(f.httpVersion||"")}</span></div>`;
+    if(f.res) html+=`<div class="kv"><span class="k">Status</span><span class="v">${f.res.status} ${esc(f.res.reason||"")}</span></div>`;
+    if(f.durationMs!=null) html+=`<div class="kv"><span class="k">Thời lượng</span><span class="v">${f.durationMs} ms</span></div>`;
+    html+=headersBlock("Request headers", f.req.headers);
+    html+=bodyBlock("Request body", f.req.body);
+    if(f.res){
+      html+=headersBlock("Response headers", f.res.headers);
+      html+=bodyBlock("Response body", f.res.body);
+    }else{
+      html+=`<div class="sec-title">Response</div><div class="empty">Đang chờ phản hồi…</div>`;
+    }
+    $("#dbody").innerHTML=html;
+  }catch(e){ $("#dbody").innerHTML=`<div class="empty">Lỗi tải chi tiết.</div>`; }
+}
+
+function setPausedUI(p){
+  const b=$("#pauseBtn");
+  b.textContent = p? "▶ Tiếp tục":"⏸ Tạm dừng";
+  b.className = p? "on":"";
+}
+
+$("#pauseBtn").onclick=async()=>{
+  const p=!(info.paused);
+  await fetch("/api/pause?on="+(p?1:0),{method:"POST"});
+  info.paused=p; setPausedUI(p);
+};
+$("#clearBtn").onclick=async()=>{
+  await fetch("/api/clear",{method:"POST"});
+  flows.clear(); sinceSeq=0; selected=null; $("#detail").classList.remove("show"); render();
+};
+$("#caBtn").onclick=()=>{ window.open("/ca/cert.cer","_blank"); };
+$("#dClose").onclick=()=>{ selected=null; $("#detail").classList.remove("show"); render(); };
+$("#search").oninput=render;
+$("#list").addEventListener("scroll", ()=>{
+  const l=$("#list");
+  // Gần đáy (trong 40px) => tiếp tục bám; cuộn lên xem => dừng bám, giữ nguyên vị trí.
+  stick = (l.scrollHeight - l.scrollTop - l.clientHeight) < 40;
+});
+$("#setupBtn").onclick=()=>{ fillSetup(); $("#modal").classList.add("show"); };
+$("#mClose").onclick=()=>$("#modal").classList.remove("show");
+$("#modal").onclick=e=>{ if(e.target===$("#modal")) $("#modal").classList.remove("show"); };
+
+$("#qrBtn").onclick=()=>{
+  const ip=(info.ips&&info.ips[0])||location.hostname;
+  const port=info.dashPort||location.port;
+  const url=`http://${ip}:${port}/`;
+  $("#qrBox").innerHTML=`<img alt="QR" width="240" height="240" src="/api/qr?data=${encodeURIComponent(url)}">`;
+  $("#qrUrl").textContent=url;
+  $("#qrNote").innerHTML = info.dashLan===false
+    ? "Dashboard đang khoá ở localhost — điện thoại sẽ không mở được link này. Chạy lại với <code>--dash-host 0.0.0.0</code> để cho mạng LAN truy cập."
+    : "Điện thoại cùng Wi-Fi quét mã để mở trang này (tải CA, xem hướng dẫn). Nhớ đặt proxy trước.";
+  $("#qrModal").classList.add("show");
+};
+$("#qrClose").onclick=()=>$("#qrModal").classList.remove("show");
+$("#qrModal").onclick=e=>{ if(e.target===$("#qrModal")) $("#qrModal").classList.remove("show"); };
+
+function fillSetup(){
+  const ip=(info.ips&&info.ips[0])||"IP_MÁY_TÍNH";
+  const port=info.proxyPort||8080;
+  $("#setupBody").innerHTML=`
+    <ol>
+      <li>Điện thoại <b>cùng mạng Wi-Fi</b> với máy tính này.</li>
+      <li>Vào Wi-Fi đang kết nối → <b>Proxy</b> → chọn <b>Thủ công</b>:
+        <br>Host <code>${esc(ip)}</code> · Port <code>${esc(port)}</code></li>
+      <li>Cài chứng chỉ CA cho điện thoại: sau khi đặt proxy, mở trình duyệt điện thoại vào
+        <code>http://mitm.it</code> (trang cài cert của mitmproxy), hoặc tải trực tiếp
+        <a href="/ca/cert.cer">chứng chỉ CA (.cer)</a>, rồi cài vào
+        <b>Cài đặt → Bảo mật → Cài chứng chỉ → Chứng chỉ CA</b>.</li>
+      <li>Android 7+: app thường (bản release) có thể <b>không tin</b> CA người dùng, hoặc dùng
+        <b>certificate pinning</b> → sẽ không giải mã được payload của app đó. Trình duyệt và app chịu cài CA thì xem được đầy đủ.</li>
+      <li>Xong việc nhớ <b>tắt proxy</b> trên điện thoại và gỡ CA nếu cần.</li>
+    </ol>
+    <p class="tag">Chỉ dùng với thiết bị/app của chính bạn.</p>`;
+}
+
+methodChips();
+loadInfo();
+render();
+setInterval(poll, 1000);
+setInterval(loadInfo, 5000);
+poll();
+</script>
+</body>
+</html>

@@ -33,6 +33,11 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("continue_on_fail", true)
         set(v) = sp.edit().putBoolean("continue_on_fail", v).apply()
 
+    /** Countdown (ms) before the first step runs, so the user can switch to the target app. */
+    var startDelayMs: Long
+        get() = sp.getLong("start_delay", 3000L)
+        set(v) = sp.edit().putLong("start_delay", v.coerceIn(0, 60_000)).apply()
+
     /** Dim of the record overlay, 0..80 (%). Higher = darker, easier to aim. */
     var overlayDim: Int
         get() = sp.getInt("overlay_dim", 25).coerceIn(0, 80)

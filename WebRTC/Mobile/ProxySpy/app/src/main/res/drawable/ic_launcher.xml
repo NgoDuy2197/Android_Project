@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- background -->
+    <path android:fillColor="#0B1E3B" android:pathData="M0,0h108v108h-108z" />
+    <path android:fillColor="#13315C" android:pathData="M0,0h108v54h-108z" />
+    <!-- magnifier lens -->
+    <path android:strokeColor="#32D0FF" android:strokeWidth="7" android:fillColor="#1032D0FF"
+        android:pathData="M48,40 m-18,0 a18,18 0 1,1 36,0 a18,18 0 1,1 -36,0" />
+    <!-- lens glint -->
+    <path android:fillColor="#AEEBFF" android:pathData="M40,32 a9,9 0 0,1 8,-4 a9,9 0 0,0 -8,10 z" />
+    <!-- handle -->
+    <path android:strokeColor="#32D0FF" android:strokeWidth="8" android:strokeLineCap="round"
+        android:pathData="M61,53 L78,70" />
+    <!-- packets / data dots flowing -->
+    <path android:fillColor="#FFC24D" android:pathData="M30,84 h14 v6 h-14 z" />
+    <path android:fillColor="#34C759" android:pathData="M48,84 h22 v6 h-22 z" />
+    <path android:fillColor="#FF6B6B" android:pathData="M74,84 h10 v6 h-10 z" />
+</vector>

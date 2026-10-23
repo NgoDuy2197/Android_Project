@@ -82,12 +82,14 @@ class RecordService : Service() {
         }
         v.setOnTouchListener { _, e ->
             if (!recording) return@setOnTouchListener false
-            when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    downX = e.rawX; downY = e.rawY; downTime = System.currentTimeMillis()
+            try {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = e.rawX; downY = e.rawY; downTime = System.currentTimeMillis()
+                    }
+                    MotionEvent.ACTION_UP -> onGestureUp(e.rawX, e.rawY)
                 }
-                MotionEvent.ACTION_UP -> onGestureUp(e.rawX, e.rawY)
-            }
+            } catch (_: Throwable) {}
             true
         }
         val lp = WindowManager.LayoutParams(

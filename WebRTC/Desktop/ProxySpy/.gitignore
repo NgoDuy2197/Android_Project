@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Generated CA + mitmproxy config (per-machine, never commit the private key)
+ca/
+
+# PyInstaller build artifacts (the .exe is published to WebRTC\__Result)
+build/
+dist/
+*.spec
+
+# Saved captures / logs
+*.jsonl
+*.log
+
+# Cert files named by hash (generated)
+*.0
