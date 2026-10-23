@@ -21,6 +21,8 @@ import javax.net.ssl.X509TrustManager
  */
 object ProxyEngine {
     private const val HARD_BODY_CAP = 40 * 1024 * 1024   // in-memory safety cap when forwarding
+    private const val TAG = "ProxySpyFlow"
+    const val DEBUG = false                               // bật true để log mỗi request/response ra logcat khi cần debug
 
     private val HOP = setOf(
         "connection", "proxy-connection", "keep-alive", "transfer-encoding", "te",
@@ -62,6 +64,7 @@ object ProxyEngine {
                 val host = hp[0]
                 // consume the CONNECT headers
                 readHeaders(cin)
+                if (DEBUG) android.util.Log.i(TAG, "CONNECT $host")
                 cout.write("HTTP/1.1 200 Connection established\r\n\r\n".toByteArray())
                 cout.flush()
                 // wrap as a server-side TLS socket presenting a cert for `host`
@@ -69,9 +72,18 @@ object ProxyEngine {
                     (CertManager.serverContext(host).socketFactory
                         .createSocket(client, host, client.port, true) as SSLSocket).apply {
                         useClientMode = false
+                        // Ép ALPN http/1.1 để client (Chromium/WebView) không huỷ bắt tay vì lệch h2
+                        try {
+                            val pr = sslParameters
+                            pr.applicationProtocols = arrayOf("http/1.1")
+                            sslParameters = pr
+                        } catch (_: Throwable) {}
                         startHandshake()
                     }
-                } catch (_: Throwable) { runCatching { client.close() }; return }
+                } catch (e: Throwable) {
+                    if (DEBUG) android.util.Log.w(TAG, "TLS-FAIL $host: ${e.message}  (client từ chối cert → pinning hoặc chưa tin CA)")
+                    runCatching { client.close() }; return
+                }
                 serveLoop(BufferedInputStream(ssl.getInputStream()), ssl.getOutputStream(), "https", host, maxBody)
                 runCatching { ssl.close() }
             } else {
@@ -150,6 +162,9 @@ object ProxyEngine {
         f.reqBody = extractBody(reqBody, hmap["content-type"] ?: "", maxBody)
         FlowStore.add(f)
 
+        if (DEBUG) android.util.Log.i(TAG, ">> $method $url\n   req-headers: " +
+            headers.joinToString(" | ") { "${it.first}: ${it.second}" } + "\n   req-bodyLen=${reqBody.size}")
+
         // Rules: a mock rule returns a canned response without contacting the server.
         val rules = RuleStore.matching(method, url)
         rules.firstOrNull { it.mock }?.let { mk ->
@@ -202,10 +217,20 @@ object ProxyEngine {
                 f.resBody = extractBody(bodyBytes, resp.header("content-type") ?: "", maxBody)
                 f.durationMs = System.currentTimeMillis() - started
                 FlowStore.touched()
+                if (DEBUG) {
+                    android.util.Log.i(TAG, "<< $code $url  ${f.durationMs}ms  resLen=${bodyBytes.size}")
+                    if (code >= 400) android.util.Log.w(TAG, "   res-headers: " +
+                        rh.joinToString(" | ") { "${it.first}: ${it.second}" } +
+                        "\n   res-body: " + String(bodyBytes.copyOf(minOf(bodyBytes.size, 800)), Charsets.UTF_8))
+                    else if (url.contains("mini") || url.contains("hash"))
+                        android.util.Log.i(TAG, "   res-body: " +
+                            String(bodyBytes.copyOf(minOf(bodyBytes.size, 600)), Charsets.UTF_8))
+                }
                 writeResponse(out, code, resp.message, rh, bodyBytes, connClose)
             }
         } catch (e: Throwable) {
             f.error = e.message ?: e.javaClass.simpleName
+            if (DEBUG) android.util.Log.w(TAG, "xx $url  ERROR ${f.error}")
             f.durationMs = System.currentTimeMillis() - started
             FlowStore.touched()
             runCatching {

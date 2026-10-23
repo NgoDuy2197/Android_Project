@@ -2,7 +2,7 @@
 REM ============================================================================
 REM  setup_root_ca.bat — BẤM PHÁT ĂN NGAY cho máy ĐÃ ROOT + USB debug.
 REM  Làm hết: kiểm tra root -> tạo cert theo hash -> đặt proxy/USB -> cài CA hệ thống.
-REM  Sau đó mở lại app là bắt được HTTPS của app targetSdk cao (vd FIS com.tdc.mfu).
+REM  Sau đó mở lại app là bắt được HTTPS của app targetSdk cao ().
 REM
 REM  Mỗi bước làm gì (siêu gọn):
 REM   [1] Xác minh adb thấy máy + Magisk đã cấp root cho shell (su -> uid=0).
@@ -16,7 +16,7 @@ setlocal
 cd /d "%~dp0"
 
 set "APP=%~1"
-if "%APP%"=="" set "APP=com.tdc.mfu"
+if "%APP%"=="" set "APP="
 
 set "ADB=adb"
 where adb >nul 2>nul || set "ADB=%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe"

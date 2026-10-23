@@ -87,8 +87,9 @@ object CertManager {
         val now = System.currentTimeMillis()
         val issuer = X500Name.getInstance(caCert.subjectX500Principal.encoded)
         val ext = JcaX509ExtensionUtils()
+        // Hạn leaf < 398 ngày: Chromium/WebView từ chối leaf cert hạn dài hơn (okhttp thì kệ).
         val b = JcaX509v3CertificateBuilder(
-            issuer, serial(), Date(now - DAY), Date(now + 800L * DAY), X500Name("CN=$host"), leafKey.public,
+            issuer, serial(), Date(now - DAY), Date(now + 397L * DAY), X500Name("CN=$host"), leafKey.public,
         )
         b.addExtension(Extension.basicConstraints, false, BasicConstraints(false))
         b.addExtension(Extension.keyUsage, false,

@@ -14,6 +14,10 @@ object Prefs {
     // Client mode (rooted phone connecting through another phone running ProxySpy)
     fun clientAddr(c: Context): String = sp(c).getString("client_addr", "") ?: ""
     fun setClientAddr(c: Context, v: String) = sp(c).edit().putString("client_addr", v).apply()
-    fun targetPkg(c: Context): String = sp(c).getString("target_pkg", "com.tdc.mfu") ?: "com.tdc.mfu"
+    fun targetPkg(c: Context): String = sp(c).getString("target_pkg", "") ?: ""
     fun setTargetPkg(c: Context, v: String) = sp(c).edit().putString("target_pkg", v).apply()
+
+    /** Ép đóng app đích sau khi cài CA. Mặc định TẮT để giữ phiên đăng nhập (vd 2FA Microsoft). */
+    fun forceStop(c: Context): Boolean = sp(c).getBoolean("force_stop", false)
+    fun setForceStop(c: Context, v: Boolean) = sp(c).edit().putBoolean("force_stop", v).apply()
 }

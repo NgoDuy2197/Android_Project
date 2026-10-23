@@ -7,7 +7,7 @@ Engine: terminate TLS phía client bằng **cert động (BouncyCastle)** → fo
 
 ## Kịch bản khuyến nghị (2 máy)
 - **Máy A** (thường, không cần root): cài & mở app này → **Bật proxy**. App hiện `IP_A : 8080`.
-- **Máy B** (ĐÃ ROOT): máy cần soi (vd FIS `com.tdc.mfu`). B trỏ Wi-Fi proxy vào `IP_A:8080`.
+- **Máy B** (ĐÃ ROOT): máy cần soi (app đích bất kỳ). B trỏ Wi-Fi proxy vào `IP_A:8080`.
   Vì B có root → cài **CA của A thành CA hệ thống trên B** → app targetSdk cao vẫn tin → bắt được hết.
 - A, B, PC **cùng một Wi-Fi**.
 

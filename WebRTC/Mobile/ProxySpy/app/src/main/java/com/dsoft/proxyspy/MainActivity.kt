@@ -167,6 +167,7 @@ class MainActivity : Activity() {
     // ---- list adapter ----
     private inner class FlowAdapter : RecyclerView.Adapter<FlowAdapter.VH>() {
         private var items: List<Flow> = emptyList()
+        private val timeFmt = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
         fun submit(list: List<Flow>) { items = list; notifyDataSetChanged() }
 
         inner class VH(val row: LinearLayout, val m: TextView, val host: TextView,
@@ -214,7 +215,7 @@ class MainActivity : Activity() {
             h.m.text = f.method
             h.m.setTextColor(methodColor(p, f.method))
             h.m.background = rounded(p.fill, dp(6).toFloat())
-            h.host.text = (if (f.scheme == "https") "🔒 " else "") + f.host
+            h.host.text = timeFmt.format(f.time) + "  " + (if (f.scheme == "https") "🔒 " else "") + f.host
             h.path.text = f.path
             h.st.text = when { f.error != null -> "ERR"; f.pending -> "…"; else -> f.status.toString() }
             h.st.setTextColor(if (f.error != null) p.red else statusColor(p, f.status))
