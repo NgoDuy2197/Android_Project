@@ -30,6 +30,8 @@
     font-size:16px;background:var(--bg);color:var(--text);resize:vertical;font-family:inherit}
   .files{margin-top:10px;display:flex;flex-direction:column;gap:8px}
   .file{display:flex;align-items:center;gap:10px;background:var(--fill);border-radius:10px;padding:8px 12px;font-size:14px}
+  .file .thumb{width:40px;height:40px;border-radius:8px;object-fit:cover;background:#8881;flex:0 0 auto;
+    display:inline-flex;align-items:center;justify-content:center;font-size:18px}
   .file .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .file .sz{color:var(--sub);font-size:12px}
   .file a,.file button{color:var(--blue);text-decoration:none;font-weight:600;border:none;background:none;cursor:pointer;font-size:14px}
@@ -45,9 +47,18 @@
 <header>
   <button class="back" id="back" style="display:none">‹ Danh sách</button>
   <h1 id="title">Bảng chia sẻ</h1>
+  <button class="btn ghost" id="qr">QR</button>
   <button class="btn" id="add">+ Mục</button>
 </header>
 <main id="app"><div class="empty">Đang tải…</div></main>
+<div id="qrov" style="display:none;position:fixed;inset:0;background:#0009;align-items:center;justify-content:center;z-index:20">
+  <div style="background:var(--card);padding:18px;border-radius:16px;text-align:center;max-width:320px">
+    <div style="font-weight:700;margin-bottom:8px">Quét để mở trang này</div>
+    <img id="qrimg" style="width:260px;height:260px;background:#fff;border-radius:8px" alt="QR">
+    <div id="qrlink" style="font-family:monospace;color:var(--blue);word-break:break-all;margin-top:10px;font-size:13px"></div>
+    <button class="btn" id="qrclose" style="margin-top:12px">Đóng</button>
+  </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>

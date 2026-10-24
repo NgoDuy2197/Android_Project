@@ -40,4 +40,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-mlkit-text-recognition-chinese:16.0.1")
     implementation("com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1")
     implementation("com.google.mlkit:translate:17.0.3")
+    // Generate QR codes (access link) for the share board — on native UI and served to the web page.
+    implementation("com.google.zxing:core:3.5.3")
 }

@@ -77,6 +77,21 @@ class Prefs(ctx: Context) {
         get() = sp.getInt("bubble_y", -1)
         set(v) = sp.edit().putInt("bubble_y", v).apply()
 
+    // Share board: auto-save files uploaded by clients into a chosen folder.
+    var shareAutoSave: Boolean
+        get() = sp.getBoolean("share_autosave", false)
+        set(v) = sp.edit().putBoolean("share_autosave", v).apply()
+
+    /** SAF tree Uri (persisted) of the folder to save into; empty = not set. */
+    var shareSaveTree: String
+        get() = sp.getString("share_save_tree", "") ?: ""
+        set(v) = sp.edit().putString("share_save_tree", v).apply()
+
+    /** Human-readable name of that folder, for the UI. */
+    var shareSaveName: String
+        get() = sp.getString("share_save_name", "") ?: ""
+        set(v) = sp.edit().putString("share_save_name", v).apply()
+
     companion object {
         const val DEFAULT_PORT = 2121
         const val DEFAULT_USER = "admin"

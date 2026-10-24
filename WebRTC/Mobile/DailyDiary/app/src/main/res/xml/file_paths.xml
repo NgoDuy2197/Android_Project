@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Camera writes the raw capture here before it is normalized into the diary folder. -->
+    <cache-path name="capture" path="capture/" />
+    <!-- Summary PDFs are shared straight from the diary folder. -->
+    <files-path name="diary" path="diary/" />
+</paths>

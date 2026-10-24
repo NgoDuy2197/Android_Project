@@ -2,6 +2,7 @@ package com.dsoft.toolbox
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import java.io.BufferedOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -51,6 +52,15 @@ class ShareServer(
     private val items = ConcurrentHashMap<String, Item>()
     private val order = ArrayList<String>()
     private val seq = AtomicLong(1)
+
+    /** A client->folder auto-save transfer, so the host UI can show live progress. */
+    class Transfer(val id: String, val name: String, val size: Long) {
+        @Volatile var done: Long = 0
+        @Volatile var state: String = "active"   // active | done | error
+    }
+    private val transfers = java.util.concurrent.CopyOnWriteArrayList<Transfer>()
+    fun transfersSnapshot(): List<Transfer> = transfers.toList()
+    fun clearFinishedTransfers() { transfers.removeAll { it.state != "active" } }
 
     // Relay rendezvous -------------------------------------------------------
     private class Provide(val input: InputStream, val length: Long)
@@ -127,6 +137,7 @@ class ShareServer(
             when {
                 path == "/" || path == "/index.html" -> serveAsset(out, "share.html", "text/html; charset=utf-8")
                 path == "/app.js" -> serveAsset(out, "share.js", "application/javascript; charset=utf-8")
+                path == "/qr" -> serveQr(query, out)
                 path == "/api/state" -> sendJson(out, stateJson())
                 path == "/api/item" && method == "POST" -> {
                     body(input, len)
@@ -177,6 +188,9 @@ class ShareServer(
                 synchronized(it.files) { it.files.add(f) }
                 sendJson(out, "{\"id\":\"${f.id}\"}")
                 onEvent("Có tệp được chia sẻ: ${f.name}")
+                // Auto-save: nếu bật, tự kéo bytes từ trình duyệt client về thư mục đã cấu hình.
+                val pf = Prefs(appCtx)
+                if (pf.shareAutoSave && pf.shareSaveTree.isNotEmpty()) autoSaveFile(f)
             }
             else -> sendText(out, 404, "?")
         }
@@ -235,6 +249,74 @@ class ShareServer(
             out.flush()
         }
         onEvent("Đã gửi tệp: ${ref.name}")
+    }
+
+    /** Pull a client-held file through the relay and write it to the configured save folder. */
+    private fun autoSaveFile(f: FileRef) {
+        thread(isDaemon = true) {
+            val t = Transfer(f.id, f.name, f.size)
+            transfers.add(t)
+            val pd = PendingDownload()
+            pending[f.id] = pd
+            try {
+                Thread.sleep(1200)  // để trình duyệt client kịp nhận id + sẵn sàng cung cấp
+                var provide: Provide? = null
+                for (attempt in 0 until 3) {
+                    work.getOrPut(f.owner) { java.util.concurrent.LinkedBlockingQueue() }.offer(f.id)
+                    provide = pd.handoff.poll(15, TimeUnit.SECONDS)
+                    if (provide != null) break
+                }
+                if (provide == null) { t.state = "error"; onEvent("Tự lưu: ${f.name} — người gửi không phản hồi"); return@thread }
+                writeToTree(f.name, provide.input, provide.length, t)
+                if (t.size > 0) t.done = t.size
+                t.state = "done"
+                onEvent("Đã tự lưu: ${f.name}")
+            } catch (e: Exception) {
+                t.state = "error"
+                onEvent("Tự lưu lỗi: ${e.message}")
+            } finally {
+                pd.done.countDown()
+                pending.remove(f.id)
+            }
+        }
+    }
+
+    private fun writeToTree(name: String, input: InputStream, len: Long, t: Transfer?) {
+        val treeStr = Prefs(appCtx).shareSaveTree
+        if (treeStr.isEmpty()) return
+        val tree = Uri.parse(treeStr)
+        val cr = appCtx.contentResolver
+        val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        val fileUri = DocumentsContract.createDocument(cr, parent, guessMime(name), name) ?: return
+        cr.openOutputStream(fileUri)?.use { out ->
+            var left = len
+            var total = 0L
+            val buf = ByteArray(64 * 1024)
+            while (left > 0) {
+                val n = input.read(buf, 0, minOf(buf.size.toLong(), left).toInt())
+                if (n < 0) break
+                out.write(buf, 0, n)
+                left -= n; total += n
+                if (t != null) t.done = total
+            }
+        }
+    }
+
+    private fun guessMime(name: String): String {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "jpg", "jpeg" -> "image/jpeg"; "png" -> "image/png"; "gif" -> "image/gif"; "webp" -> "image/webp"
+            "mp4" -> "video/mp4"; "mp3" -> "audio/mpeg"; "pdf" -> "application/pdf"
+            "txt" -> "text/plain"; "zip" -> "application/zip"; else -> "application/octet-stream"
+        }
+    }
+
+    private fun serveQr(query: String, out: OutputStream) {
+        val data = param(query, "data")
+        if (data.isNullOrEmpty()) return sendText(out, 400, "no data")
+        val png = Qr.png(data, 600) ?: return sendText(out, 500, "qr error")
+        out.write(("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: ${png.size}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n").toByteArray())
+        out.write(png); out.flush()
     }
 
     // ---- helpers ----

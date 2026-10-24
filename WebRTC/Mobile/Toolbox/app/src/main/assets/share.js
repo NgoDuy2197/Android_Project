@@ -13,6 +13,17 @@
   var titleEl = document.getElementById('title');
   var backBtn = document.getElementById('back');
   var addBtn = document.getElementById('add');
+  var qrBtn = document.getElementById('qr');
+
+  // QR của link trang chủ (không phải từng mục).
+  qrBtn.onclick = function () {
+    var home = location.origin + '/';
+    document.getElementById('qrimg').src = '/qr?data=' + encodeURIComponent(home);
+    document.getElementById('qrlink').textContent = home;
+    document.getElementById('qrov').style.display = 'flex';
+  };
+  document.getElementById('qrclose').onclick = function () { document.getElementById('qrov').style.display = 'none'; };
+  document.getElementById('qrov').onclick = function (e) { if (e.target === this) this.style.display = 'none'; };
 
   function fmtSize(n) {
     if (!n) return '';
@@ -22,6 +33,17 @@
     return (n / 1073741824).toFixed(2) + ' GB';
   }
   function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  var thumbCache = {};   // fileId -> objectURL (ảnh đã nạp, khỏi tải lại mỗi lần render)
+  var PH = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+  var THUMB_MAX = 8 * 1048576;  // chỉ tự nạp thumbnail ảnh của máy khác nếu < 8MB
+  function isImage(n) { return /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif|svg)$/i.test(n || ''); }
+  function thumbCell(f) {
+    if (!isImage(f.name)) return '<span class="thumb ic">📄</span>';
+    var src = thumbCache[f.id];
+    if (!src && heldFiles[f.id]) { try { src = URL.createObjectURL(heldFiles[f.id]); thumbCache[f.id] = src; } catch (e) {} }
+    return '<img class="thumb" id="th_' + f.id + '" src="' + (src || PH) + '">';
+  }
 
   function api(path, opts) { return fetch(path, opts).then(function (r) { return r; }); }
 
@@ -45,6 +67,7 @@
     backBtn.style.display = 'none';
     titleEl.textContent = 'Bảng chia sẻ';
     addBtn.style.display = '';
+    qrBtn.style.display = '';
     if (!state.items.length) { app.innerHTML = '<div class="empty">Chưa có mục nào.<br>Bấm "+ Mục" để tạo.</div>'; return; }
     var h = '';
     state.items.forEach(function (it) {
@@ -63,27 +86,41 @@
   function renderItem(it) {
     backBtn.style.display = '';
     addBtn.style.display = 'none';
+    qrBtn.style.display = 'none';
     titleEl.textContent = '';
     var filesHtml = (it.files || []).map(function (f) {
-      var right = f.host || heldFiles[f.id]
-        ? '<a href="/download/' + f.id + '">Tải</a>'
-        : '<span class="sub">máy khác giữ</span>';
+      // Mọi tệp đều tải được: host stream từ đĩa, tệp của máy khác thì relay qua host.
+      var fromOther = !heldFiles[f.id];   // không phải file máy mình up lên
+      var right = '<a href="/download/' + f.id + '">Tải</a>'
+        + (fromOther ? ' <span class="sub">(máy khác)</span>' : '');
       var del = '<button data-del="' + f.id + '">Xoá</button>';
-      return '<div class="file"><span class="nm">' + esc(f.name) + '</span><span class="sz">' + fmtSize(f.size) + '</span>' + right + del + '</div>';
+      return '<div class="file">' + thumbCell(f) + '<span class="nm">' + esc(f.name) + '</span><span class="sz">' + fmtSize(f.size) + '</span>' + right + del + '</div>';
     }).join('');
+    // "Tải tất cả" chỉ gồm file của máy KHÁC (không tải lại file mình đã up).
+    var others = (it.files || []).filter(function (f) { return !heldFiles[f.id]; });
+    var allBtn = others.length ? '<button class="btn ghost" id="dlall">⬇ Tải tất cả (' + others.length + ')</button>' : '';
 
     app.innerHTML = '<div class="card">'
       + '<div class="row"><input class="ttl" id="ttl" value="' + esc(it.title) + '">'
       + '<button class="btn ghost" id="del">Xoá mục</button></div>'
       + '<textarea id="txt" placeholder="Nhập văn bản (siêu to cũng được)…">' + esc(it.text) + '</textarea>'
-      + '<div class="row" style="margin-top:10px;gap:10px">'
+      + '<div class="row" style="margin-top:10px;gap:10px;flex-wrap:wrap">'
       + '<button class="btn" id="attach">📎 Gắn tệp</button>'
+      + '<button class="btn ghost" id="copy">📋 Copy</button>'
       + '<span class="sub" id="savest"></span></div>'
+      + (allBtn ? '<div class="row" style="margin-top:10px">' + allBtn + '</div>' : '')
       + '<div class="files">' + filesHtml + '</div>'
       + '<input type="file" id="picker" multiple style="display:none"></div>';
 
     var txt = document.getElementById('txt');
     lastSavedText = it.text || '';
+    // Giữ lại chiều cao người dùng đã kéo (không bị reset khi render lại sau khi lost focus).
+    try { var sh = localStorage.getItem('dhTextH'); if (sh) txt.style.height = sh; } catch (e) {}
+    if (window.ResizeObserver) {
+      new ResizeObserver(function () {
+        try { localStorage.setItem('dhTextH', txt.offsetHeight + 'px'); } catch (e) {}
+      }).observe(txt);
+    }
     txt.oninput = function () {
       document.getElementById('savest').textContent = 'Đang lưu…';
       clearTimeout(saveTimer);
@@ -97,12 +134,37 @@
       api('/api/item/' + it.id, { method: 'DELETE' }).then(function () { openId = null; refresh(); });
     };
     document.getElementById('attach').onclick = function () { document.getElementById('picker').click(); };
+    document.getElementById('copy').onclick = copyText;
     document.getElementById('picker').onchange = function (e) { [].forEach.call(e.target.files, function (f) { attach(it.id, f); }); };
     [].forEach.call(app.querySelectorAll('[data-del]'), function (b) {
       b.onclick = function () {
         var fid = b.getAttribute('data-del');
         api('/api/file/' + fid, { method: 'DELETE' }).then(function () { delete heldFiles[fid]; refresh(); });
       };
+    });
+
+    // Tải tất cả: TỪNG request cho từng file, chỉ file của máy khác.
+    var dlall = document.getElementById('dlall');
+    if (dlall) dlall.onclick = function () {
+      var i = 0;
+      (function next() {
+        if (i >= others.length) return;
+        var f = others[i++];
+        var a = document.createElement('a');
+        a.href = '/download/' + f.id; a.download = f.name || '';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(next, 700);   // cách nhau để trình duyệt xử lý từng tệp một
+      })();
+    };
+
+    // Nạp thumbnail ảnh của máy khác (1 lần/ảnh, rồi cache).
+    (it.files || []).forEach(function (f) {
+      if (!isImage(f.name) || thumbCache[f.id] || heldFiles[f.id] || f.size > THUMB_MAX) return;
+      fetch('/download/' + f.id).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) {
+        if (!b) return;
+        var u = URL.createObjectURL(b); thumbCache[f.id] = u;
+        var el = document.getElementById('th_' + f.id); if (el) el.src = u;
+      }).catch(function () {});
     });
   }
 
@@ -114,6 +176,20 @@
     api('/api/item/' + openId + '/text', { method: 'POST', body: v }).then(function () { lastSavedText = v; setSaved(); });
   }
   function setSaved() { var s = document.getElementById('savest'); if (s) s.textContent = 'Đã lưu ✓'; }
+
+  // Copy nhanh nội dung ô chat. Dùng execCommand để chạy được cả trên http (LAN, không secure context).
+  function copyText() {
+    var t = document.getElementById('txt'); if (!t) return;
+    var ok = false;
+    try { t.focus(); t.select(); t.setSelectionRange(0, t.value.length); ok = document.execCommand('copy'); } catch (e) {}
+    if (!ok && navigator.clipboard) {
+      navigator.clipboard.writeText(t.value).then(copied).catch(function () {});
+    } else if (ok) { copied(); }
+    try { t.setSelectionRange(t.value.length, t.value.length); } catch (e) {}
+  }
+  function copied() {
+    var s = document.getElementById('savest'); if (s) s.textContent = 'Đã copy ✓';
+  }
 
   function attach(itemId, file) {
     var meta = file.name + '\n' + file.size + '\n' + clientId;

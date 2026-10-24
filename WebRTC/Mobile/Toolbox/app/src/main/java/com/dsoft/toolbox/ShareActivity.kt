@@ -1,13 +1,16 @@
 package com.dsoft.toolbox
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.provider.OpenableColumns
+import android.provider.DocumentsContract
+import android.view.Gravity
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -21,6 +24,8 @@ class ShareActivity : Activity() {
     private lateinit var addrBox: LinearLayout
     private lateinit var toggle: TextView
     private lateinit var event: TextView
+    private lateinit var folderValue: TextView
+    private lateinit var transfersBox: LinearLayout
     private val main = Handler(Looper.getMainLooper())
     private val poll = object : Runnable {
         override fun run() { refresh(); main.postDelayed(this, 2500) }
@@ -46,15 +51,27 @@ class ShareActivity : Activity() {
         col.addView(sectionHeader(p, "Dùng ngay trên máy này"))
         col.addView(group(p,
             row(p, "Mở bảng chia sẻ trong trình duyệt", chevron(p)) { openSelf() },
-            row(p, "Thêm mục mới", chevron(p)) { addItem() },
-            row(p, "Gắn tệp từ máy này…", chevron(p)) { pickHostFile() },
+            row(p, "Hiện QR link truy cập", chevron(p)) { showQr() },
         ))
 
+        col.addView(sectionHeader(p, "Tự động lưu tệp client gửi lên"))
+        folderValue = text(Prefs(this).shareSaveName.ifEmpty { "Chưa chọn" }, 15f, p.secondary)
+        col.addView(group(p,
+            row(p, "Bật tự động lưu", iosSwitch(p, Prefs(this).shareAutoSave) { Prefs(this).shareAutoSave = it }),
+            row(p, "Thư mục lưu", LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                addView(folderValue); addView(chevron(p))
+            }) { pickFolder() },
+        ))
+        col.addView(footnote(p, "Khi BẬT: mọi tệp client gắn lên sẽ tự tải về thư mục này (cần trang của client còn mở lúc gắn)."))
+
+        col.addView(sectionHeader(p, "Tiến trình tự lưu"))
+        transfersBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(card(p).apply { setPadding(dp(16), dp(12), dp(16), dp(12)); addView(transfersBox) })
+
         col.addView(footnote(p,
-            "Bật server rồi mở link ở trên trên máy khác (cùng Wi-Fi hoặc hotspot). Trang web hiện danh sách mục; " +
-                "mỗi mục có ô văn bản siêu to và nút gắn tệp.\n" +
-                "Máy chủ KHÔNG lưu tệp: khi ai bấm tải, tệp được truyền thẳng từ trình duyệt của người gắn (trang của họ phải còn mở). " +
-                "Tệp do chính máy này gắn thì truyền thẳng từ bộ nhớ máy.\n" +
+            "Bật server rồi mở link ở trên trên máy khác (cùng Wi-Fi hoặc hotspot). Người dùng vào web để tạo mục và gắn tệp.\n" +
+                "Máy chủ chỉ lưu tệp khi bật \"Tự động lưu\"; nếu không, tệp được truyền thẳng từ trình duyệt người gắn khi có người tải.\n" +
                 "Văn bản được giữ trong bộ nhớ máy chủ và mất khi tắt server."))
     }
 
@@ -99,6 +116,36 @@ class ShareActivity : Activity() {
         event.visibility = if (event.text.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
         toggle.text = if (on) "Dừng server" else "Bật server chia sẻ"
         toggle.background = pressable(gradient(dp(14).toFloat(), if (on) p.red else p.green, if (on) p.red else p.green), 0x33FFFFFF)
+        renderTransfers()
+    }
+
+    private fun renderTransfers() {
+        transfersBox.removeAllViews()
+        val tr = ShareService.server?.transfersSnapshot() ?: emptyList()
+        if (tr.isEmpty()) {
+            transfersBox.addView(text("Chưa có tệp nào tự lưu.", 14f, p.secondary))
+            return
+        }
+        val active = tr.count { it.state == "active" }
+        val doneN = tr.count { it.state == "done" }
+        val err = tr.count { it.state == "error" }
+        val summary = "Đang tải: $active · Xong: $doneN/${tr.size}" + if (err > 0) " · Lỗi: $err" else ""
+        transfersBox.addView(text(summary, 16f, if (active == 0) p.green else p.text, 700))
+        if (active == 0 && tr.isNotEmpty())
+            transfersBox.addView(text("Tất cả đã xong — có thể tắt server.", 13f, p.green).apply { setPadding(0, dp(2), 0, 0) })
+        tr.takeLast(12).forEach { t ->
+            val pct = if (t.size > 0) (t.done * 100 / t.size).toInt() else if (t.state == "done") 100 else 0
+            val mark = when (t.state) { "done" -> "✓"; "error" -> "✗"; else -> "$pct%" }
+            val color = when (t.state) { "error" -> p.red; "done" -> p.green; else -> p.secondary }
+            transfersBox.addView(text("$mark  ${t.name}", 13f, color).apply {
+                setPadding(0, dp(5), 0, 0); maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+        }
+        if (doneN + err > 0) transfersBox.addView(text("Xoá danh sách đã xong", 14f, p.blue, 600).apply {
+            setPadding(0, dp(10), 0, 0)
+            setOnClickListener { ShareService.server?.clearFinishedTransfers(); renderTransfers() }
+        })
     }
 
     private fun onToggle() {
@@ -115,46 +162,49 @@ class ShareActivity : Activity() {
         }
     }
 
-    private fun addItem() {
-        val s = ShareService.server ?: return toast("Bật server trước đã")
-        s.addItem()
-        toast("Đã thêm mục — mở trang để nhập nội dung")
+    private fun pickFolder() {
+        try {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_TREE)
+        } catch (_: Exception) {
+            toast("Không mở được trình chọn thư mục")
+        }
     }
 
-    private fun pickHostFile() {
-        if (ShareService.server == null) return toast("Bật server trước đã")
-        try {
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), REQ_FILE)
-        } catch (_: Exception) {
-            toast("Không mở được trình chọn tệp")
+    private fun showQr() {
+        val u = url() ?: return toast("Bật server trước đã")
+        val bmp = Qr.bitmap(u, 600) ?: return toast("Không tạo được QR")
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(16), dp(16), dp(16), dp(8))
+            addView(ImageView(this@ShareActivity).apply {
+                setImageBitmap(bmp)
+                layoutParams = LinearLayout.LayoutParams(dp(240), dp(240))
+            })
+            addView(text(u, 13f, p.blue).apply { typeface = Typeface.MONOSPACE; setPadding(0, dp(10), 0, 0); gravity = Gravity.CENTER })
         }
+        AlertDialog.Builder(this).setTitle("Quét để mở").setView(box).setPositiveButton("Đóng", null).show()
     }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_FILE || resultCode != RESULT_OK) return
+        if (requestCode != REQ_TREE || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
-        val s = ShareService.server ?: return
-        runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        var name = "tep"
-        var size = 0L
-        contentResolver.query(uri, null, null, null, null)?.use { c ->
-            if (c.moveToFirst()) {
-                val ni = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                val si = c.getColumnIndex(OpenableColumns.SIZE)
-                if (ni >= 0) name = c.getString(ni) ?: name
-                if (si >= 0 && !c.isNull(si)) size = c.getLong(si)
-            }
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         }
-        val item = s.itemsSnapshot().lastOrNull() ?: s.addItem()
-        s.addHostFile(item.id, uri, name, size)
-        toast("Đã gắn \"$name\" vào mục \"${item.title}\"")
+        val name = (runCatching { DocumentsContract.getTreeDocumentId(uri).substringAfterLast(':') }.getOrNull() ?: "")
+            .ifEmpty { "Thư mục" }
+        Prefs(this).shareSaveTree = uri.toString()
+        Prefs(this).shareSaveName = name
+        folderValue.text = name
+        toast("Sẽ lưu tệp vào: $name")
     }
 
     private fun toast(msg: String) = android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show()
 
     companion object {
-        private const val REQ_FILE = 1
+        private const val REQ_TREE = 2
     }
 }
