@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- background gradient -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient android:startX="0" android:startY="0" android:endX="108" android:endY="108" android:type="linear">
+                <item android:offset="0" android:color="#FFFF8FB1" />
+                <item android:offset="1" android:color="#FF8E7CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- diary book -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M34,30 h36 a6,6 0 0,1 6,6 v40 a4,4 0 0,1 -4,4 h-38 a6,6 0 0,1 -6,-6 v-38 a6,6 0 0,1 6,-6 z" />
+    <!-- spine -->
+    <path android:fillColor="#FFFFC24D" android:pathData="M34,30 a6,6 0 0,0 -6,6 v38 a6,6 0 0,0 6,6 h5 v-50 z" />
+    <!-- lines -->
+    <path android:strokeColor="#FFBFA9FF" android:strokeWidth="2.6" android:strokeLineCap="round"
+        android:pathData="M46,44 h22 M46,54 h22 M46,64 h14" />
+    <!-- sparkle -->
+    <path android:fillColor="#FFFFF07A" android:pathData="M74,52 l2.4,5.6 l5.6,2.4 l-5.6,2.4 l-2.4,5.6 l-2.4,-5.6 l-5.6,-2.4 l5.6,-2.4 z" />
+    <!-- D badge (Dsoft), tiny round black, top-left -->
+    <path android:fillColor="#F2000000" android:pathData="M36,34 m-8.6,0 a8.6,8.6 0 1,1 17.2,0 a8.6,8.6 0 1,1 -17.2,0" />
+    <path android:strokeColor="#40FFFFFF" android:strokeWidth="1" android:fillColor="#00000000" android:pathData="M36,34 m-8.1,0 a8.1,8.1 0 1,1 16.2,0 a8.1,8.1 0 1,1 -16.2,0" />
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="M32,29 h3 a5,5 0 0,1 0,10 h-3 z M34.6,31.6 h0.6 a2.4,2.4 0 0,1 0,4.8 h-0.6 z" />
+</vector>

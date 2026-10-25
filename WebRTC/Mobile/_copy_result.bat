@@ -7,6 +7,14 @@ setlocal
 set "RESULT=%~dp0..\__Result"
 if not exist "%RESULT%" mkdir "%RESULT%"
 for %%F in ("%RESULT%") do set "RESULT=%%~fF"
+
+REM --- Auto-backup the debug keystore so the OAuth SHA-1 stays the same across machines ---
+set "KSDIR=%~dp0..\..\_keystore"
+if not exist "%KSDIR%" mkdir "%KSDIR%"
+if exist "%USERPROFILE%\.android\debug.keystore" (
+    copy /Y "%USERPROFILE%\.android\debug.keystore" "%KSDIR%\debug.keystore" >nul && echo [keystore] Da sao luu debug.keystore -^> _keystore\
+)
+
 :next
 if "%~1"=="" goto :eof
 if exist "%~1" (

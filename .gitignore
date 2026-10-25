@@ -107,3 +107,11 @@ Desktop.ini
 *.tmp
 *.bak
 *.swp
+
+# ---------------------------------------------------------------------------
+# Keystore backups (_keystore/)
+# ---------------------------------------------------------------------------
+# Release keystores stay SECRET (covered by *.jks / *.keystore above).
+# Keep the DEBUG keystore tracked: it is not secret (password "android") and keeps the
+# OAuth SHA-1 stable across machines. Restore: copy to %USERPROFILE%\.android\debug.keystore
+!_keystore/debug.keystore
