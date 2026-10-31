@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Audio routing + loudness booster -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
@@ -54,6 +56,12 @@
             android:name=".DimActivity"
             android:launchMode="singleTop" />
         <activity android:name=".ScanActivity" />
+        <activity android:name=".DeviceInfoActivity" />
+        <activity android:name=".RestartActivity" />
+        <activity android:name=".EmergencyActivity" />
+        <activity android:name=".NetworkActivity" />
+        <activity android:name=".DomainActivity" />
+        <activity android:name=".AudioActivity" />
         <activity
             android:name=".TranslateActivity"
             android:launchMode="singleTop" />

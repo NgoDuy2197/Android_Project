@@ -35,6 +35,7 @@ class AppConfig extends ChangeNotifier {
   bool showAll = false; // default filter: unread only
   bool notify = true;
   int intervalMin = 60;
+  int maxAgeDays = 90; // drop articles older than this when fetching (0 = keep all)
   String geminiKey = ''; // Gemini API key for the AI summary (stored on the phone only)
 
   late File _file;
@@ -56,6 +57,7 @@ class AppConfig extends ChangeNotifier {
       showAll = j['showAll'] as bool? ?? false;
       notify = j['notify'] as bool? ?? true;
       intervalMin = j['intervalMin'] as int? ?? 60;
+      maxAgeDays = j['maxAgeDays'] as int? ?? 90;
       geminiKey = j['geminiKey'] as String? ?? '';
     } catch (_) {}
   }
@@ -70,6 +72,7 @@ class AppConfig extends ChangeNotifier {
       'showAll': showAll,
       'notify': notify,
       'intervalMin': intervalMin,
+      'maxAgeDays': maxAgeDays,
       'geminiKey': geminiKey,
     }));
     await tmp.rename(_file.path);

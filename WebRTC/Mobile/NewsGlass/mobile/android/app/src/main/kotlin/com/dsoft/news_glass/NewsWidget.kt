@@ -46,7 +46,12 @@ class NewsWidget : AppWidgetProvider() {
             // Local work only (news.json): never waits behind a network fetch, works offline.
             io.execute {
                 try {
-                    if (id != null) NewsRepo.markRead(app, listOf(id))
+                    // Mark the item the user saw read. The id in the intent can be stale (the
+                    // feed refreshed since this widget was last drawn), so also mark the current
+                    // top-unread — that guarantees the widget always advances to a new article.
+                    val top = NewsRepo.unread(app).firstOrNull()?.id
+                    val toRead = listOfNotNull(id, top).distinct()
+                    if (toRead.isNotEmpty()) NewsRepo.markRead(app, toRead)
                     val wait = 400 - (System.currentTimeMillis() - started)
                     if (wait > 0) Thread.sleep(wait)
                     refreshAll(app)

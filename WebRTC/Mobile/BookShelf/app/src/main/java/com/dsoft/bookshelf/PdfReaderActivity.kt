@@ -2,6 +2,7 @@ package com.dsoft.bookshelf
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.ColorMatrix
@@ -275,14 +276,16 @@ class PdfReaderActivity : BaseActivity() {
     }
 
     private fun moreMenu() {
-        val items = arrayOf(getString(R.string.menu_extract), getString(R.string.menu_translate), getString(R.string.menu_mp3),
-            getString(R.string.tts_stop))
+        val items = arrayOf(getString(R.string.menu_extract), getString(R.string.menu_translate),
+            "Dịch & đè lên trang (giữ bố cục)", getString(R.string.menu_mp3), getString(R.string.tts_stop))
         dialogBuilder(p).setItems(items) { _, w ->
             when (w) {
                 0 -> { JobManager.startExtract(this, book); toast(R.string.job_queued) }
                 1 -> BookDialogs.translate(this, book)
-                2 -> BookDialogs.audiobook(this, book)
-                3 -> TtsService.command(this, TtsService.ACTION_STOP)
+                2 -> startActivity(Intent(this, PdfTranslateActivity::class.java)
+                    .putExtra(Readers.EXTRA_BOOK, book.id).putExtra("page", firstVisible))
+                3 -> BookDialogs.audiobook(this, book)
+                4 -> TtsService.command(this, TtsService.ACTION_STOP)
             }
         }.show()
     }

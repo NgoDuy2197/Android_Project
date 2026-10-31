@@ -391,6 +391,26 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                   ),
                 ),
                 ListTile(
+                  title: Text('Bỏ tin cũ hơn', style: TextStyle(color: t.text)),
+                  subtitle: Text('Khi quét, tin đăng quá lâu sẽ bị loại bỏ', style: TextStyle(color: t.sub, fontSize: 12)),
+                  trailing: DropdownButton<int>(
+                    value: const [0, 30, 90, 180, 365].contains(config.maxAgeDays) ? config.maxAgeDays : 90,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 30, child: Text('1 tháng')),
+                      DropdownMenuItem(value: 90, child: Text('3 tháng')),
+                      DropdownMenuItem(value: 180, child: Text('6 tháng')),
+                      DropdownMenuItem(value: 365, child: Text('1 năm')),
+                      DropdownMenuItem(value: 0, child: Text('Không giới hạn')),
+                    ],
+                    onChanged: (v) {
+                      config.maxAgeDays = v ?? 90;
+                      _save();
+                      Native.fetchNow();
+                    },
+                  ),
+                ),
+                ListTile(
                   leading: Icon(Icons.add_to_home_screen, color: t.accent),
                   title: Text('Thêm widget ra màn hình chính', style: TextStyle(color: t.text)),
                   onTap: () async {

@@ -413,9 +413,11 @@ class MainActivity : BaseActivity() {
         val lower = name.lowercase()
         val isZip = head.size >= 4 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte() &&
             head[2] == 0x03.toByte() && head[3] == 0x04.toByte()
-        // MOBI / old-Kindle: either a known extension or the Palm-DB "BOOKMOBI" signature at offset 60.
+        // MOBI / Kindle (incl. KF8 .azw3): a known extension or the Palm-DB "BOOKMOBI" signature at offset 60.
         val isMobiSig = String(head, 60, 8, Charsets.US_ASCII) == "BOOKMOBI"
-        if (lower.endsWith(".mobi") || lower.endsWith(".prc") || lower.endsWith(".azw") || isMobiSig) {
+        val isMobiExt = lower.endsWith(".mobi") || lower.endsWith(".prc") ||
+            lower.endsWith(".azw") || lower.endsWith(".azw3")
+        if (isMobiExt || isMobiSig) {
             val mobiTmp = File.createTempFile("import_", ".mobi", cacheDir)
             try {
                 contentResolver.openInputStream(uri)?.use { input -> mobiTmp.outputStream().use { input.copyTo(it, 64 * 1024) } }
@@ -423,7 +425,8 @@ class MainActivity : BaseActivity() {
                 val res = Mobi.parse(mobiTmp)
                 if (res != null) {
                     val title = res.title.trim().ifEmpty { TextLogic.titleFromFileName(name) }
-                    val mb = Book(Library.newId(), title, BookType.TEXT, System.currentTimeMillis(), format = "mobi")
+                    val fmt = if (lower.endsWith(".azw3")) "azw3" else if (lower.endsWith(".azw")) "azw" else "mobi"
+                    val mb = Book(Library.newId(), title, BookType.TEXT, System.currentTimeMillis(), format = fmt)
                     val mdir = Library.dir(mb.id).apply { mkdirs() }
                     try { Files.writeAtomic(File(mdir, "book.txt"), res.text) }
                     catch (e: Exception) { mdir.deleteRecursively(); throw e }
@@ -431,7 +434,7 @@ class MainActivity : BaseActivity() {
                     return mb
                 }
                 // A declared/signed MOBI that failed to parse (e.g. DRM or HUFF/CDIC) is a hard failure.
-                if (lower.endsWith(".mobi") || lower.endsWith(".prc") || lower.endsWith(".azw") || isMobiSig) return null
+                if (isMobiExt || isMobiSig) return null
             } finally {
                 mobiTmp.delete()
             }

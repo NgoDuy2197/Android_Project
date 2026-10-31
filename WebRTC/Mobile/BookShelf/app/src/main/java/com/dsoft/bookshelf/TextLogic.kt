@@ -55,6 +55,12 @@ object TextLogic {
         val n = text.length
         var start = 0
         var i = 0
+        // Inside a quotation / parenthetical aside, terminators (esp. '.') do NOT end a sentence, so a long
+        // quote or "(...)" with periods inside stays in one piece (read continuously with the aside voice).
+        var parenDepth = 0
+        var curlyDepth = 0
+        var straightOpen = false
+        fun inside() = parenDepth > 0 || curlyDepth > 0 || straightOpen
         fun emit(s: Int, e: Int) {
             var a = s
             var b = e
@@ -64,13 +70,23 @@ object TextLogic {
         }
         while (i < n) {
             val c = text[i]
+            // track quote/paren nesting
+            when {
+                c == '(' || c == '（' -> parenDepth++
+                (c == ')' || c == '）') && parenDepth > 0 -> parenDepth--
+                QUOTE_OPEN.indexOf(c) >= 0 -> curlyDepth++
+                QUOTE_CLOSE.indexOf(c) >= 0 && curlyDepth > 0 -> curlyDepth--
+                c == '"' -> straightOpen = !straightOpen
+            }
             if (c == '\n') {
                 emit(start, i)
                 i++
                 start = i
+                parenDepth = 0; curlyDepth = 0; straightOpen = false   // never let an unbalanced quote leak across lines
                 continue
             }
             if (isTerminator(c)) {
+                if (inside()) { i++; continue }   // don't split inside a quote/aside
                 var j = i
                 while (j < n && isTerminator(text[j])) j++
                 while (j < n && CLOSERS.indexOf(text[j]) >= 0) j++

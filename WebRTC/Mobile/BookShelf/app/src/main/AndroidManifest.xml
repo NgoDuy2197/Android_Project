@@ -51,10 +51,36 @@
                 <data android:scheme="content" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- e-book formats BookShelf can import (EPUB / MOBI / Kindle). Matched by MIME type
+                 (file managers that declare one) and by file extension (those that don't). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
+                <data android:mimeType="application/x-mobi8-ebook" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.epub" />
+                <data android:pathPattern=".*\\.mobi" />
+                <data android:pathPattern=".*\\.prc" />
+                <data android:pathPattern=".*\\.azw" />
+                <data android:pathPattern=".*\\.azw3" />
+            </intent-filter>
         </activity>
         <activity
             android:name=".PdfReaderActivity"
             android:exported="false" />
+        <activity android:name=".PdfTranslateActivity" android:exported="false" />
         <activity
             android:name=".TextReaderActivity"
             android:exported="false"

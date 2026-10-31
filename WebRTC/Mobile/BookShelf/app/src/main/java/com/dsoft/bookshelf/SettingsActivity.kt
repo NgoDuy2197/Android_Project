@@ -193,12 +193,38 @@ class SettingsActivity : BaseActivity() {
         }))
         col.addView(footnote(p, getString(R.string.ocr_footer)))
 
+        // ---- system & permissions ----
+        col.addView(sectionHeader(p, "Hệ thống & quyền"))
+        col.addView(group(p,
+            row(p, "Quyền ứng dụng", chevron(p)) { openAppDetails(packageName) },
+            row(p, "Bỏ tối ưu pin (tránh bị tắt nền)", chevron(p)) { openIntent(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) },
+            row(p, "Cài đặt giọng đọc (Text-to-Speech)", chevron(p)) { openIntent(Intent("com.android.settings.TTS_SETTINGS")) },
+            row(p, "Mở Google Text-to-Speech", chevron(p)) { openGoogleTts() },
+        ))
+        col.addView(footnote(p, "App hay bị tắt khi chạy nền (đọc, tạo MP3): vào Quyền ứng dụng cho phép chạy nền + thông báo, và Bỏ tối ưu pin. Thiếu bộ đọc thì mở Cài đặt giọng đọc để cài/chọn Google TTS."))
+
         // ---- about ----
         col.addView(sectionHeader(p, getString(R.string.sec_about)))
         col.addView(group(p,
             row(p, "BookShelf", valueLabel(p, "1.0.0")),
             row(p, getString(R.string.storage_used), valueLabel(p, storageUsed())),
         ))
+    }
+
+    private fun openIntent(intent: Intent) {
+        try { startActivity(intent) }
+        catch (_: Exception) {
+            try { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+            catch (_: Exception) { android.widget.Toast.makeText(this, "Không mở được cài đặt", android.widget.Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    private fun openAppDetails(pkg: String) =
+        openIntent(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$pkg")))
+
+    private fun openGoogleTts() {
+        val launch = packageManager.getLaunchIntentForPackage(TtsUtil.GOOGLE_ENGINE)
+        if (launch != null) openIntent(launch) else openAppDetails(TtsUtil.GOOGLE_ENGINE)
     }
 
     private fun maskKey(k: String) = if (k.isEmpty()) getString(R.string.not_set) else "••••" + k.takeLast(4)

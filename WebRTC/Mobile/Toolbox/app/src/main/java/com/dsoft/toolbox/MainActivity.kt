@@ -35,12 +35,36 @@ class MainActivity : Activity() {
         val (shareRow, shs) = toolRow(p, R.drawable.ic_share_board, p.green, "Chia sẻ (văn bản + tệp)") {
             startActivity(Intent(this, ShareActivity::class.java))
         }
+        val (flashRow, flashSub) = toolRow(p, R.drawable.ic_sos, p.red, "Hỗ trợ khẩn cấp") {
+            startActivity(Intent(this, EmergencyActivity::class.java))
+        }
+        flashSub.text = "Đèn (nháy/SOS) · còi báo động"
+        val (netRow, netSub) = toolRow(p, R.drawable.ic_network, p.teal, "Mạng & tốc độ") {
+            startActivity(Intent(this, NetworkActivity::class.java))
+        }
+        netSub.text = "IP nội bộ/công cộng, Wi-Fi, test tốc độ"
+        val (domainRow, domainSub) = toolRow(p, R.drawable.ic_domain, p.blue, "Tra cứu domain") {
+            startActivity(Intent(this, DomainActivity::class.java))
+        }
+        domainSub.text = "IP qua DNS máy & công cộng, cổng mở"
+        val (audioRow, audioSub) = toolRow(p, R.drawable.ic_audio, p.pink, "Âm thanh") {
+            startActivity(Intent(this, AudioActivity::class.java))
+        }
+        audioSub.text = "Chuyển loa ngoài/trong · tăng âm vượt mức"
+        val (infoRow, infoSub) = toolRow(p, R.drawable.ic_info, p.purple, "Thông tin thiết bị") {
+            startActivity(Intent(this, DeviceInfoActivity::class.java))
+        }
+        infoSub.text = "Máy, pin, RAM, bộ nhớ, mạng"
+        val (restartRow, restartSub) = toolRow(p, R.drawable.ic_restart, p.red, "Khởi động lại") {
+            startActivity(Intent(this, RestartActivity::class.java))
+        }
+        restartSub.text = "Reboot · Recovery · Fastboot · Tắt nguồn (root)"
         shareSub = shs
         trSub = ts
         ftpSub = fs
         dimSub = ds
-        col.addView(group(p, ftpRow, dimRow, scanRow, trRow, shareRow))
-        col.addView(footnote(p, "FTP: chép file giữa máy tính và điện thoại qua Wi-Fi.\nLàm tối: phủ một lớp đen lên màn hình, tối hơn mức thấp nhất của hệ thống."))
+        col.addView(group(p, ftpRow, dimRow, scanRow, trRow, shareRow, flashRow, netRow, domainRow, audioRow, infoRow, restartRow))
+        col.addView(footnote(p, "FTP: chép file giữa máy tính và điện thoại qua Wi-Fi.\nLàm tối: phủ một lớp đen lên màn hình, tối hơn mức thấp nhất của hệ thống.\nKhởi động lại: cần quyền root."))
 
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED

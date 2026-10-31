@@ -41,7 +41,16 @@ data class Item(
 }
 
 /** Settings written by the Flutter app (config.json). */
-class NewsConfig(val feeds: List<FeedCfg>, val notify: Boolean, val intervalMin: Int, val theme: String) {
+class NewsConfig(
+    val feeds: List<FeedCfg>,
+    val notify: Boolean,
+    val intervalMin: Int,
+    val theme: String,
+    val maxAgeDays: Int = 90,
+) {
+    /** Oldest publish time to keep (ms epoch); 0 when no age limit is set. */
+    fun oldestKept(now: Long): Long = if (maxAgeDays <= 0) 0L else now - maxAgeDays * 24L * 3600_000L
+
     companion object {
         private val defaults = listOf(
             FeedCfg("vne_top", "VnExpress · Xem nhiều", "https://vnexpress.net/rss/tin-xem-nhieu.rss"),
@@ -57,7 +66,10 @@ class NewsConfig(val feeds: List<FeedCfg>, val notify: Boolean, val intervalMin:
                 val feeds = (0 until arr.length()).map { arr.getJSONObject(it) }
                     .filter { it.optBoolean("enabled", true) }
                     .map { FeedCfg(it.optString("id"), it.optString("name"), it.optString("url")) }
-                NewsConfig(feeds, j.optBoolean("notify", true), j.optInt("intervalMin", 60), j.optString("theme", "yahoo"))
+                NewsConfig(
+                    feeds, j.optBoolean("notify", true), j.optInt("intervalMin", 60),
+                    j.optString("theme", "yahoo"), j.optInt("maxAgeDays", 90),
+                )
             } catch (_: Exception) {
                 NewsConfig(defaults, true, 60, "yahoo")
             }
@@ -101,10 +113,13 @@ object NewsRepo {
         0L
     }
 
-    /** Unread items of enabled feeds, newest first. */
+    /** Unread items of enabled feeds, newest first (older than maxAgeDays are hidden). */
     fun unread(ctx: Context): List<Item> {
-        val feeds = NewsConfig.load(ctx).feeds.map { it.id }.toSet()
-        return load(ctx).filter { !it.read && it.feedId in feeds }.sortedByDescending { it.published }
+        val cfg = NewsConfig.load(ctx)
+        val feeds = cfg.feeds.map { it.id }.toSet()
+        val oldest = cfg.oldestKept(System.currentTimeMillis())
+        return load(ctx).filter { !it.read && it.feedId in feeds && it.published >= oldest }
+            .sortedByDescending { it.published }
     }
 
     fun markRead(ctx: Context, ids: Collection<String>): Unit = synchronized(lock) {
@@ -134,13 +149,16 @@ object NewsRepo {
         synchronized(lock) {
             val items = load(ctx)
             val firstRun = items.isEmpty()
+            val now = System.currentTimeMillis()
+            val oldest = cfg.oldestKept(now)
             val known = items.map { it.id }.toHashSet()
-            val fresh = fetched.distinctBy { it.id }.filter { it.id !in known }
+            // Drop brand-new items that are already older than the age limit so they never enter the store.
+            val fresh = fetched.distinctBy { it.id }.filter { it.id !in known && it.published >= oldest }
             items.addAll(fresh)
             val feedIds = cfg.feeds.map { it.id }.toSet()
-            val now = System.currentTimeMillis()
             val kept = items
                 .filter { it.feedId in feedIds || cfg.feeds.isEmpty() }
+                .filter { it.published >= oldest }                       // age out old articles
                 .filter { !(it.read && now - it.published > KEEP_READ_MS) }
                 .sortedByDescending { it.published }
                 .take(MAX_ITEMS)
