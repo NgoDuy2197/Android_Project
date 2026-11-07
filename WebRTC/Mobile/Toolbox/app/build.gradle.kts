@@ -42,4 +42,7 @@ dependencies {
     implementation("com.google.mlkit:translate:17.0.3")
     // Generate QR codes (access link) for the share board — on native UI and served to the web page.
     implementation("com.google.zxing:core:3.5.3")
+    // FTP tab "Kết nối": FTP client to other machines + SSH terminal (maintained JSch fork).
+    implementation("commons-net:commons-net:3.11.1")
+    implementation("com.github.mwiede:jsch:0.2.16")
 }

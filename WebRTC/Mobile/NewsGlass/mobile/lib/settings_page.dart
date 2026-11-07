@@ -83,7 +83,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
             child: Text(
               'Realme/OPPO tắt hẳn app khi vuốt bỏ ở đa nhiệm → không quét tin, widget đứng im. '
-              'Mở đa nhiệm → ⋮ trên thẻ "Tin Tức" → Khoá (Lock), rồi bật các mục dưới.',
+              'Mở đa nhiệm → ⋮ trên thẻ "NewsGlass" → Khoá (Lock), rồi bật các mục dưới.',
               style: TextStyle(color: t.sub, fontSize: 12, height: 1.35),
             ),
           ),
@@ -415,7 +415,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                   title: Text('Thêm widget ra màn hình chính', style: TextStyle(color: t.text)),
                   onTap: () async {
                     if (!await Native.pinWidget() && context.mounted) {
-                      toast(context, 'Giữ màn hình chính → Widgets → Tin Tức');
+                      toast(context, 'Giữ màn hình chính → Widgets → NewsGlass');
                     }
                   },
                 ),

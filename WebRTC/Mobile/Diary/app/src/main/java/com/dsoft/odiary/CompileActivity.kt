@@ -40,6 +40,7 @@ class CompileActivity : FxActivity() {
         bar.addView(text("Tổng hợp ngày", 17f, p.text, 600), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(6) })
         bar.addView(iconBtn("✏️") { startActivity(Intent(this, DayActivity::class.java).putExtra("date", date)) })
         bar.addView(iconBtn("🎧") { Tts.read(this, day.compiled.ifEmpty { textFallback() }) })
+        bar.addView(iconBtn("📄") { sharePdf() })
         bar.addView(iconBtn("↗") { share() })
         root.addView(bar)
 
@@ -111,6 +112,26 @@ class CompileActivity : FxActivity() {
     private fun share() {
         val txt = day.compiled.ifEmpty { textFallback() }
         startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, txt), "Chia sẻ"))
+    }
+
+    /** Export the whole day (text + photos) to an A4 PDF and share it. Ported from DailyDiary. */
+    private fun sharePdf() {
+        if (day.events.isEmpty()) { android.widget.Toast.makeText(this, "Ngày này chưa có sự kiện", android.widget.Toast.LENGTH_SHORT).show(); return }
+        android.widget.Toast.makeText(this, "Đang tạo PDF…", android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val pdf = try { Summary.generate(this, date) } catch (_: Exception) { null }
+            App.main.post {
+                if (pdf == null || !pdf.exists()) {
+                    android.widget.Toast.makeText(this, "Không tạo được PDF", android.widget.Toast.LENGTH_SHORT).show()
+                    return@post
+                }
+                val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", pdf)
+                startActivity(Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).setType("application/pdf")
+                        .putExtra(Intent.EXTRA_STREAM, uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Chia sẻ PDF"))
+            }
+        }.start()
     }
 
     private fun textFallback(): String = "${prettyDate()}\n" + day.events.sortedBy { it.timeMs }

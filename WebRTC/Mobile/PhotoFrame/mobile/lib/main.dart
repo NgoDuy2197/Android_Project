@@ -24,7 +24,7 @@ class FrameApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Khung Ảnh',
+    title: 'PhotoFrame',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       useMaterial3: true,
@@ -97,7 +97,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _offerPin(Frame f) async {
     final ok = await Native.pin(f.id);
-    if (!ok && mounted) toast(context, 'Giữ màn hình chính → Widgets → Khung Ảnh để thêm');
+    if (!ok && mounted) toast(context, 'Giữ màn hình chính → Widgets → PhotoFrame để thêm');
   }
 
   Future<void> _menu(Frame f) async {
@@ -146,7 +146,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Khung Ảnh', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 28))),
+      appBar: AppBar(title: const Text('PhotoFrame', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 28))),
       floatingActionButton: GlassButton(
         icon: Icons.add_photo_alternate_outlined,
         label: 'Khung mới',

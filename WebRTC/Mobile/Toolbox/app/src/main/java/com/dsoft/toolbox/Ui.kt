@@ -54,6 +54,7 @@ fun Context.palette() = Palette(
 )
 
 fun Context.dp(v: Number): Int = (v.toFloat() * resources.displayMetrics.density).roundToInt()
+fun Context.dpf(v: Number): Float = v.toFloat() * resources.displayMetrics.density
 
 fun rounded(color: Int, radius: Float) = GradientDrawable().apply {
     setColor(color)

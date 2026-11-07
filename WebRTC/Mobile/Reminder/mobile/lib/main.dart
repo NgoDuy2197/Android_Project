@@ -28,7 +28,7 @@ class ReminderApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Nhắc Nhở',
+      title: 'Reminder',
       debugShowCheckedModeBanner: false,
       // Vietnamese labels for the iOS-style pickers (giờ / phút / giây, tháng…).
       locale: const Locale('vi'),
@@ -225,7 +225,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       title: Text('Đã lỡ $n nhắc nhở'),
       content: const Text(
         'Hệ thống đã tắt hẳn app (thường do vuốt bỏ app ở màn đa nhiệm) nên chuông không kêu.\n\n'
-        'Để không bị lỡ: mở đa nhiệm → bấm ⋮ trên thẻ Nhắc Nhở → Khoá (Lock), và cho phép app tự khởi chạy.',
+        'Để không bị lỡ: mở đa nhiệm → bấm ⋮ trên thẻ Reminder → Khoá (Lock), và cho phép app tự khởi chạy.',
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c), child: const Text('Để sau')),
@@ -255,7 +255,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         const SizedBox(height: 6),
         const Text(
           'Trên Realme / OPPO, vuốt bỏ app ở màn đa nhiệm sẽ tắt hẳn app và huỷ mọi lịch nhắc. Hãy:\n'
-          '1. Mở đa nhiệm → bấm ⋮ trên thẻ "Nhắc Nhở" → Khoá (Lock).\n'
+          '1. Mở đa nhiệm → bấm ⋮ trên thẻ "Reminder" → Khoá (Lock).\n'
           '2. Cho phép app tự khởi chạy / chạy nền.',
           style: TextStyle(color: Colors.black54, height: 1.35),
         ),
@@ -329,7 +329,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return an.compareTo(bn);
     });
     return Scaffold(
-      appBar: AppBar(title: const Text('Nhắc Nhở', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 28))),
+      appBar: AppBar(title: const Text('Reminder', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 28))),
       floatingActionButton: GlassButton(
         big: true,
         onPressed: () => _edit(),

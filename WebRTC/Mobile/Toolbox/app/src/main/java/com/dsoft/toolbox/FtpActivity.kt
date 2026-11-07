@@ -28,6 +28,7 @@ class FtpActivity : Activity() {
     private lateinit var toggle: TextView
     private lateinit var pathField: EditText
     private lateinit var permStatus: TextView
+    private lateinit var clientTab: FtpClientTab
     private val main = Handler(Looper.getMainLooper())
     private val poll = object : Runnable {
         override fun run() { refresh(); main.postDelayed(this, 3000) }
@@ -37,7 +38,22 @@ class FtpActivity : Activity() {
         super.onCreate(savedInstanceState)
         p = palette()
         prefs = Prefs(this)
-        val col = page(p, "FTP Server")
+        val root = page(p, "FTP")
+
+        // ---- tabs: Server (host files here) | Kết nối (connect out to another machine) ----
+        val serverPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val clientPane = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = android.view.View.GONE
+        }
+        root.addView(Segmented(this, p, listOf("Server", "Kết nối"), 0) { idx ->
+            serverPane.visibility = if (idx == 0) android.view.View.VISIBLE else android.view.View.GONE
+            clientPane.visibility = if (idx == 1) android.view.View.VISIBLE else android.view.View.GONE
+        }, vlp().apply { bottomMargin = dp(6) })
+        root.addView(serverPane, vlp())
+        root.addView(clientPane, vlp())
+        clientTab = FtpClientTab(this, p, clientPane)
+        val col = serverPane
 
         // ---- status card ----
         status = text("", 17f, p.text, 700)
@@ -211,9 +227,36 @@ class FtpActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         val uri = data?.data ?: return
-        if (requestCode != REQ_TREE || resultCode != RESULT_OK) return
-        val path = treeToPath(uri)
-        if (path == null) toast("Không đọc được đường dẫn thư mục này") else setDir(path)
+        if (resultCode != RESULT_OK) return
+        when (requestCode) {
+            REQ_TREE -> treeToPath(uri).let { if (it == null) toast("Không đọc được đường dẫn thư mục này") else setDir(it) }
+            REQ_EXPORT -> try {
+                contentResolver.openOutputStream(uri)?.use { it.write(ConnStore.export(ConnStore.load(this)).toByteArray()) }
+                toast("Đã export danh sách kết nối")
+            } catch (e: Exception) { toast("Export lỗi: ${e.message}") }
+            REQ_IMPORT -> try {
+                val txt = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+                val n = ConnStore.import(this, txt)
+                toast("Đã import $n kết nối")
+                clientTab.refreshSaved()
+            } catch (e: Exception) { toast("Import lỗi: ${e.message}") }
+        }
+    }
+
+    /** Called by the client tab to save/load the connection list as a JSON file (SAF). */
+    fun exportConns() {
+        try {
+            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE).setType("application/json")
+                .putExtra(Intent.EXTRA_TITLE, "toolbox-connections.json"), REQ_EXPORT)
+        } catch (_: Exception) { toast("Máy không có trình lưu tệp") }
+    }
+
+    fun importConns() {
+        try {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), REQ_IMPORT)
+        } catch (_: Exception) { toast("Máy không có trình chọn tệp") }
     }
 
     private fun setDir(path: String) {
@@ -237,5 +280,7 @@ class FtpActivity : Activity() {
     companion object {
         private const val REQ_TREE = 1
         private const val REQ_PERM = 2
+        private const val REQ_EXPORT = 3
+        private const val REQ_IMPORT = 4
     }
 }

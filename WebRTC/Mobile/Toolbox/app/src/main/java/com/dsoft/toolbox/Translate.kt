@@ -55,6 +55,27 @@ object TranslatePipeline {
     private val main = Handler(Looper.getMainLooper())
     private val net = Executors.newFixedThreadPool(4)
 
+    /** OCR only (no translation): returns the full text and the list of non-empty lines, on the main thread. */
+    fun ocrText(ctx: Context, bmp: Bitmap, cb: (full: String, lines: List<String>) -> Unit) {
+        val src = Prefs(ctx).trSrc
+        val options = when (src) {
+            "zh" -> ChineseTextRecognizerOptions.Builder().build()
+            "ja" -> JapaneseTextRecognizerOptions.Builder().build()
+            else -> TextRecognizerOptions.DEFAULT_OPTIONS
+        }
+        val client = TextRecognition.getClient(options)
+        client.process(InputImage.fromBitmap(bmp, 0))
+            .addOnSuccessListener { t ->
+                client.close()
+                val sep = if (Langs.cjk(src)) "" else " "
+                val lines = ArrayList<String>()
+                for (b in t.textBlocks) for (ln in b.lines) ln.text.trim().takeIf { it.isNotEmpty() }?.let { lines.add(it) }
+                val full = t.textBlocks.joinToString("\n\n") { b -> b.lines.joinToString(sep) { it.text } }.trim()
+                cb(full, lines)
+            }
+            .addOnFailureListener { client.close(); cb("", emptyList()) }
+    }
+
     fun run(ctx: Context, bmp: Bitmap, l: Listener) {
         val p = Prefs(ctx)
         val src = p.trSrc

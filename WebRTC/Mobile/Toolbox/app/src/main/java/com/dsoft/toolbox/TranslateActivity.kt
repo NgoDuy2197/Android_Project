@@ -64,8 +64,11 @@ class TranslateActivity : Activity() {
         col.addView(footnote(p, "Chạm để tải hoặc xóa. Lần dịch đầu tiên cũng tự tải gói còn thiếu."))
 
         // ---- image ----
-        col.addView(sectionHeader(p, "Khác"))
-        col.addView(group(p, row(p, "Dịch một ảnh có sẵn…", chevron(p)) { pickImage() }))
+        col.addView(sectionHeader(p, "Dịch từ ảnh"))
+        col.addView(group(p,
+            row(p, "📷 Dịch ảnh chụp từ camera…", chevron(p)) { takePhoto() },
+            row(p, "🖼️ Dịch một ảnh có sẵn…", chevron(p)) { pickImage() },
+        ))
     }
 
     override fun onResume() {
@@ -143,17 +146,44 @@ class TranslateActivity : Activity() {
         }
     }
 
+    private var cameraFile: java.io.File? = null
+    private fun takePhoto() {
+        val f = java.io.File(cacheDir, "tr_capture_${System.currentTimeMillis()}.jpg"); cameraFile = f
+        val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", f)
+        try {
+            startActivityForResult(Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)
+                .putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri)
+                .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION), REQ_CAMERA)
+        } catch (_: Exception) { toast("Máy không có ứng dụng camera") }
+    }
+
+    private fun decodeFileBmp(f: java.io.File): Bitmap? {
+        if (!f.exists() || f.length() == 0L) return null
+        val bytes = f.readBytes()
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+        if (o.outWidth <= 0) return null
+        var s = 1; while (maxOf(o.outWidth, o.outHeight) / (s * 2) >= 2400) s *= 2
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply {
+            inSampleSize = s; inPreferredConfig = Bitmap.Config.ARGB_8888
+        })
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode != RESULT_OK || data == null) return
+        if (resultCode != RESULT_OK) return
         when (requestCode) {
-            REQ_CAPTURE -> {
+            REQ_CAPTURE -> if (data != null) {
                 ScreenTranslateService.start(this, resultCode, data)
                 moveTaskToBack(true) // go back to the game / app to translate
             }
-            REQ_IMAGE -> data.data?.let { uri ->
+            REQ_IMAGE -> data?.data?.let { uri ->
                 val bmp = runCatching { decode(uri) }.getOrNull()
+                if (bmp == null) toast("Không đọc được ảnh") else showImage(bmp)
+            }
+            REQ_CAMERA -> {
+                val bmp = cameraFile?.let { runCatching { decodeFileBmp(it) }.getOrNull() }
                 if (bmp == null) toast("Không đọc được ảnh") else showImage(bmp)
             }
         }
@@ -187,5 +217,6 @@ class TranslateActivity : Activity() {
     companion object {
         private const val REQ_CAPTURE = 1
         private const val REQ_IMAGE = 2
+        private const val REQ_CAMERA = 3
     }
 }

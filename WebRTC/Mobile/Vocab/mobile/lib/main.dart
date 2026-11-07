@@ -25,7 +25,7 @@ class VocabApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Từ Vựng',
+      title: 'Vocab',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: kAccent),
@@ -179,7 +179,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tab == 0 ? 'Từ Vựng' : 'Widget', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 28)),
+        title: Text(_tab == 0 ? 'Vocab' : 'Widget', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 28)),
         actions: [
           if (_tab == 0)
             PopupMenuButton<String>(
@@ -314,7 +314,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 onPressed: () async {
                   final ok = await Native.pinWidget();
                   if (!ok && mounted) {
-                    toast(context, 'Giữ màn hình chính → Widgets → Từ Vựng để thêm');
+                    toast(context, 'Giữ màn hình chính → Widgets → Vocab để thêm');
                   }
                 },
                 icon: const Icon(Icons.add_to_home_screen),

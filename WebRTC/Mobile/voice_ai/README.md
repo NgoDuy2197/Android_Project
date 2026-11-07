@@ -1,17 +1,17 @@
-# voice_ai
+# Voice AI
 
-A new Flutter project.
+Trợ lý giọng nói: nói → chuyển thành văn bản (speech-to-text) → gửi AI → đọc kết quả (TTS).
 
-## Getting Started
+## Tính năng
+- Nhận giọng nói bằng SpeechRecognizer của Android.
+- Gọi AI client, trả lời bằng giọng nói (TTS).
+- Hỗ trợ Android TV (điều hướng D-pad), QR, nhật ký trong app, chia sẻ.
 
-This project is a starting point for a Flutter application.
+## Stack & quyền
+- Flutter + native Kotlin (SpeechRecognizer).
+- Quyền: `RECORD_AUDIO`, `CAMERA`, foreground service `microphone|mediaPlayback|specialUse`.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Build
+```bat
+build_apk.bat     :: hoặc: build_all.bat voice_ai
+```

@@ -14,7 +14,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <application
-        android:label="Nhắc Nhở"
+        android:label="Reminder"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -67,6 +67,17 @@
             android:name=".KeepAliveReceiver"
             android:exported="true"
             android:permission="android.permission.DUMP" />
+        <!-- Home-screen list widget: tap a row to turn a reminder on/off without opening the app. -->
+        <receiver android:name=".RemindWidget" android:exported="false" android:label="Reminder — Bật nhanh">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/remind_widget_info" />
+        </receiver>
+        <service
+            android:name=".RemindWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"

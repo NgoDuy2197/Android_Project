@@ -1,17 +1,17 @@
-# motion_boxing
+# Motion Boxing
 
-A new Flutter project.
+Game đấm bốc mini điều khiển bằng cảm biến chuyển động (gia tốc kế) của điện thoại.
 
-## Getting Started
+## Tính năng
+- Vung tay để ra đòn (đọc accelerometer).
+- Hiệu ứng âm thanh + rung.
+- Các trạng thái: menu → chơi → kết thúc.
 
-This project is a starting point for a Flutter application.
+## Stack & quyền
+- Flutter.
+- Quyền: `VIBRATE`.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Build
+```bat
+build_apk.bat     :: hoặc: build_all.bat motion_boxing
+```

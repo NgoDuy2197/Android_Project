@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ODiary</string>
+    <string name="widget_quick_desc">Bấm để mở ngay màn hình ghi nhật ký cho hôm nay</string>
 </resources>

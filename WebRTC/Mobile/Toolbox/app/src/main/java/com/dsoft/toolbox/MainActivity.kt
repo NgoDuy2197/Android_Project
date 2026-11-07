@@ -47,6 +47,18 @@ class MainActivity : Activity() {
             startActivity(Intent(this, DomainActivity::class.java))
         }
         domainSub.text = "IP qua DNS máy & công cộng, cổng mở"
+        val (ocrRow, ocrSub) = toolRow(p, R.drawable.ic_ocr, p.green, "Chép chữ từ ảnh") {
+            startActivity(Intent(this, OcrCopyActivity::class.java))
+        }
+        ocrSub.text = "Chụp/chọn ảnh → nhận chữ → copy"
+        val (speechRow, speechSub) = toolRow(p, R.drawable.ic_mic, p.pink, "Giọng nói → chữ") {
+            startActivity(Intent(this, SpeechActivity::class.java))
+        }
+        speechSub.text = "Ghi âm chuyển text, dịch tùy chọn"
+        val (levelRow, levelSub) = toolRow(p, R.drawable.ic_ruler, p.indigo, "Thước & đo") {
+            startActivity(Intent(this, LevelActivity::class.java))
+        }
+        levelSub.text = "Bọt nước · đo khoảng cách bằng ảnh"
         val (audioRow, audioSub) = toolRow(p, R.drawable.ic_audio, p.pink, "Âm thanh") {
             startActivity(Intent(this, AudioActivity::class.java))
         }
@@ -63,7 +75,7 @@ class MainActivity : Activity() {
         trSub = ts
         ftpSub = fs
         dimSub = ds
-        col.addView(group(p, ftpRow, dimRow, scanRow, trRow, shareRow, flashRow, netRow, domainRow, audioRow, infoRow, restartRow))
+        col.addView(group(p, ftpRow, dimRow, scanRow, trRow, ocrRow, speechRow, shareRow, flashRow, netRow, domainRow, levelRow, audioRow, infoRow, restartRow))
         col.addView(footnote(p, "FTP: chép file giữa máy tính và điện thoại qua Wi-Fi.\nLàm tối: phủ một lớp đen lên màn hình, tối hơn mức thấp nhất của hệ thống.\nKhởi động lại: cần quyền root."))
 
         if (Build.VERSION.SDK_INT >= 33 &&

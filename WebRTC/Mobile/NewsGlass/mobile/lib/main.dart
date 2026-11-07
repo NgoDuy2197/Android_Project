@@ -34,7 +34,7 @@ class NewsApp extends StatelessWidget {
           ),
         );
         return MaterialApp(
-          title: 'Tin Tức',
+          title: 'NewsGlass',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             useMaterial3: true,
@@ -203,7 +203,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 titlePadding: const EdgeInsetsDirectional.only(start: 20, bottom: 14),
                 title: t.yahoo
                     ? const Text(
-                        'Tin Tức!',
+                        'NewsGlass!',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
@@ -211,7 +211,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           letterSpacing: -0.5,
                         ),
                       )
-                    : Text('Tin Tức', style: TextStyle(color: t.text, fontWeight: FontWeight.w800)),
+                    : Text('NewsGlass', style: TextStyle(color: t.text, fontWeight: FontWeight.w800)),
                 background: t.yahoo
                     ? const DecoratedBox(
                         decoration: BoxDecoration(

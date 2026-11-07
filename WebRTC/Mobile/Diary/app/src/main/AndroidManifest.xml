@@ -45,6 +45,17 @@
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
 
+        <!-- Home-screen widget: one tap -> today's event editor. -->
+        <receiver android:name=".QuickNoteWidget" android:exported="false" android:label="ODiary — Ghi nhanh">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_quick_note_info" />
+        </receiver>
+        <activity android:name=".QuickNoteActivity" android:exported="false"
+            android:excludeFromRecents="true" android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

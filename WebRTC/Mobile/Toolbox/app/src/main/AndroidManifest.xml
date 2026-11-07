@@ -62,6 +62,20 @@
         <activity android:name=".NetworkActivity" />
         <activity android:name=".DomainActivity" />
         <activity android:name=".AudioActivity" />
+        <activity android:name=".SshActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".OcrCopyActivity" />
+        <activity android:name=".SpeechActivity" />
+        <activity android:name=".LevelActivity" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <activity
             android:name=".TranslateActivity"
             android:launchMode="singleTop" />

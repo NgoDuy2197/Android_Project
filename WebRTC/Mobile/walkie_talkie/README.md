@@ -1,17 +1,17 @@
-# walkie_talkie
+# Walkie Talkie
 
-A new Flutter project.
+Bộ đàm push-to-talk (PTT) qua mạng LAN/WebRTC giữa các thiết bị.
 
-## Getting Started
+## Tính năng
+- Hai vai trò: **Speaker** và **Remoter**.
+- Nút bấm-để-nói tuỳ chỉnh (trình chỉnh nút).
+- Truyền âm thanh qua foreground service (chạy nền khi tắt màn hình).
 
-This project is a starting point for a Flutter application.
+## Stack & quyền
+- Flutter + native Kotlin.
+- Quyền: `RECORD_AUDIO`, `CAMERA`, foreground service `microphone|mediaPlayback`.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Build
+```bat
+build_apk.bat     :: hoặc: build_all.bat walkie_talkie
+```

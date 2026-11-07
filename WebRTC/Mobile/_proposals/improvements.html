@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đề xuất cải tiến portfolio</title>
+<style>
+  :root{
+    --bg:#f7f8fb; --card:#ffffff; --ink:#1b2130; --muted:#5b6678; --line:#e7eaf0;
+    --accent:#2f6df6; --accent-soft:#eaf1ff; --green:#16a34a; --green-soft:#e9f8ef;
+    --amber:#b45309; --amber-soft:#fdf3e3; --red:#dc2626; --red-soft:#fdecec;
+    --violet:#7c3aed; --violet-soft:#f1eafe; --shadow:0 1px 2px rgba(20,30,60,.05),0 8px 24px rgba(20,30,60,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px 80px}
+  header.top{padding:36px 28px;border-radius:20px;background:linear-gradient(135deg,#eef3ff,#f6f0ff);
+    border:1px solid var(--line);box-shadow:var(--shadow)}
+  header.top h1{margin:0 0 6px;font-size:30px;letter-spacing:-.02em}
+  header.top p{margin:0;color:var(--muted);max-width:74ch}
+  .stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:92px}
+  .stat b{display:block;font-size:22px;letter-spacing:-.02em}
+  .stat span{font-size:12px;color:var(--muted)}
+  h2{margin:42px 0 4px;font-size:21px;letter-spacing:-.01em}
+  h2 + .sub{margin:0 0 18px;color:var(--muted);font-size:14px}
+  .grid{display:grid;gap:16px}
+  @media(min-width:720px){.grid.two{grid-template-columns:1fr 1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+  .card.urgent{border-left:4px solid var(--red)}
+  .card.win{border-left:4px solid var(--green)}
+  .card h3{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:8px}
+  .card p{margin:6px 0;color:var(--muted);font-size:13.5px}
+  .card ul{margin:8px 0 0;padding-left:18px} .card li{margin:5px 0;font-size:13.5px;color:var(--muted)}
+  .card li b{color:var(--ink)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:13.5px}
+  th,td{padding:10px 13px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f2f5fb;font-size:12px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  td b{color:var(--ink)}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap}
+  .ok{background:var(--green-soft);color:var(--green)} .wip{background:var(--amber-soft);color:var(--amber)}
+  .bad{background:var(--red-soft);color:var(--red)} .info{background:var(--accent-soft);color:var(--accent)}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .toc a{font-size:13px;color:var(--accent);background:#fff;border:1px solid var(--line);padding:6px 11px;border-radius:999px;text-decoration:none}
+  footer{margin-top:48px;border-top:1px solid var(--line);padding-top:18px;color:#8a94a6;font-size:13px}
+  .tagline{font-size:12px;color:var(--muted);margin:6px 2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Đề xuất cải tiến — portfolio 24 app</h1>
+    <p>Rà soát toàn bộ thư mục <code>WebRTC/Mobile/</code> (xác minh theo README, strings.xml/pubspec, AndroidManifest, số file nguồn).
+       Gồm: việc cần xử lý ngay, cải tiến áp dụng cho <b>tất cả</b> project (gồm chuẩn hoá ảnh/Play Store), và đề xuất riêng từng app.</p>
+    <div class="stat-row">
+      <div class="stat"><b>24</b><span>project</span></div>
+      <div class="stat"><b>13</b><span>Flutter</span></div>
+      <div class="stat"><b>10</b><span>native Kotlin</span></div>
+      <div class="stat"><b>1</b><span>Python (lạc chỗ)</span></div>
+      <div class="stat"><b>3</b><span>cần xử lý gấp</span></div>
+    </div>
+    <div class="toc">
+      <a href="#urgent">① Xử lý ngay</a>
+      <a href="#cross">② Cải tiến cho tất cả</a>
+      <a href="#store">③ Chuẩn hoá Play Store</a>
+      <a href="#perapp">④ Từng app</a>
+    </div>
+  </header>
+
+  <!-- ============ 1. URGENT ============ -->
+  <h2 id="urgent">① Cần xử lý ngay</h2>
+  <p class="sub">Ba việc chặn chất lượng/khả năng build của portfolio.</p>
+  <div class="card win" style="margin-bottom:16px">
+    <h3>✅ Đã xử lý (cập nhật)</h3>
+    <ul>
+      <li><b>DailyDiary:</b> đã gộp render PDF A4/ngày vào ODiary (nút 📄 trong "Tổng hợp ngày") và <b>xoá DailyDiary</b>.</li>
+      <li><b>Đổi tên EN:</b> Tiện ích→Toolbox, Tin Tức→NewsGlass, Khung Ảnh→PhotoFrame, Nhắc Nhở→Reminder, Từ Vựng→Vocab.</li>
+      <li><b>README:</b> đã viết cho ODiary, CameraBroadcast, walkie_talkie, motion_boxing, led_runner, voice_ai.</li>
+      <li><b>Build:</b> chuẩn hoá tên script (JGamer/volte_guard → build_apk.bat) + thêm <code>build_all.bat</code> (build tất cả / 1 project) + <code>RELEASING.md</code> (version scheme, ký release, changelog/tag).</li>
+      <li><b>SentryRoom:</b> giữ nguyên (theo yêu cầu).</li>
+    </ul>
+  </div>
+  <div class="grid two">
+    <div class="card urgent">
+      <h3>🛑 DailyDiary — không build được</h3>
+      <p>Có tầng dữ liệu (DiaryStore, Images, PDF, Drive backup) nhưng <b>thiếu toàn bộ 4 Activity</b> mà manifest khai báo (MainActivity/DayActivity/EntryEditActivity/PhotoViewerActivity) → không compile. Không README, không build script, không APK.</p>
+      <ul>
+        <li><b>Quyết định:</b> DailyDiary trùng mục đích với <b>ODiary (Diary)</b> — cùng nhật ký + Google Drive.</li>
+        <li><b>Đề xuất:</b> gộp phần hay của DailyDiary (render PDF A4/ngày) vào ODiary rồi bỏ DailyDiary, HOẶC hoàn thiện 4 Activity nếu muốn giữ 2 nhánh.</li>
+      </ul>
+    </div>
+    <div class="card urgent">
+      <h3>🛑 SentryRoom — không phải app mobile</h3>
+      <p>Thực chất là <b>server Python</b> (chat/truyền file/voice-video LAN, đóng gói .exe bằng PyInstaller). Nằm nhầm trong <code>Mobile/</code>, 0 file kt/dart.</p>
+      <ul>
+        <li><b>Đề xuất:</b> chuyển ra thư mục riêng (vd <code>Desktop/</code> hoặc <code>Server/</code>) để <code>Mobile/</code> chỉ còn app điện thoại — tránh nhầm khi build hàng loạt/CI.</li>
+      </ul>
+    </div>
+    <div class="card urgent">
+      <h3>📝 Thiếu README (tài liệu lạc hậu)</h3>
+      <p><b>ODiary</b> khá lớn (20 file kt) nhưng <b>không có README</b>. Nhiều app Flutter còn README mặc định "A new Flutter project": <b>walkie_talkie, motion_boxing, led_runner, voice_ai, CameraBroadcast</b>.</p>
+      <ul>
+        <li><b>Đề xuất:</b> mỗi app 1 README thật (chức năng, quyền &amp; lý do, cách build, trạng thái). Có thể tao soạn sẵn hàng loạt từ dữ liệu khảo sát.</li>
+      </ul>
+    </div>
+    <div class="card urgent">
+      <h3>🔑 Build &amp; release chưa thống nhất</h3>
+      <p>Không có APK/tag release nào được commit (mọi <code>.apk</code> đều gitignore). Build rời rạc bằng <code>.bat</code> từng thư mục, tên không đồng nhất (<code>build_apk.bat</code> vs <code>build.bat</code>).</p>
+      <ul>
+        <li><b>Đề xuất:</b> 1 script gốc build tất cả + chuẩn hoá tên script; sơ đồ versionCode/versionName thống nhất; ký release + changelog commit kèm tag.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ 2. CROSS-CUTTING ============ -->
+  <h2 id="cross">② Cải tiến áp dụng cho tất cả project</h2>
+  <p class="sub">Những việc nâng chất lượng/đồng bộ toàn portfolio, sẵn sàng lên store.</p>
+  <div class="grid two">
+    <div class="card win">
+      <h3>🔐 Rà soát bảo mật nhóm quyền cao</h3>
+      <p>Cụm quyền mạnh cần soát least-privilege &amp; giải trình cho Play:</p>
+      <ul>
+        <li>AccessibilityService: <b>AutoTap, Toolbox</b></li>
+        <li>MediaProjection/quay màn hình: <b>ScreenShare, AutoTap, MacroIntegrate, Toolbox</b></li>
+        <li>Notification Listener (đọc mọi thông báo): <b>noti_forward</b></li>
+        <li>WRITE_SECURE_SETTINGS + Shizuku: <b>volte_guard</b></li>
+        <li>MITM + QUERY_ALL_PACKAGES: <b>ProxySpy</b> (chỉ dùng cho kiểm thử được uỷ quyền)</li>
+      </ul>
+    </div>
+    <div class="card win">
+      <h3>🧩 Module dùng chung (giảm trùng lặp)</h3>
+      <ul>
+        <li><b>Discord webhook + lưu secret an toàn</b> — đang lặp ở CameraMan, MacroIntegrate, noti_forward. Gom 1 module có kiểm toán + <code>EncryptedSharedPreferences</code>.</li>
+        <li><b>ML Kit/OCR/Translate</b>, <b>TTS util</b>, <b>widget helper</b>, <b>bộ UI kiểu iOS</b> (Toolbox/BookShelf/ODiary đang xài chung phong cách) → tách thư viện nội bộ.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>💥 Báo lỗi &amp; sức khoẻ app</h3>
+      <p>Chưa app nào có thu thập crash/ANR. Thêm crash reporting (Crashlytics hoặc self-host/Sentry) — tôn trọng riêng tư, khai đúng Data safety. Giúp biết app nào hay chết nền (ColorOS).</p>
+    </div>
+    <div class="card">
+      <h3>🏷️ Thống nhất thương hiệu</h3>
+      <p>Tên hiển thị đang lẫn Anh/Việt. Chọn 1 hệ (vd tiếng Việt cho store VN), bộ icon đồng bộ, màu nhận diện. Package <code>com.dsoft.*</code> đã nhất quán — giữ nguyên.</p>
+    </div>
+    <div class="card">
+      <h3>🌐 Đa ngôn ngữ &amp; dark mode</h3>
+      <p>BookShelf đã đa ngôn ngữ (vi/en/zh/ja) — dùng làm mẫu nhân rộng để mở thị trường ngoài VN. Soát dark mode đồng nhất ở các app Views.</p>
+    </div>
+    <div class="card">
+      <h3>🔁 Giữ chân nền (ColorOS/OPPO)</h3>
+      <p>NewsGlass đã có watchdog keep-alive — tách thành hướng dẫn/module chung cho mọi app chạy nền (Reminder, noti_forward, voice_note, FTP) vì OEM VN hay giết app.</p>
+    </div>
+  </div>
+
+  <!-- ============ 3. STORE ============ -->
+  <h2 id="store">③ Chuẩn hoá ảnh &amp; nội dung Play Store (đã tạo sẵn)</h2>
+  <p class="sub">Đã tạo cho <b>cả 24 app</b> thư mục <code>store/</code> sẵn sàng đưa lên CH Play.</p>
+  <div class="card">
+    <p>Mỗi app giờ có:</p>
+    <ul>
+      <li><code>store/graphics/</code> — chứa <b>icon-512.png</b> (512×512) và <b>feature-1024x500.png</b> (1024×500).</li>
+      <li><code>store/screenshots/phone/</code>, <code>…/tablet7/</code>, <code>…/tablet10/</code> — thả ảnh màn hình vào đúng ô.</li>
+      <li><code>store/README.md</code> — bảng kích thước &amp; định dạng bắt buộc + checklist chính sách (Privacy Policy, Data safety, Target API).</li>
+      <li><code>store/listing-vi.md</code> — mẫu tên (≤30), mô tả ngắn (≤80), mô tả đầy đủ (≤4000), phân loại, từ khoá.</li>
+    </ul>
+    <p style="margin-top:10px"><b>Còn thiếu để nộp được:</b> ảnh thật (chụp bằng <code>adb exec-out screencap</code>), icon/feature graphic, và 1 URL Privacy Policy cho mỗi app xin quyền nhạy cảm.</p>
+  </div>
+
+  <!-- ============ 4. PER APP ============ -->
+  <h2 id="perapp">④ Đề xuất riêng từng app</h2>
+  <p class="sub">Trạng thái từ khảo sát + 1–2 hướng nâng cấp đáng giá nhất.</p>
+  <table>
+    <thead><tr><th>App</th><th>Trạng thái</th><th>Đề xuất chính</th></tr></thead>
+    <tbody>
+      <tr><td><b>AutoTap</b><br><span class="tagline">auto-click/macro</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Thêm điều kiện (if thấy ảnh/chữ thì…), hẹn giờ chạy, export/import script chia sẻ. Có fallback khi Accessibility bị OEM tắt.</td></tr>
+      <tr><td><b>BookShelf</b><br><span class="tagline">đọc sách + TTS</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Ép giọng offline khi tạo MP3 (đã đề xuất); mục lục/đánh dấu trang EPUB; đồng bộ thư viện qua Drive; thống kê đọc.</td></tr>
+      <tr><td><b>CameraBroadcast</b><br><span class="tagline">WebRTC seed</span></td><td><span class="pill wip">Prototype</span></td>
+        <td>Chỉ là mầm của ScreenShare/CameraMan. Gộp/đánh dấu là demo nền; thêm xác thực cho signaling nếu giữ.</td></tr>
+      <tr><td><b>CameraMan</b><br><span class="tagline">chụp nhanh/giám sát</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Mã hoá secret webhook; tinh chỉnh độ nhạy chuyển động; tuỳ chọn tải lên cloud; hẹn lịch quay.</td></tr>
+      <tr><td><b>DailyDiary</b><br><span class="tagline">nhật ký</span></td><td><span class="pill bad">Không build</span></td>
+        <td><b>Gộp vào ODiary</b> (lấy PDF A4/ngày) rồi bỏ, hoặc hoàn thiện 4 Activity còn thiếu.</td></tr>
+      <tr><td><b>Diary (ODiary)</b><br><span class="tagline">nhật ký + Drive</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Viết README; thêm tìm kiếm + tag; khoá sinh trắc học; đây nên là "bản chuẩn" thay DailyDiary.</td></tr>
+      <tr><td><b>JGamer</b><br><span class="tagline">emulator NES/SNES</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Thêm core, lưu state lên cloud, map tay cầm Bluetooth, cài đặt theo từng game.</td></tr>
+      <tr><td><b>MacroIntegrate</b><br><span class="tagline">sidekick MacroDroid</span></td><td><span class="pill ok">Nhỏ, đủ</span></td>
+        <td>Mã hoá webhook; thêm loại hành động (pin, mạng); README nêu rõ vai trò bổ trợ MacroDroid.</td></tr>
+      <tr><td><b>NewsGlass</b><br><span class="tagline">đọc RSS</span></td><td><span class="pill ok">Mature</span></td>
+        <td>(Đã fix widget + lọc tin cũ). Thêm đọc-offline/để-dành, lấy full nội dung bài, thông báo theo nguồn.</td></tr>
+      <tr><td><b>PhotoFrame</b><br><span class="tagline">widget khung ảnh</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Nguồn album cloud (Google Photos); thêm hiệu ứng chuyển; làm mới tiết kiệm pin.</td></tr>
+      <tr><td><b>ProxySpy</b><br><span class="tagline">MITM proxy</span></td><td><span class="pill ok">Mature</span></td>
+        <td>⚠️ Chỉ cho kiểm thử được uỷ quyền. Thêm export HAR, tìm/lọc request; ghi rõ giới hạn HTTP/1.1.</td></tr>
+      <tr><td><b>Reminder</b><br><span class="tagline">nhắc nhở/báo thức</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Nhập bằng ngôn ngữ tự nhiên ("7h mai"), mẫu lặp linh hoạt, đồng bộ lịch, nhóm/nhãn.</td></tr>
+      <tr><td><b>ScreenShare</b><br><span class="tagline">chia sẻ màn hình LAN</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Thêm chia sẻ âm thanh; PIN xác thực khi client vào; ghi lại phiên.</td></tr>
+      <tr><td><b>SentryRoom</b><br><span class="tagline">server Python</span></td><td><span class="pill bad">Lạc chỗ</span></td>
+        <td>Chuyển khỏi <code>Mobile/</code>. Không phải app Android.</td></tr>
+      <tr><td><b>Toolbox</b><br><span class="tagline">bộ tiện ích (flagship)</span></td><td><span class="pill ok">Mature</span></td>
+        <td>(Vừa thêm FTP client/SSH, tra domain, khẩn cấp, âm thanh). Cân nhắc tách bớt quyền nặng; giữ kiến trúc module.</td></tr>
+      <tr><td><b>TryOn</b><br><span class="tagline">thử đồ ảo</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Thêm sản phẩm, che khuất AR tốt hơn, lưu "look", chia sẻ; móc nối thương mại (nguồn thu).</td></tr>
+      <tr><td><b>Vocab</b><br><span class="tagline">học từ vựng</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Lặp lại ngắt quãng (SRS), chế độ quiz, streak, đồng bộ cloud.</td></tr>
+      <tr><td><b>led_runner</b><br><span class="tagline">bảng LED chạy chữ</span></td><td><span class="pill ok">Nhỏ</span></td>
+        <td>Lưu preset, thêm ảnh/emoji, điều khiển từ xa.</td></tr>
+      <tr><td><b>motion_boxing</b><br><span class="tagline">game đấm theo cảm biến</span></td><td><span class="pill ok">Game nhỏ</span></td>
+        <td>Thêm cấp độ, bảng xếp hạng, ước tính calo, combo.</td></tr>
+      <tr><td><b>noti_forward</b><br><span class="tagline">đọc/chuyển thông báo</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Mã hoá webhook; thêm đích Telegram; UI lọc theo luật; ghi rõ app đọc mọi thông báo (riêng tư).</td></tr>
+      <tr><td><b>voice_ai</b><br><span class="tagline">trợ lý giọng nói</span></td><td><span class="pill ok">Mature-ish</span></td>
+        <td>Tuỳ chọn model offline; lưu lịch sử hội thoại; chọn nhà cung cấp AI; lưu API key an toàn.</td></tr>
+      <tr><td><b>voice_note</b><br><span class="tagline">ghi âm→chữ nền</span></td><td><span class="pill ok">Mature (Android)</span></td>
+        <td>STT offline trên Android (hiện online); tìm kiếm &amp; export transcript; thêm build_apk.bat cho đồng bộ.</td></tr>
+      <tr><td><b>volte_guard</b><br><span class="tagline">giữ VoLTE</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Lịch sử sự kiện/khắc phục; đa SIM; thông báo khi tự sửa; README nêu rõ cần Shizuku/adb.</td></tr>
+      <tr><td><b>walkie_talkie</b><br><span class="tagline">bộ đàm PTT</span></td><td><span class="pill ok">Mature</span></td>
+        <td>Kênh nhóm, hoạt động qua Internet (không chỉ LAN), khử ồn, widget nút PTT.</td></tr>
+    </tbody>
+  </table>
+
+  <footer>
+    <p>Tài liệu nội bộ · dựa trên khảo sát mã nguồn ngày hiện tại. Trạng thái "Mature/Prototype/Không build" lấy từ README, manifest &amp; số file nguồn thực tế của từng project.</p>
+  </footer>
+
+</div>
+</body>
+</html>

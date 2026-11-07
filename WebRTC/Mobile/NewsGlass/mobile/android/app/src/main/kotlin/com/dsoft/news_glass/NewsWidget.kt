@@ -15,7 +15,7 @@ import android.view.View
 import android.widget.RemoteViews
 import java.util.concurrent.Executors
 
-/** Home-screen widget: newest unread article; the small ▸ marks it read and shows the next. */
+/** Home-screen widget: newest unread article; the bar along the bottom marks it read and shows the next. */
 class NewsWidget : AppWidgetProvider() {
 
     override fun onUpdate(ctx: Context, mgr: AppWidgetManager, ids: IntArray) {
@@ -33,7 +33,7 @@ class NewsWidget : AppWidgetProvider() {
             val mgr = AppWidgetManager.getInstance(ctx)
             // Ignore taps while the previous one is still being handled.
             if (wid >= 0 && !busy.add(wid)) return
-            // Instant feedback: hide the ▸ until the next article is drawn.
+            // Instant feedback: hide the bottom bar until the next article is drawn.
             if (wid >= 0) {
                 mgr.partiallyUpdateAppWidget(
                     wid,
@@ -109,7 +109,7 @@ class NewsWidget : AppWidgetProvider() {
             val big = hDp >= 170 && wDp >= 220
             val titleSp = if (big) 19f else 16f
             val lineDp = titleSp * 1.32f
-            val freeDp = hDp - 62 // header + meta + paddings
+            val freeDp = hDp - 98 // header + meta + bottom bar + paddings
             v.setTextViewTextSize(R.id.headline, android.util.TypedValue.COMPLEX_UNIT_SP, titleSp)
 
             if (item == null) {
@@ -124,7 +124,7 @@ class NewsWidget : AppWidgetProvider() {
                 v.setTextViewText(R.id.headline, item.title)
                 // Title gets the lines it needs (up to the space); leftovers go to the summary.
                 val maxTitle = (freeDp / lineDp).toInt().coerceIn(2, 10)
-                val charsPerLine = ((wDp - 70) / (titleSp * 0.55f)).coerceAtLeast(10f)
+                val charsPerLine = ((wDp - 40) / (titleSp * 0.55f)).coerceAtLeast(10f)
                 val titleLines = minOf(maxTitle, kotlin.math.ceil(item.title.length / charsPerLine).toInt().coerceAtLeast(1))
                 v.setInt(R.id.headline, "setMaxLines", maxTitle)
                 val summaryLines = ((freeDp - titleLines * lineDp - 4) / 17f).toInt()

@@ -162,7 +162,29 @@ object Scheduler {
             }
         }
         save(ctx, root)
+        runCatching { RemindWidget.refresh(ctx) } // keep the home-screen list in sync
         missed
+    }
+
+    /**
+     * Flips a reminder on/off (used by the home-screen widget). Turning a finished
+     * countdown back on restarts it, matching the in-app toggle. Returns true if a
+     * reminder with [id] was found. Caller should follow with [rescheduleAll].
+     */
+    fun toggle(ctx: Context, id: String): Boolean = synchronized(lock) {
+        val root = load(ctx)
+        val arr = root.optJSONArray("reminders") ?: return false
+        var changed = false
+        for (i in 0 until arr.length()) {
+            val r = arr.getJSONObject(i)
+            if (r.optString("id") != id) continue
+            val on = !r.optBoolean("enabled", true)
+            r.put("enabled", on)
+            if (on && r.optString("type") == "countdown") r.put("startedAt", System.currentTimeMillis())
+            changed = true
+        }
+        if (changed) save(ctx, root)
+        changed
     }
 
     /** After a reminder rang: one-shots switch off, repeats move to their next time. */

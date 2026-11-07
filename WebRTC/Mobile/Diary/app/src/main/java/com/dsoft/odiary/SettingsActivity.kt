@@ -201,7 +201,7 @@ class SettingsActivity : FxActivity() {
                 background = gradientD(dp(16).toFloat(), th.accent, th.accent2)
                 layoutParams = LinearLayout.LayoutParams(dp(92), dp(96)).apply { marginEnd = dp(10) }
                 setPadding(dp(6), dp(6), dp(6), dp(6))
-                setOnClickListener { Prefs.setThemeId(this@SettingsActivity, th.id); recreate() }
+                setOnClickListener { Prefs.setThemeId(this@SettingsActivity, th.id); QuickNoteWidget.refreshAll(this@SettingsActivity); recreate() }
             }
             box.addView(text(th.emoji + (if (th.id == curId) " ✓" else ""), 22f, Color.WHITE, 700))
             box.addView(text(th.name, 13f, Color.WHITE, 600).apply { setPadding(0, dp(6), 0, 0); gravity = Gravity.CENTER })

@@ -51,6 +51,8 @@ class ScreenTranslateService : Service() {
     private var capH = 0
     private var bubble: View? = null
     private var result: ResultView? = null
+    private var copyView: CopyOverlay? = null
+    private var mode = MODE_TRANSLATE
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -59,6 +61,8 @@ class ScreenTranslateService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Mode can be (re)set on every start, so toggling from the OCR-copy screen flips a running bubble.
+        intent?.getStringExtra(EXTRA_MODE)?.let { mode = it; updateBubbleLabel() }
         // Android 14: the mediaProjection foreground service must be running before getMediaProjection().
         startFg()
         if (projection == null) {
@@ -87,8 +91,8 @@ class ScreenTranslateService : Service() {
     private fun startFg() {
         val n = Notif.builder(this)
             .setSmallIcon(R.drawable.ic_translate)
-            .setContentTitle("Dịch màn hình đang bật")
-            .setContentText("Chạm nút nổi để chụp và dịch")
+            .setContentTitle(if (mode == MODE_COPY) "Chép chữ màn hình đang bật" else "Dịch màn hình đang bật")
+            .setContentText(if (mode == MODE_COPY) "Chạm nút nổi để chụp và chép chữ" else "Chạm nút nổi để chụp và dịch")
             .setOngoing(true)
             .setContentIntent(Notif.activity(this, TranslateActivity::class.java, 30))
             .addAction(Notif.action("Tắt", Notif.service(this, ScreenTranslateService::class.java, ACTION_STOP, 31)))
@@ -155,7 +159,7 @@ class ScreenTranslateService : Service() {
         val p = Prefs(this)
         val size = dp(54)
         val v = TextView(this).apply {
-            text = "文A"
+            text = if (mode == MODE_COPY) "⧉" else "文A"
             textSize = 16f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -216,8 +220,12 @@ class ScreenTranslateService : Service() {
         }
     }
 
+    private fun updateBubbleLabel() {
+        (bubble as? TextView)?.text = if (mode == MODE_COPY) "⧉" else "文A"
+    }
+
     private fun capture() {
-        if (result != null) return
+        if (result != null || copyView != null) return
         val b = bubble ?: return
         b.visibility = View.INVISIBLE // keep it out of the screenshot
         setupCapture()
@@ -234,6 +242,7 @@ class ScreenTranslateService : Service() {
     }
 
     private fun showResult(shot: Bitmap) {
+        if (mode == MODE_COPY) { showCopyResult(shot); return }
         val rv = ResultView(this, shot) { closeResult() }
         val m = realMetrics()
         val lp = WindowManager.LayoutParams(
@@ -269,9 +278,38 @@ class ScreenTranslateService : Service() {
         })
     }
 
+    /** Copy mode: show the screenshot's text in a focusable overlay with per-line / copy-all buttons. */
+    private fun showCopyResult(shot: Bitmap) {
+        val ov = CopyOverlay(this) { closeResult() }
+        val m = realMetrics()
+        val lp = WindowManager.LayoutParams(
+            m.widthPixels, m.heightPixels, DimOverlay.appType(),
+            // Focusable (unlike translate) so text selection, scrolling, clipboard and Back all work.
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (Build.VERSION.SDK_INT >= 28) layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        try {
+            wm.addView(ov, lp)
+        } catch (e: Exception) {
+            bubble?.visibility = View.VISIBLE
+            toast("Không hiện được kết quả: ${e.message}")
+            return
+        }
+        copyView = ov
+        ov.requestFocus()
+        TranslatePipeline.ocrText(this, shot) { full, lines ->
+            if (copyView === ov) ov.setResult(full, lines)
+        }
+    }
+
     private fun closeResult() {
         result?.let { runCatching { wm.removeView(it) } }
         result = null
+        copyView?.let { runCatching { wm.removeView(it) } }
+        copyView = null
         bubble?.visibility = View.VISIBLE
     }
 
@@ -297,12 +335,16 @@ class ScreenTranslateService : Service() {
         private const val ACTION_STOP = "stop"
         private const val EXTRA_CODE = "code"
         private const val EXTRA_DATA = "data"
+        private const val EXTRA_MODE = "mode"
+        const val MODE_TRANSLATE = "translate"
+        const val MODE_COPY = "copy"
 
         @Volatile var running = false
         var listener: (() -> Unit)? = null
 
-        fun start(ctx: Context, code: Int, data: Intent) {
-            val i = Intent(ctx, ScreenTranslateService::class.java).putExtra(EXTRA_CODE, code).putExtra(EXTRA_DATA, data)
+        fun start(ctx: Context, code: Int, data: Intent, mode: String = MODE_TRANSLATE) {
+            val i = Intent(ctx, ScreenTranslateService::class.java)
+                .putExtra(EXTRA_CODE, code).putExtra(EXTRA_DATA, data).putExtra(EXTRA_MODE, mode)
             if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
         }
 
