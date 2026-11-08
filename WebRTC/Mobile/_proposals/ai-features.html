@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đề xuất chức năng AI</title>
+<style>
+  :root{
+    --bg:#f7f8fb; --card:#ffffff; --ink:#1b2130; --muted:#5b6678; --line:#e7eaf0;
+    --accent:#2f6df6; --accent-soft:#eaf1ff; --green:#16a34a; --green-soft:#e9f8ef;
+    --amber:#b45309; --amber-soft:#fdf3e3; --red:#dc2626; --red-soft:#fdecec;
+    --violet:#7c3aed; --violet-soft:#f1eafe; --shadow:0 1px 2px rgba(20,30,60,.05),0 8px 24px rgba(20,30,60,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 20px 90px}
+  header.top{padding:34px 28px;border-radius:20px;background:linear-gradient(135deg,#eef3ff,#f6f0ff);
+    border:1px solid var(--line);box-shadow:var(--shadow)}
+  header.top h1{margin:0 0 6px;font-size:30px;letter-spacing:-.02em}
+  header.top p{margin:0;color:var(--muted);max-width:76ch}
+  .note{margin:16px 0 0;padding:12px 14px;border-radius:12px;background:#fff;border:1px dashed #c9d3e6;
+    color:var(--muted);font-size:13.5px}
+  .reuse{margin:12px 0 0;padding:12px 14px;border-radius:12px;background:var(--green-soft);border:1px solid #bfe6cd;
+    color:#14532d;font-size:13.5px}
+  .reuse b{color:#0f3d22}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .toc a{font-size:13px;color:var(--accent);background:#fff;border:1px solid var(--line);padding:6px 11px;border-radius:999px;text-decoration:none}
+  .toc a:hover{background:var(--accent-soft)}
+
+  /* filter bar */
+  .filter{position:sticky;top:0;z-index:5;margin:22px 0 6px;padding:12px;border-radius:14px;
+    background:rgba(247,248,251,.88);backdrop-filter:blur(8px);border:1px solid var(--line);
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .filter input{flex:1;min-width:180px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);
+    font-size:14px;background:#fff;color:var(--ink)}
+  .chip{font-size:12.5px;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:#fff;
+    color:var(--muted);cursor:pointer;user-select:none;font-weight:600}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip.clear{color:var(--red);border-color:#f3c9c9}
+  .count{font-size:12.5px;color:var(--muted);margin-left:auto}
+
+  .group{margin-top:30px}
+  .group > h2{margin:18px 0 2px;font-size:22px;letter-spacing:-.01em}
+  .group > .sub{margin:0 0 14px;color:var(--muted);font-size:13.5px}
+
+  section.app{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 18px 8px;
+    box-shadow:var(--shadow);margin:14px 0}
+  .apphead{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .apphead h3{margin:0;font-size:18px;display:flex;align-items:center;gap:8px}
+  .badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap}
+  .b-plat{background:#eef1f6;color:#4a5566}
+  .b-ai{background:var(--violet-soft);color:var(--violet)}
+  .purpose{margin:8px 0 2px;color:var(--muted);font-size:13.5px}
+  ol.feat{margin:10px 0 10px;padding-left:22px}
+  ol.feat li{margin:9px 0;font-size:14px}
+  ol.feat li b{color:var(--ink)}
+  li.star > b::before{content:"⭐ "}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:700;white-space:nowrap;margin-left:4px;display:inline-block}
+  .t-green{background:var(--green-soft);color:var(--green)}
+  .t-blue{background:var(--accent-soft);color:var(--accent)}
+  .t-violet{background:var(--violet-soft);color:var(--violet)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:10px 2px 0;font-size:12.5px;color:var(--muted)}
+  .legend span b{color:var(--ink)}
+  footer{margin-top:48px;border-top:1px solid var(--line);padding-top:18px;color:var(--muted);font-size:13px}
+  .empty{display:none;text-align:center;color:var(--muted);padding:40px;font-size:15px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Đề xuất chức năng AI cho từng ứng dụng</h1>
+    <p>Mỗi ứng dụng trong portfolio kèm <b>10 ý tưởng tính năng AI</b> — ưu tiên những cái vừa hay vừa khả thi,
+       dựa trên đúng dữ liệu và khả năng mỗi app đang có. Tổng <b>24 app · 240 ý tưởng</b>.</p>
+
+    <div class="reuse">
+      ♻️ <b>Tận dụng cái đã có trong portfolio</b> để làm nhanh &amp; rẻ:
+      <b>ML Kit on-device</b> (OCR, dịch, nhận pose, tách nền) đã dùng trong Toolbox / AutoTap / TryOn;
+      <b>client LLM</b> cắm sẵn trong <b>voice_ai</b> (<code>ai_client.dart</code> — hỗ trợ Ollama / LM Studio / llama.cpp chạy LAN hoặc Google Gemini) có thể tách ra dùng chung cho mọi app;
+      <b>STT + TTS</b> đã có ở voice_ai / voice_note / Bookshelf / ODiary / Vocab / noti_forward.
+    </div>
+
+    <div class="note">
+      ⚠️ <b>Lưu ý trung thực:</b> đây là <b>đề xuất ý tưởng</b>, chưa phải tính năng đã làm hay đã kiểm chứng.
+      Nhãn <b>“Trên máy / Cloud / Lai”</b> và mức độ khả thi là <b>[Ước tính] của tôi</b> theo khả năng kỹ thuật thường thấy,
+      không phải số đo thực tế. Các tính năng gắn <b>☁️ Cloud/LLM</b> cần mạng + khoá API (hoặc một LLM chạy nội bộ LAN).
+      Một số mục đánh dấu “tham vọng” là hướng nghiên cứu, không phải làm trong ngày một ngày hai.
+    </div>
+
+    <div class="toc">
+      <a href="#g-media">🎬 Media &amp; sáng tạo</a>
+      <a href="#g-vision">📷 Camera &amp; thị giác</a>
+      <a href="#g-voice">🎙️ Giọng nói &amp; trợ lý</a>
+      <a href="#g-tools">🛠️ Công cụ &amp; tự động hoá</a>
+      <a href="#g-miscel">🎮 Học tập, game &amp; hệ thống</a>
+    </div>
+  </header>
+
+  <div class="filter">
+    <input id="q" type="search" placeholder="🔎 Tìm theo app hoặc từ khoá (vd: dịch, tóm tắt, khuôn mặt, offline…)" />
+    <span class="chip" data-f="may">📱 Trên máy</span>
+    <span class="chip" data-f="llm">☁️ Cloud/LLM</span>
+    <span class="chip" data-f="lai">🔀 Lai</span>
+    <span class="chip" data-f="star">⭐ Nổi bật</span>
+    <span class="chip clear" id="clear">✖ Xoá lọc</span>
+    <span class="count"><b id="count">240</b> ý tưởng</span>
+  </div>
+  <div class="legend">
+    <span>📱 <b>Trên máy</b>: chạy offline (ML Kit/TTS/STT/model nhỏ) — riêng tư, không tốn phí API.</span>
+    <span>☁️ <b>Cloud/LLM</b>: cần mô hình ngôn ngữ online (hoặc LLM chạy LAN như Ollama).</span>
+    <span>🔀 <b>Lai</b>: lấy dữ liệu online + xử lý/căn chỉnh trên máy.</span>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- GROUP 1: MEDIA & CREATIVE -->
+  <!-- ============================================================= -->
+  <div class="group" id="g-media">
+    <h2>🎬 Media, nội dung &amp; sáng tạo</h2>
+    <p class="sub">Những app xử lý nhạc, ảnh, tin tức, sách và nhật ký — mảnh đất tốt cho tóm tắt, hỏi–đáp và cá nhân hoá.</p>
+
+    <section class="app" id="ymusic" data-app="ymusic nghe nhạc youtube">
+      <div class="apphead"><h3>🎵 ymusic</h3><span class="badge b-plat">Kotlin · Compose</span></div>
+      <p class="purpose">Nghe nhạc YouTube độc lập (NewPipe): tìm–phát–tải offline, EQ, visualizer, hẹn giờ, phát nền.</p>
+      <ol class="feat">
+        <li class="star" data-t="llm"><b>Tạo playlist theo câu lệnh.</b> “nhạc tập gym 30 phút”, “acoustic buồn tiếng Việt” → AI dựng danh sách rồi tự tìm trên YouTube.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Lời bài hát tự đồng bộ.</b> Lấy lyrics rồi căn theo thời gian, highlight kiểu karaoke.<span class="tag t-violet">🔀 Lai</span></li>
+        <li class="star" data-t="may"><b>Nhận diện bài đang phát quanh đây.</b> Kiểu Shazam on-device → tìm thẳng trên YouTube.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Gợi ý bài kế “hiểu gu”.</b> Học lịch sử nghe để xếp hàng chờ hay hơn phần “related” mặc định.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>EQ tự động theo thể loại.</b> AI phân loại nhạc đang phát → chọn preset phù hợp.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Nhảy tới điệp khúc.</b> Phát hiện “đoạn hay” (hook) để tua nhanh vào phần cao trào.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Dịch &amp; giải nghĩa lời.</b> Hiểu bài hát ngoại ngữ ngay trong lúc nghe.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Tách giọng / nhạc nền.</b> Chế độ karaoke (bỏ vocal) xử lý trên máy — hướng tham vọng.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Tóm tắt video/podcast dài.</b> Chia chương + điểm chính cho các clip không phải nhạc.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Điều khiển bằng giọng.</b> “phát nhạc nhẹ để ngủ”, “bỏ qua bài này” — rảnh tay khi lái xe.<span class="tag t-violet">🔀 Lai</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="photoframe" data-app="photoframe khung ảnh widget">
+      <div class="apphead"><h3>🖼️ PhotoFrame</h3><span class="badge b-plat">Flutter + Kotlin</span></div>
+      <p class="purpose">Widget khung ảnh tuỳ biến trên màn hình chính: nguồn thư mục/ảnh chọn tay, 13 kiểu khung, bộ lọc, tự xoay ảnh.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Tự chọn ảnh đẹp nhất.</b> Chấm độ nét/bố cục/mắt mở, ưu tiên ảnh đẹp, bỏ ảnh hỏng khi xoay vòng.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Cắt thông minh theo chủ thể.</b> Nhận mặt/vật chính để ghép mosaic không cắt mất đầu.<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="may"><b>Album theo người/chủ đề.</b> Nhận khuôn mặt &amp; cảnh vật → khung “gia đình”, “du lịch”, “thú cưng”.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Chú thích tự động.</b> Caption AI dưới ảnh thay cho ngày EXIF khô khan.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>“Ngày này năm xưa”.</b> Tự lọc ảnh kỷ niệm theo mùa/sự kiện để hiển thị.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Dọn ảnh trùng/mờ.</b> Gợi ý loại ảnh nhoè, chụp nhầm, gần trùng trong thư mục nguồn.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Phục chế &amp; tăng nét.</b> Làm rõ ảnh cũ/mờ, tô màu ảnh đen trắng trước khi lên khung.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Phối màu khung theo ảnh.</b> Tự rút bảng màu chủ đạo để chọn viền/nền hợp tông.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Biến ảnh thành tranh.</b> Style-transfer cho khung nghệ thuật (sơn dầu, màu nước).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Tạo nền nghệ thuật.</b> Sinh background hợp tông ảnh bằng AI tạo ảnh.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="newsglass" data-app="newsglass tin tức rss">
+      <div class="apphead"><h3>📰 NewsGlass</h3><span class="badge b-plat">Flutter + Kotlin</span></div>
+      <p class="purpose">Đọc tin RSS với widget màn hình chính, lọc tin cũ theo thời hạn cấu hình.</p>
+      <ol class="feat">
+        <li class="star" data-t="llm"><b>Tóm tắt 3 dòng (TL;DR).</b> Hiện ngay trên feed/widget để nắm tin không cần mở bài.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Gom tin trùng chủ đề.</b> Nhiều nguồn cùng 1 sự kiện → gộp thành một “câu chuyện”.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Dòng thời gian sự kiện.</b> Ghép các bài cùng chủ đề theo mốc thời gian để thấy diễn biến.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li class="star" data-t="may"><b>Xếp feed theo gu đọc.</b> Học bài nào bạn mở/bỏ qua để đẩy tin hợp sở thích lên trên (on-device).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Gắn nhãn độ tin cậy.</b> Cảnh báo tiêu đề giật gân / nguồn kém uy tín.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Đọc báo bằng giọng.</b> TTS bản tóm tắt — nghe tin khi lái xe/nấu ăn.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Dịch tin nước ngoài tức thì.</b> Tiêu đề + nội dung sang tiếng Việt bằng ML Kit.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Hỏi đáp về bài báo.</b> “vì sao giá vàng tăng?” với ngữ cảnh chính bài đang đọc.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Cảnh báo chủ đề nóng.</b> Theo dõi từ khoá, báo khi có diễn biến quan trọng mới.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>“Góc nhìn đối lập”.</b> Tìm bài quan điểm trái chiều cùng chủ đề để đọc cân bằng.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="bookshelf" data-app="bookshelf đọc sách ebook epub pdf audiobook">
+      <div class="apphead"><h3>📚 BookShelf</h3><span class="badge b-plat">Kotlin</span><span class="badge b-ai">Đã có: TTS</span></div>
+      <p class="purpose">Đọc ebook EPUB/MOBI/AZW3/PDF và nghe sách nói qua TTS (có cơ chế chống treo).</p>
+      <ol class="feat">
+        <li class="star" data-t="llm"><b>Tóm tắt chương / cả sách.</b> Kèm “tóm tắt những gì đã đọc” mỗi khi mở lại để nhớ mạch.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li class="star" data-t="llm"><b>Hỏi đáp trong sách (RAG).</b> “nhân vật X là ai?”, “giải thích đoạn này” — trả lời theo nội dung sách.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Giọng đọc tự nhiên hơn.</b> Neural TTS + đổi giọng theo nhân vật trong hội thoại.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Tự tạo mục lục/chương.</b> Dựng cấu trúc cho sách thiếu TOC (nhất là PDF scan).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Từ điển ngữ cảnh.</b> Chạm từ → nghĩa + ví dụ đúng theo ngữ cảnh đoạn đang đọc.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Đọc song ngữ.</b> Dịch cả đoạn giữ bố cục để học ngoại ngữ qua sách.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>OCR sách scan.</b> Ảnh PDF → chữ chọn/đọc TTS được.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Flashcard tự sinh.</b> Từ đoạn bôi đậm → thẻ ghi nhớ để ôn lại (nối sang Vocab).<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Gợi ý sách tiếp theo.</b> Theo gu đọc và nội dung đã lưu.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Giải thích đoạn khó.</b> “giải thích như cho người mới” cho các đoạn học thuật.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="odiary" data-app="odiary nhật ký diary">
+      <div class="apphead"><h3>📔 ODiary</h3><span class="badge b-plat">Kotlin</span><span class="badge b-ai">Đã có: TTS</span></div>
+      <p class="purpose">Nhật ký hằng ngày kèm ảnh, lịch, xuất PDF, đọc TTS, đồng bộ Drive, widget ghi nhanh.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Viết nhật ký bằng giọng.</b> Nói → tự chép thành bài, tự chấm câu (dùng STT sẵn có trong portfolio).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Gợi ý viết khi bí.</b> Prompt theo ngày/tâm trạng để không “nhìn trang trắng”.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li class="star" data-t="lai"><b>Biểu đồ cảm xúc.</b> Phân tích tâm trạng theo thời gian từ nội dung đã viết.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Tự đặt tiêu đề + emoji + nhãn.</b> Suy ra từ nội dung &amp; ảnh của ngày hôm đó.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Chú thích ảnh tự động.</b> Nhận cảnh/vật để gắn caption &amp; gợi nơi chốn.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>“Hồi tưởng” cuối tháng/năm.</b> AI viết bản tổng kết kỷ niệm từ các trang đã ghi.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Tìm kiếm ngữ nghĩa.</b> “hôm đi biển với ai?” — tìm theo ý, không chỉ từ khoá.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Nhắc viết thông minh.</b> Học giờ bạn hay viết để nhắc đúng lúc.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Ẩn nội dung nhạy cảm khi xuất PDF.</b> Tự che tên/số riêng tư trước khi chia sẻ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Chuyển nhật ký thành truyện/thư.</b> Viết lại kỷ niệm thành một câu chuyện hay thư gửi tương lai.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- GROUP 2: CAMERA & VISION -->
+  <!-- ============================================================= -->
+  <div class="group" id="g-vision">
+    <h2>📷 Camera &amp; thị giác máy</h2>
+    <p class="sub">Những app có luồng hình ảnh/camera — hợp với nhận diện, che riêng tư, giám sát thông minh.</p>
+
+    <section class="app" id="tryon" data-app="tryon thử đồ virtual try-on">
+      <div class="apphead"><h3>👕 TryOn</h3><span class="badge b-plat">Flutter</span><span class="badge b-ai">Đã có: ML Kit Pose + Segmentation</span></div>
+      <p class="purpose">Thử đồ ảo thời gian thực: dán ảnh sản phẩm 2D (mũ, kính, áo, giày…) lên cơ thể qua camera.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Vải co theo dáng.</b> Cloth-warping thay vì dán phẳng để mặc trông thật hơn (tham vọng).<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="llm"><b>Stylist gợi ý trang phục.</b> Theo dáng/màu da/dịp → gợi ý món hợp và lý do.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Tự tách nền sản phẩm.</b> Segment ảnh đồ tự động, bỏ bước chroma-key chọn màu tay.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Ước lượng số đo &amp; gợi ý size.</b> Từ skeleton/ảnh toàn thân suy ra kích cỡ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Thử trang điểm/kính/tóc.</b> Dùng face-mesh để thử makeup, gọng kính, kiểu tóc.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Đổi màu/hoạ tiết món đồ.</b> Recolor nhanh để xem các phiên bản khác.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Phối nguyên bộ (mix &amp; match).</b> AI ghép áo–quần–giày từ giỏ đồ thành outfit.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Chấm điểm phối đồ.</b> Nhận xét &amp; gợi ý cải thiện cho bộ đang mặc thử.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Sinh ảnh mẫu mặc đồ.</b> Diffusion try-on cho ảnh chất lượng như chụp thật (tham vọng).<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Tạo video catwalk ngắn.</b> Từ vài ảnh mặc thử dựng clip trình diễn.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="cameraman" data-app="cameraman camera widget giám sát chuyển động">
+      <div class="apphead"><h3>📸 CameraMan</h3><span class="badge b-plat">Flutter + Kotlin</span></div>
+      <p class="purpose">Chụp/quay nhanh từ widget, quay khi có chuyển động, điều khiển &amp; xem camera từ xa (WebRTC), webhook Discord.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Nhận người/thú/xe thay frame-diff.</b> Giảm hẳn báo giả “lá cây rung” khi quay theo chuyển động.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Cảnh báo chỉ khi đáng.</b> Chỉ bắn Discord khi có đối tượng quan tâm (người lạ), không phải mọi rung động.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Chú thích clip/ảnh.</b> “người đội mũ ở cửa, 14:03” gửi kèm thông báo.<span class="tag t-violet">🔀 Lai</span></li>
+        <li class="star" data-t="may"><b>Người nhà vs người lạ.</b> Nhận khuôn mặt quen để chỉ cảnh báo người lạ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Tìm trong thư viện bằng lời.</b> “ảnh có con mèo tối qua” — gắn nhãn &amp; tìm theo nội dung.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Đọc biển số / chữ trong khung.</b> OCR cho giám sát cổng, bãi xe.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Chụp đúng khoảnh khắc.</b> Chờ nụ cười/mắt mở mới chụp (widget selfie).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Tự canh khung &amp; ổn định.</b> Auto-framing bám chủ thể, chống rung khi quay tay.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Chỉ lưu đoạn có sự kiện.</b> Bỏ giờ “trống” để tiết kiệm bộ nhớ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Lọc &amp; tóm tắt thông báo đẩy Discord.</b> Gộp/ưu tiên trước khi gửi (app vốn đã forward notification).<span class="tag t-violet">🔀 Lai</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="camerabroadcast" data-app="camerabroadcast webrtc stream camera">
+      <div class="apphead"><h3>📡 CameraBroadcast</h3><span class="badge b-plat">Flutter + Node</span></div>
+      <p class="purpose">Stream camera + mic qua WebRTC tới server tín hiệu (bản prototype nền tảng của các app WebRTC sau).</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Che/làm mờ khuôn mặt &amp; chữ nhạy cảm.</b> Theo thời gian thực khi phát — bảo vệ riêng tư.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Phông nền ảo / làm mờ nền.</b> Selfie segmentation khi stream.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Auto-framing.</b> Bám theo người nói, tự cắt/zoom cho gọn khung.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Cảnh báo người/chuyển động.</b> Khi dùng làm camera giám sát tạm.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Phụ đề trực tiếp.</b> STT chèn caption vào luồng cho người xem.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Khử ồn giọng nói.</b> Lọc gió/động cơ cho mic lúc phát.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Điều khiển bằng cử chỉ.</b> Giơ tay để bật/tắt phát, chụp.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Nhận QR/vật thể trong khung.</b> Kích hoạt hành động khi thấy mã/đối tượng.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Tăng nét phía nhận khi mạng yếu.</b> Super-resolution ở đầu xem (tham vọng).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Tóm tắt buổi phát.</b> Ghi lại các “sự kiện” đáng chú ý thành mốc xem lại.<span class="tag t-violet">🔀 Lai</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="screenshare" data-app="screenshare chia sẻ màn hình webrtc">
+      <div class="apphead"><h3>🖥️ ScreenShare</h3><span class="badge b-plat">Flutter + Kotlin</span></div>
+      <p class="purpose">Chia sẻ toàn màn hình + ảnh camera sang máy khác qua WebRTC trong LAN, không cần server ngoài.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Che thông tin nhạy cảm khi share màn hình.</b> Tự làm mờ mật khẩu/OTP/số thẻ theo thời gian thực.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Phụ đề + biên bản.</b> STT buổi chia sẻ, lưu lại thành ghi chú.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Tóm tắt phiên trình diễn.</b> Ghi lại các bước/điểm chính đã thao tác.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Dịch chữ trên màn hình.</b> OCR + dịch cho người xem nước ngoài.<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="llm"><b>Trợ lý hỗ trợ từ xa.</b> Nhìn màn hình người kia → AI hướng dẫn họ thao tác từng bước.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Nhận lỗi trên màn.</b> Thấy dialog/mã lỗi → gợi ý cách xử lý.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Nhấn mạnh theo giọng.</b> Tô sáng vùng đang nói tới trên màn hình.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Phát hiện người lạ khi dùng làm giám sát.</b> Cảnh báo chuyển động qua camera.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Nén thông minh vùng tĩnh.</b> Giảm khung ở phần không đổi để tiết kiệm băng thông.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Tăng nét phía nhận.</b> Super-resolution khi mạng yếu (tham vọng).<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="sentryroom" data-app="sentryroom server python phòng giám sát chat">
+      <div class="apphead"><h3>🛰️ SentryRoom</h3><span class="badge b-plat">Python (server LAN)</span></div>
+      <p class="purpose">Server Python trong LAN: chat, truyền file, gọi nhóm video và cảnh báo chuyển động (client chạy trên trình duyệt).</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Cảnh báo chuyển động thông minh.</b> Nhận người/thú/xe thay pixel-diff → giảm báo giả (chạy ở server).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Mô tả cảnh báo bằng lời.</b> Kèm ảnh: “1 người ở cửa lúc 14:03”.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Người quen vs người lạ.</b> Nhận khuôn mặt để chỉ báo động khi lạ mặt.<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="llm"><b>Trợ lý chat trong phòng.</b> Bot trả lời câu hỏi, tóm tắt hội thoại, nhắc việc.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Phụ đề &amp; dịch trong gọi nhóm.</b> STT real-time cho cuộc gọi nhiều người.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Tìm trong lịch sử cảnh báo.</b> “ai vào phòng tối qua?” — hỏi bằng ngôn ngữ thường.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Tóm tắt file chia sẻ.</b> Tài liệu/ảnh upload được tóm gọn ngay trong chat.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Phát hiện âm thanh bất thường.</b> Vỡ kính, tiếng khóc, chuông cửa → báo động.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Nhật ký hoạt động hằng ngày.</b> Tự ghi “ai đến, file gì, cuộc gọi nào”.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Kiểm duyệt nội dung.</b> Lọc ảnh/chat NSFW/spam cho phòng đông người.<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- GROUP 3: VOICE & ASSISTANT -->
+  <!-- ============================================================= -->
+  <div class="group" id="g-voice">
+    <h2>🎙️ Giọng nói, trợ lý &amp; giao tiếp</h2>
+    <p class="sub">Những app có mic/giọng nói/thông báo — nền tảng sẵn cho STT, LLM và hội thoại rảnh tay.</p>
+
+    <section class="app" id="voice_ai" data-app="voice_ai trợ lý giọng nói llm">
+      <div class="apphead"><h3>🤖 voice_ai</h3><span class="badge b-plat">Flutter + Kotlin</span><span class="badge b-ai">Đã có: STT + LLM (Ollama/Gemini) + TTS</span></div>
+      <p class="purpose">Trợ lý giọng nói: nói → STT → LLM → đọc trả lời bằng TTS; có chế độ 2 persona AI tự hội thoại.</p>
+      <ol class="feat">
+        <li class="star" data-t="lai"><b>RAG trên dữ liệu cá nhân.</b> Hỏi đáp trên tài liệu/ghi chú của bạn (nhúng + tìm nội bộ).<span class="tag t-violet">🔀 Lai</span></li>
+        <li class="star" data-t="lai"><b>Gọi công cụ (function calling).</b> “đặt báo thức”, “bật đèn” → điều khiển app khác qua intent.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Trợ lý “nhìn được”.</b> Chụp camera → hỏi về vật/cảnh (đa phương thức qua Gemini).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Ngắt lời tự nhiên (barge-in).</b> Dùng VAD phát hiện lúc bạn bắt đầu/ngừng nói để hội thoại mượt.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Nhớ dài hạn.</b> Lưu hồ sơ/ngữ cảnh giữa các phiên, ngay trên máy.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Chọn mô hình thông minh.</b> Câu dễ dùng LLM nhỏ on-device, câu khó mới gọi cloud (tiết kiệm + riêng tư).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Giọng neural đẹp / nhân bản giọng.</b> Đọc tự nhiên hơn giọng máy mặc định.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Luyện nói ngoại ngữ.</b> AI sửa phát âm &amp; ngữ pháp trong lúc trò chuyện.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Ghi biên bản hội thoại.</b> Tóm tắt &amp; lưu lại cuộc nói chuyện tự động.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Trợ lý offline hoàn toàn.</b> Gói Whisper + LLM nhỏ on-device để chạy không mạng (tham vọng).<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="voice_note" data-app="voice_note ghi chú giọng nói chép chính tả">
+      <div class="apphead"><h3>🗒️ voice_note</h3><span class="badge b-plat">Kotlin (+ Python desktop)</span><span class="badge b-ai">Đã có: STT + dịch</span></div>
+      <p class="purpose">Đọc chính tả nền: mic chạy cả khi tắt màn, chép thành text theo ngày + dịch từng đoạn.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Whisper on-device cho Android.</b> Chép chính xác, chạy offline như bản Windows đã có (tham vọng).<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="llm"><b>Tóm tắt + trích việc cần làm.</b> Bản ghi dài → ý chính &amp; action items.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Tách người nói.</b> Diarization cho ghi âm cuộc họp.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Chấm câu &amp; định dạng.</b> Tự xuống đoạn, bullet cho text thô.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Lệnh giọng khi ghi.</b> “xuống dòng”, “dấu phẩy”, “tiêu đề”.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Tìm kiếm ngữ nghĩa trong kho ghi.</b> “hôm bàn về ngân sách”.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Tự gắn thẻ &amp; đặt tiêu đề.</b> Theo chủ đề mỗi phiên ghi.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Lọc từ đệm / ậm ừ.</b> Bỏ “à, ờ”, câu lặp để bản ghi sạch.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Dịch giữ dòng thời gian.</b> Xuất bản ghi song ngữ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Ẩn thông tin nhạy cảm.</b> Che PII trong transcript trước khi xuất/chia sẻ.<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="noti_forward" data-app="noti_forward chuyển thông báo tts discord">
+      <div class="apphead"><h3>🔔 noti_forward</h3><span class="badge b-plat">Flutter + Kotlin</span><span class="badge b-ai">Đã có: TTS</span></div>
+      <p class="purpose">Nghe mọi thông báo hệ thống → đọc bằng TTS và/hoặc gửi lên Discord, có bộ lọc app/từ khoá.</p>
+      <ol class="feat">
+        <li class="star" data-t="lai"><b>Tóm tắt &amp; ưu tiên thông báo.</b> “3 tin quan trọng” thay vì đọc hết mọi thứ.<span class="tag t-violet">🔀 Lai</span></li>
+        <li class="star" data-t="lai"><b>Lọc theo ngữ nghĩa.</b> Chỉ việc khẩn/người quen, thay cho allowlist thủ công.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Đọc tự nhiên hơn.</b> Viết lại gọn: “Bạn có 1 tin từ Mẹ: …”.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Dịch thông báo ngoại ngữ.</b> Dịch trước khi đọc/gửi.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Định tuyến tới kênh phù hợp.</b> Việc/ngân hàng/mạng xã hội → kênh Discord riêng.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Gom nhóm chống dội.</b> Cùng 1 sự kiện từ nhiều app → đọc một lần.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Trích OTP/mã/giờ hẹn.</b> Nêu riêng &amp; cho copy nhanh.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>“Đừng làm phiền” thông minh.</b> Học giờ bận để hạ ồn tin ít quan trọng.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Trả lời nhanh bằng giọng.</b> Nghe tin → đọc câu trả lời → gửi (rảnh tay lái xe).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Báo cáo cuối ngày.</b> Tổng hợp “hôm nay có gì” từ dòng thông báo.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="walkie_talkie" data-app="walkie_talkie bộ đàm ptt lan webrtc">
+      <div class="apphead"><h3>📻 walkie_talkie</h3><span class="badge b-plat">Flutter + Kotlin</span></div>
+      <p class="purpose">Bộ đàm PTT giữa 2 máy qua LAN (WebRTC) + soundboard clip ghi sẵn.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Khử ồn nền AI cho mic.</b> Lọc gió/động cơ/đám đông khi bộ đàm.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Phụ đề trực tiếp.</b> STT hiện lời người kia — nghe được nơi ồn.<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="lai"><b>Dịch thoại hai chiều.</b> Nói tiếng Việt → bên kia nghe tiếng Anh (STT+dịch+TTS).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Kích hoạt bằng giọng (VOX).</b> Tự phát khi bắt đầu nói, khỏi giữ nút PTT.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Ghi &amp; tóm tắt cuộc gọi.</b> Thành biên bản bộ đàm.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Từ khoá khẩn cấp.</b> Nghe thấy “cứu/help” → báo động &amp; ghi lại.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Lệnh thoại chuyển kênh/gọi.</b> “gọi đội 2” không cần chạm.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Soundboard thông minh.</b> Gõ mô tả → AI tạo clip giọng (TTS) để phát nhanh.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Biến giọng.</b> Voice changer vui / che danh tính.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Codec ưu tiên giọng khi mạng yếu.</b> Nén thông minh giữ tiếng rõ (tham vọng).<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="reminder" data-app="reminder nhắc nhở báo thức">
+      <div class="apphead"><h3>⏰ Reminder</h3><span class="badge b-plat">Flutter + Kotlin</span></div>
+      <p class="purpose">Nhắc nhở đếm ngược/lặp/một lần, ghi âm lời nhắc, widget bật nhanh.</p>
+      <ol class="feat">
+        <li class="star" data-t="lai"><b>Tạo nhắc bằng câu nói thường.</b> “nhắc uống thuốc 8h tối mỗi ngày” → tự điền loại/giờ/lặp.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Tạo nhắc bằng giọng.</b> Nói là xong, không cần gõ (STT).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Giờ nhắc thông minh.</b> Học thói quen để gợi thời điểm dễ thực hiện.<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="lai"><b>Chống “bơ” báo thức.</b> Câu đố/thử thách AI sinh ngẫu nhiên mới tắt được.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Lời nhắc có ngữ cảnh.</b> Diễn đạt lại cho rõ &amp; động viên theo nội dung.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Dựng lịch trình trong ngày.</b> Gom các nhắc + ước lượng thời lượng từng việc.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Gợi ý nhắc theo địa điểm.</b> Suy ra geofence từ nội dung (“tới cơ quan thì…”).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Đọc nhắc bằng giọng tự nhiên.</b> Đổi ngữ điệu theo mức khẩn.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Phát hiện trùng/xung đột lịch.</b> Cảnh báo hai việc chồng giờ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Tóm tắt “sáng nay có gì”.</b> Đọc lịch trong ngày bằng giọng mỗi sáng.<span class="tag t-violet">🔀 Lai</span></li>
+      </ol>
+    </section>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- GROUP 4: TOOLS & AUTOMATION -->
+  <!-- ============================================================= -->
+  <div class="group" id="g-tools">
+    <h2>🛠️ Công cụ &amp; tự động hoá</h2>
+    <p class="sub">Những app thao tác màn hình, mạng và dữ liệu — hợp với ngôn ngữ tự nhiên, vision và phân tích.</p>
+
+    <section class="app" id="toolbox" data-app="toolbox tiện ích công cụ ocr dịch">
+      <div class="apphead"><h3>🧰 Toolbox</h3><span class="badge b-plat">Kotlin</span><span class="badge b-ai">Đã có: ML Kit OCR + dịch, STT</span></div>
+      <p class="purpose">Bộ công cụ đa năng: chép chữ (OCR), dịch màn hình, giọng nói→chữ, thước/đo, định tuyến &amp; tăng âm, mạng/domain/speedtest, FTP/SSH, hỗ trợ khẩn cấp.</p>
+      <ol class="feat">
+        <li class="star" data-t="llm"><b>Hỏi–đáp ảnh.</b> Sau khi chụp/OCR: “tóm tắt”, “giải thích bảng này”, “dịch” → LLM trả lời.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>OCR hiểu cấu trúc bảng/biểu mẫu.</b> Xuất CSV/Excel chứ không chỉ text thô.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Trích xuất từ ảnh tài liệu.</b> Hoá đơn/hợp đồng → số tiền, ngày, các mục chính.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li class="star" data-t="lai"><b>Dịch hội thoại hai chiều.</b> Nghe–dịch–đọc lại, tự nhận ngôn ngữ (STT+dịch+TTS).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Sinh lệnh shell cho SSH từ lời.</b> “tìm file &gt;1GB” → gợi ý lệnh + giải thích trước khi chạy.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Chẩn đoán mạng.</b> Phân tích speedtest/ping/DNS → đoán nguyên nhân &amp; cách khắc phục.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Làm sạch ảnh tài liệu.</b> Khử bóng, làm phẳng, tăng tương phản trước khi OCR.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Che PII trước khi chia sẻ ảnh.</b> Tự tìm số CMND/thẻ/mặt người để làm mờ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Đo bằng ảnh chính xác hơn.</b> Nhận vật mốc (đồng xu/thẻ) để tự hiệu chỉnh tỉ lệ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Tự đặt tên ảnh chụp màn hình.</b> Nhận nội dung (hoá đơn/vé/chat) → gợi ý tên &amp; thư mục.<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="autotap" data-app="autotap auto clicker macro accessibility">
+      <div class="apphead"><h3>👆 AutoTap</h3><span class="badge b-plat">Kotlin</span><span class="badge b-ai">Đã có: ML Kit OCR</span></div>
+      <p class="purpose">Tự động thao tác màn hình (auto-clicker/macro) qua Accessibility: tap/vuốt/chờ/tap-theo-chữ (OCR), có API HTTP điều khiển từ xa.</p>
+      <ol class="feat">
+        <li class="star" data-t="llm"><b>Tạo kịch bản bằng lời.</b> “mở Zalo, bấm gửi” → AI sinh các bước từ cây giao diện.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li class="star" data-t="lai"><b>Tap theo mô tả hình ảnh.</b> “bấm nút trái tim” → AI định vị bằng vision, không cần toạ độ.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Tự phục hồi khi layout đổi.</b> Toạ độ trượt thì tìm lại phần tử theo nội dung/ngữ cảnh.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>OCR hiểu nghĩa, không chỉ khớp chuỗi.</b> “bấm nút đồng ý” dù chữ là OK/Đồng ý/Accept.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Chờ thông minh.</b> Đợi tới khi màn hình “sẵn sàng” thay vì chờ cứng số giây.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Điền OTP từ thông báo của chính bạn.</b> Đọc mã trong thông báo của bạn để tự điền khi đăng nhập app của bạn.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Dọn &amp; đặt tên macro vừa ghi.</b> Gộp bước thừa, thêm <code>{{param}}</code> tự động từ bản ghi thô.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Đóng popup/quảng cáo xen ngang.</b> Phát hiện cửa sổ lạ chèn giữa kịch bản và tự tắt.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Trợ lý gỡ lỗi kịch bản.</b> Chạy fail → chỉ bước sai + đề xuất sửa.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Lịch chạy theo điều kiện bằng lời.</b> “mỗi sáng nếu có wifi nhà thì chạy X”.<span class="tag t-violet">🔀 Lai</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="macrointegrate" data-app="macrointegrate macrodroid worker gps screenshot discord">
+      <div class="apphead"><h3>🧩 MacroIntegrate</h3><span class="badge b-plat">Kotlin</span></div>
+      <p class="purpose">Worker nhỏ cho MacroDroid: khi được kích hoạt, gửi vị trí GPS hoặc ảnh chụp màn hình lên Discord.</p>
+      <ol class="feat">
+        <li class="star" data-t="lai"><b>Mô tả ảnh chụp màn hình bằng lời.</b> Caption AI gửi kèm lên Discord.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>OCR + trích thông tin từ screenshot.</b> Lấy mã/số tiền/lỗi gửi kèm.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Dịch ảnh chụp.</b> Dịch chữ trong ảnh rồi mới gửi.<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="may"><b>Làm mờ PII trước khi gửi.</b> Che số/tên nhạy cảm trong screenshot.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Vị trí “thông minh”.</b> Đổi toạ độ thành địa chỉ/điểm quen (“đang ở công ty”).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Cảnh báo bất thường vị trí.</b> Ra khỏi vùng an toàn → báo.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Trợ lý tạo macro.</b> Mô tả nhu cầu → sinh cấu hình intent/extras cho MacroDroid.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Tóm tắt chuỗi sự kiện trong ngày.</b> Gộp các lần gửi thành 1 báo cáo.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Kích hoạt bằng giọng.</b> Nói để gửi vị trí/ảnh (STT).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Định tuyến theo nội dung.</b> Gửi tới kênh Discord phù hợp tuỳ nội dung ảnh.<span class="tag t-violet">🔀 Lai</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="proxyspy" data-app="proxyspy mitm proxy https traffic">
+      <div class="apphead"><h3>🕵️ ProxySpy</h3><span class="badge b-plat">Kotlin</span></div>
+      <p class="purpose">Proxy MITM HTTPS ngay trên máy: xem mọi request/header/payload đã giải mã (web-debugger cỡ điện thoại).</p>
+      <ol class="feat">
+        <li class="star" data-t="llm"><b>Giải thích request/response.</b> Chọn 1 flow → AI tóm tắt API làm gì, tham số nghĩa là gì.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li class="star" data-t="may"><b>Phát hiện rò rỉ dữ liệu.</b> Gắn cờ token/GPS/IMEI/PII trong traffic.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Dò tracker/analytics.</b> Nhận domain theo dõi, báo app nào gửi gì về đâu.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Sinh rule từ mô tả.</b> “chặn mọi call tới facebook” → tạo luật chặn/sửa tự động.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Tóm tắt phiên bắt gói.</b> “app X gọi 12 API, gửi vị trí 3 lần”.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Soát bảo mật.</b> Thiếu HTTPS, header yếu, token nằm trong URL → cảnh báo.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Sinh code từ request.</b> Xuất curl/Python/Retrofit từ một request bắt được.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Nhóm flow theo hành động.</b> Gộp các call thành “login”, “mua hàng”…<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Diễn giải payload JSON.</b> Biến JSON khó hiểu thành bảng dễ đọc.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>So sánh 2 phiên.</b> Diff thông minh để tìm điều kiện/kịch bản khác nhau.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- GROUP 5: LEARNING, GAMES & SYSTEM -->
+  <!-- ============================================================= -->
+  <div class="group" id="g-miscel">
+    <h2>🎮 Học tập, trò chơi &amp; hệ thống</h2>
+    <p class="sub">Nhóm còn lại — từ học từ vựng, bảng LED, game cảm biến đến giả lập và giữ sóng VoLTE.</p>
+
+    <section class="app" id="vocab" data-app="vocab từ vựng flashcard học">
+      <div class="apphead"><h3>🗂️ Vocab</h3><span class="badge b-plat">Flutter + Kotlin</span><span class="badge b-ai">Đã có: TTS</span></div>
+      <p class="purpose">Quản lý thẻ từ vựng + widget ôn tập ngắt quãng, có TTS đọc từ.</p>
+      <ol class="feat">
+        <li class="star" data-t="llm"><b>Tạo bộ từ bằng AI ngay trong app.</b> Nhập chủ đề/trình độ → sinh từ + nghĩa + ví dụ (nay phải nhờ AI ngoài).<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Câu ví dụ theo ngữ cảnh.</b> Tự sinh ví dụ dùng từ cho dễ nhớ.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li class="star" data-t="may"><b>Ôn ngắt quãng thông minh (SRS).</b> AI điều chỉnh lịch ôn theo độ nhớ từng từ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Chấm phát âm.</b> Bạn đọc từ → AI so với chuẩn, cho điểm (STT).<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Thêm từ bằng camera.</b> Chụp chữ → OCR + dịch → thêm vào bộ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Quiz tự sinh.</b> Trắc nghiệm/điền khuyết/nghe-chép từ bộ từ.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Gia sư hội thoại.</b> Luyện nói/viết dùng đúng các từ vừa học.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Thẻ có ảnh minh hoạ.</b> Tự ghép hình cho mỗi từ.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Mẹo nhớ (mnemonic).</b> AI tạo liên tưởng cho từ khó.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Phân tích điểm yếu.</b> Chỉ ra từ hay quên &amp; gợi ý ôn trọng tâm.<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="led_runner" data-app="led_runner bảng chạy chữ led marquee">
+      <div class="apphead"><h3>🔆 led_runner</h3><span class="badge b-plat">Flutter</span></div>
+      <p class="purpose">Biến điện thoại thành bảng chạy chữ LED với nhiều hiệu ứng (pixel, neon, glitch…).</p>
+      <ol class="feat">
+        <li class="star" data-t="llm"><b>Soạn nội dung chạy chữ bằng AI.</b> Nhập ý → ra khẩu hiệu/lời chúc/menu đẹp.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Dịch nội dung nhiều thứ tiếng.</b> Chạy luân phiên các ngôn ngữ.<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="may"><b>Đọc chính tả.</b> Nói → ra chữ chạy ngay (rảnh tay).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Tự chọn hiệu ứng/màu theo ngữ cảnh.</b> “cảnh báo” → đỏ nhấp nháy, “chúc mừng” → rực rỡ.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Bảng tin thông minh.</b> Tự lấy giờ/thời tiết/thông báo đọc thành chữ chạy.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Phụ đề sự kiện trực tiếp.</b> STT người nói → chạy chữ cho khán giả xem.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Sửa chính tả &amp; định dạng.</b> Chuẩn hoá nội dung trước khi chạy.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Nghệ thuật chữ/emoji pixel.</b> Tạo hình từ mô tả để chạy trên bảng.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Nhận ngôn ngữ chọn font/hướng.</b> Tự chỉnh font &amp; hướng chạy cho hợp.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Lên lịch nội dung theo dịp.</b> Gợi ý câu theo ngày lễ/sự kiện.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="motion_boxing" data-app="motion_boxing game đấm bốc cảm biến">
+      <div class="apphead"><h3>🥊 motion_boxing</h3><span class="badge b-plat">Flutter</span></div>
+      <p class="purpose">Game đấm bốc điều khiển bằng lắc điện thoại (accelerometer + gyroscope), có rung &amp; âm thanh.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Nhận loại đòn.</b> Phân biệt jab/hook/uppercut từ cảm biến thay vì chỉ “mạnh/yếu” (model TFLite).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Huấn luyện viên ảo.</b> Chấm form đòn, đếm calo, nhịp combo theo thời gian thực.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Combo đọc bằng giọng.</b> “jab-jab-hook” + chấm điểm theo đòn thực hiện.<span class="tag t-violet">🔀 Lai</span></li>
+        <li class="star" data-t="may"><b>Chế độ camera (pose).</b> Đấm trước camera, không cần cầm máy.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Đối thủ AI thích nghi.</b> Né/đỡ theo nhịp người chơi, tăng độ khó dần.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Phân tích buổi tập.</b> Biểu đồ lực/tốc độ/độ bền → gợi ý cải thiện.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Giáo án cá nhân hoá.</b> Theo mục tiêu (“giảm cân 2 tuần”).<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Cử chỉ đặc biệt mở chiêu.</b> Nhận động tác riêng để kích hoạt combo thưởng.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Chống “lắc gian lận”.</b> Phát hiện shake-spam để game công bằng.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Trợ lý giọng.</b> Cổ vũ &amp; điều khiển menu rảnh tay.<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="jgamer" data-app="jgamer giả lập game nes snes pico-8 emulator">
+      <div class="apphead"><h3>🕹️ JGamer</h3><span class="badge b-plat">Kotlin (LibretroDroid)</span></div>
+      <p class="purpose">Giả lập game NES/SNES/PICO-8: nhập ROM, chơi, save/load state, auto-resume, gamepad.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Upscale đồ hoạ thời gian thực.</b> AI super-resolution/shader thông minh cho game cũ nét hơn (tham vọng).<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="llm"><b>Trợ lý qua màn.</b> Chụp màn hình → “làm sao qua đoạn này?” (AI biết game retro).<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Tự nhận ROM &amp; tải metadata.</b> Ảnh bìa/mô tả/thể loại tự điền.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="lai"><b>Dịch game Nhật → Việt/Anh.</b> OCR chữ trên màn + dịch theo thời gian thực.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Save thông minh.</b> Gợi ý điểm lưu trước đoạn khó.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>“Trợ thủ” chơi hộ đoạn khó.</b> Bot học cách chơi (tham vọng).<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>Gợi ý game theo gu.</b> Tạo bộ sưu tập hợp sở thích.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="llm"><b>Đánh giá độ tuổi.</b> Lọc nội dung cho chế độ trẻ em.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Điều khiển bằng giọng.</b> “save slot 2”, “reset” cho menu.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Tạo ảnh bìa đẹp.</b> Sinh art cho ROM thiếu hình.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+      </ol>
+    </section>
+
+    <section class="app" id="volte_guard" data-app="volte_guard giữ sóng volte ims shizuku">
+      <div class="apphead"><h3>📶 volte_guard</h3><span class="badge b-plat">Kotlin (Shizuku)</span></div>
+      <p class="purpose">Giữ cuộc gọi HD (VoLTE/IMS) sống sau khi tắt 2G: theo dõi &amp; tự khôi phục ngăn xếp mạng qua Shizuku.</p>
+      <ol class="feat">
+        <li class="star" data-t="may"><b>Dự đoán mất VoLTE.</b> Học thời điểm/nơi hay rớt IMS để cảnh báo/khôi phục sớm.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="may"><b>Chọn bậc khôi phục tối ưu.</b> Học bậc nào hiệu quả nhất trên máy này để thử trước.<span class="tag t-green">📱 Trên máy</span></li>
+        <li class="star" data-t="llm"><b>Giải thích log.</b> Dán “Nhật ký” → AI chỉ vì sao rớt &amp; cách xử lý.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="llm"><b>Chẩn đoán bằng lời.</b> “vì sao không gọi HD được?” → phân tích các health-check.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="may"><b>Phát hiện bất thường tín hiệu.</b> Anomaly từ chuỗi ServiceState.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="llm"><b>Trợ lý cấu hình theo OEM.</b> Hướng dẫn Shizuku/quyền từng hãng bằng hội thoại.<span class="tag t-blue">☁️ Cloud/LLM</span></li>
+        <li data-t="lai"><b>Báo cáo sức khoẻ mạng hằng tuần.</b> Tổng hợp dễ hiểu.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Chọn thời điểm reset ít ảnh hưởng.</b> Reset modem khi bạn không dùng máy.<span class="tag t-green">📱 Trên máy</span></li>
+        <li data-t="lai"><b>So khớp sự cố đã gặp.</b> Gợi cách sửa nhanh từ cơ sở tri thức.<span class="tag t-violet">🔀 Lai</span></li>
+        <li data-t="may"><b>Cảnh báo giọng khi mất HD Call.</b> Đọc trạng thái khi rớt kéo dài.<span class="tag t-green">📱 Trên máy</span></li>
+      </ol>
+    </section>
+  </div>
+
+  <div class="empty" id="empty">Không có ý tưởng nào khớp bộ lọc. <a href="#" id="reset2">Xoá lọc</a></div>
+
+  <footer>
+    <p><b>Đề xuất chức năng AI</b> — tổng hợp cho 24 ứng dụng trong portfolio Dsoft. Mô tả từng app dựa trên README + mã nguồn thực tế;
+       phần tính năng là ý tưởng để tham khảo &amp; chọn lọc. Mở bằng trình duyệt, dùng ô tìm kiếm &amp; nút lọc ở trên để lọc nhanh.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var q = document.getElementById('q');
+  var chips = document.querySelectorAll('.chip[data-f]');
+  var countEl = document.getElementById('count');
+  var emptyEl = document.getElementById('empty');
+  var activeTags = {};       // tag -> true (may/llm/lai)
+  var onlyStar = false;
+
+  function apply(){
+    var term = (q.value||'').trim().toLowerCase();
+    var tagKeys = Object.keys(activeTags);
+    var total = 0;
+    var cards = document.querySelectorAll('section.app');
+    for (var i=0;i<cards.length;i++){
+      var card = cards[i];
+      var appName = (card.getAttribute('data-app')||'').toLowerCase();
+      var lis = card.querySelectorAll('li');
+      var shown = 0;
+      for (var j=0;j<lis.length;j++){
+        var li = lis[j];
+        var t = li.getAttribute('data-t');
+        var star = li.className.indexOf('star')>-1;
+        var text = li.textContent.toLowerCase();
+        var ok = true;
+        if (term) ok = (text.indexOf(term)>-1) || (appName.indexOf(term)>-1);
+        if (ok && tagKeys.length) ok = !!activeTags[t];
+        if (ok && onlyStar) ok = star;
+        li.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+      }
+      card.style.display = shown ? '' : 'none';
+      total += shown;
+    }
+    var groups = document.querySelectorAll('.group');
+    for (var g=0; g<groups.length; g++){
+      var any = groups[g].querySelectorAll('section.app');
+      var vis = false;
+      for (var k=0;k<any.length;k++){ if (any[k].style.display!=='none'){vis=true;break;} }
+      groups[g].style.display = vis ? '' : 'none';
+    }
+    countEl.textContent = total;
+    emptyEl.style.display = total ? 'none' : 'block';
+  }
+
+  for (var c=0;c<chips.length;c++){
+    chips[c].addEventListener('click', function(){
+      var f = this.getAttribute('data-f');
+      if (f === 'star'){ onlyStar = !onlyStar; this.className = onlyStar ? 'chip on' : 'chip'; }
+      else {
+        if (activeTags[f]){ delete activeTags[f]; this.className = 'chip'; }
+        else { activeTags[f] = true; this.className = 'chip on'; }
+      }
+      apply();
+    });
+  }
+  q.addEventListener('input', apply);
+
+  function clearAll(){
+    q.value=''; activeTags={}; onlyStar=false;
+    for (var c=0;c<chips.length;c++) chips[c].className='chip';
+    apply();
+  }
+  document.getElementById('clear').addEventListener('click', clearAll);
+  var r2 = document.getElementById('reset2');
+  if (r2) r2.addEventListener('click', function(e){ e.preventDefault(); clearAll(); });
+})();
+</script>
+</body>
+</html>

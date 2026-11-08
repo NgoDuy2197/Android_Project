@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HealthAssistant</string>
+    <string name="widget_meal_desc">Chạm để ghi nhanh một bữa ăn cho hôm nay</string>
+    <string name="widget_water_desc">Chạm dấu + để ghi một cốc nước</string>
+</resources>
