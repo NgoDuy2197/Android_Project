@@ -17,48 +17,50 @@ class ProfileActivity : Activity() {
         super.onCreate(savedInstanceState)
         p = palette()
         prof = Store.loadProfile(this)
-        val col = page(p, "Hồ sơ sức khoẻ")
+        val col = page(p, tr("Hồ sơ sức khoẻ", "Health profile"))
 
-        col.addView(sectionHeader(p, "Cơ thể"))
+        col.addView(sectionHeader(p, tr("Cơ thể", "Body")))
         col.addView(group(p,
-            numRow("Chiều cao (cm)", prof.heightCm.toString()) { prof.heightCm = it; },
-            numRow("Cân nặng (kg)", prof.weightKg.toString()) { prof.weightKg = it; },
-            numRow("Tuổi", prof.age.toString()) { prof.age = it.toInt(); },
+            numRow(tr("Chiều cao (cm)", "Height (cm)"), prof.heightCm.toString()) { prof.heightCm = it; },
+            numRow(tr("Cân nặng (kg)", "Weight (kg)"), prof.weightKg.toString()) { prof.weightKg = it; },
+            numRow(tr("Tuổi", "Age"), prof.age.toString()) { prof.age = it.toInt(); },
         ))
 
-        col.addView(sectionHeader(p, "Giới tính"))
-        col.addView(seg(listOf("Nam", "Nữ"), if (prof.gender == "female") 1 else 0) {
+        col.addView(sectionHeader(p, tr("Giới tính", "Gender")))
+        col.addView(seg(listOf(tr("Nam", "Male"), tr("Nữ", "Female")), if (prof.gender == "female") 1 else 0) {
             prof.gender = if (it == 1) "female" else "male"; refresh()
         })
 
-        col.addView(sectionHeader(p, "Mức vận động"))
-        col.addView(seg(Profile.ACTIVITY, prof.activity) { prof.activity = it; refresh() })
+        col.addView(sectionHeader(p, tr("Mức vận động", "Activity level")))
+        col.addView(seg(Profile.activityLabels(), prof.activity) { prof.activity = it; refresh() })
 
-        col.addView(sectionHeader(p, "Mục tiêu"))
-        col.addView(seg(Profile.GOALS.map { it.second }, Profile.GOALS.indexOfFirst { it.first == prof.goal }.coerceAtLeast(0)) {
+        col.addView(sectionHeader(p, tr("Mục tiêu", "Goal")))
+        col.addView(seg(Profile.goalLabels(), Profile.GOALS.indexOfFirst { it.first == prof.goal }.coerceAtLeast(0)) {
             prof.goal = Profile.GOALS[it].first; refresh()
         })
         col.addView(group(p,
-            numRow("Cân nặng mục tiêu (kg)", prof.targetWeightKg.toString()) { prof.targetWeightKg = it; },
-            numRow("Tốc độ (kg/tuần)", prof.weeklyRateKg.toString()) { prof.weeklyRateKg = it; },
+            numRow(tr("Cân nặng mục tiêu (kg)", "Target weight (kg)"), prof.targetWeightKg.toString()) { prof.targetWeightKg = it; },
+            numRow(tr("Tốc độ (kg/tuần)", "Rate (kg/week)"), prof.weeklyRateKg.toString()) { prof.weeklyRateKg = it; },
         ))
 
-        col.addView(sectionHeader(p, "Yêu cầu riêng (tuỳ chọn)"))
+        col.addView(sectionHeader(p, tr("Thông tin thêm (tuỳ chọn)", "Additional info (optional)")))
         val notesField = inlineField(p, prof.notes, wide = true) { prof.notes = it }.apply {
             gravity = Gravity.START; setTextColor(p.text)
-            hint = "VD: nhiều đạm, ít đường, ăn chay, tiểu đường, tập gym 3 buổi/tuần…"
+            hint = tr("VD: nhiều đạm, ít đường, ăn chay, tiểu đường, tập gym 3 buổi/tuần…",
+                "e.g. high protein, low sugar, vegetarian, diabetic, gym 3x/week…")
             setHintTextColor(p.secondary)
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         col.addView(card(p).apply { addView(notesField) })
 
-        col.addView(sectionHeader(p, "Tính toán (tự động)"))
+        col.addView(sectionHeader(p, tr("Tính toán (tự động)", "Calculated (automatic)")))
         summary = text("", 14.5f, p.text).apply { setPadding(dp(16), dp(14), dp(16), dp(14)); setLineSpacing(0f, 1.3f) }
         col.addView(card(p).apply { addView(summary) })
         refresh()
 
-        col.addView(bigIconButton("Lưu hồ sơ", R.drawable.ic_check, p.green, p.teal) {
-            Store.saveProfile(this, prof); toast("Đã lưu hồ sơ"); finish()
+        col.addView(bigIconButton(tr("Lưu hồ sơ", "Save profile"), R.drawable.ic_check, p.accent, p.accent2) {
+            prof.notes = notesField.text.toString().trim() // commit even if the field never lost focus
+            Store.saveProfile(this, prof); toast(tr("Đã lưu hồ sơ", "Profile saved")); finish()
         }, vlp().apply { topMargin = dp(22) })
     }
 
@@ -77,9 +79,9 @@ class ProfileActivity : Activity() {
     private fun refresh() {
         summary.text = buildString {
             append("BMI: ${String.format("%.1f", prof.bmi())} — ${prof.bmiLabel()}\n")
-            append("BMR (chuyển hoá cơ bản): ~${prof.bmr()} kcal/ngày\n")
-            append("TDEE (tiêu hao cả ngày): ~${prof.tdee()} kcal/ngày\n")
-            append("→ Calo mục tiêu: ~${prof.targetCalories()} kcal/ngày (${prof.goalLabel()})")
+            append(tr("BMR (chuyển hoá cơ bản): ~${prof.bmr()} kcal/ngày", "BMR (basal metabolic rate): ~${prof.bmr()} kcal/day")).append("\n")
+            append(tr("TDEE (tiêu hao cả ngày): ~${prof.tdee()} kcal/ngày", "TDEE (daily burn): ~${prof.tdee()} kcal/day")).append("\n")
+            append(tr("→ Calo mục tiêu: ~${prof.targetCalories()} kcal/ngày (${prof.goalLabel()})", "→ Target calories: ~${prof.targetCalories()} kcal/day (${prof.goalLabel()})"))
         }
     }
 }

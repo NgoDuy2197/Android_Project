@@ -3,6 +3,8 @@ package com.dsoft.healthassistant
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -156,8 +158,8 @@ object ReviewQueue {
             job.cancelled -> { job.status = Status.CANCELLED; DiagLog.i(TAG, "Đã huỷ: ${job.title}") }
             t.isAlive -> {
                 job.status = Status.ERROR
-                job.error = "Quá thời gian (${TIMEOUT_MS / 1000}s) — model có thể quá chậm hoặc bị treo. " +
-                    "Thử model nhỏ hơn / giảm max tokens, hoặc dùng Gemini."
+                job.error = tr("Quá thời gian (${TIMEOUT_MS / 1000}s) — model có thể quá chậm hoặc bị treo. Thử model nhỏ hơn / giảm max tokens, hoặc dùng Gemini.",
+                    "Timed out (${TIMEOUT_MS / 1000}s) — the model may be too slow or stuck. Try a smaller model / lower max tokens, or use Gemini.")
                 DiagLog.e(TAG, "THẤT BẠI (quá thời gian): ${job.title}")
             }
             holder[1] != null -> {
@@ -177,10 +179,50 @@ object ReviewQueue {
     /** Cache into the store so the dashboard shows calories — only when still the same user. */
     private fun cacheResult(ctx: Context, job: Job) {
         runCatching {
-            if (job.isDay) Store.saveDayReview(ctx, job.date, job.resultJson)
-            else Store.get(ctx, job.mealId)?.let { m ->
+            if (job.isDay) {
+                Store.saveDayReview(ctx, job.date, job.resultJson)
+                runCatching { splitDayToMeals(ctx, job.date, job.resultJson) }
+                    .onFailure { DiagLog.e(TAG, "Tách theo bữa lỗi", it) }
+            } else Store.get(ctx, job.mealId)?.let { m ->
                 m.reviewJson = job.resultJson; m.reviewAt = System.currentTimeMillis(); Store.upsert(ctx, m)
             }
         }.onFailure { DiagLog.e(TAG, "Lưu kết quả thất bại: ${job.title}", it) }
+    }
+
+    /**
+     * Attribute the whole-day review's items to the day's meals (best-effort word-overlap match)
+     * and write a small per-meal review (marked "from_day") so each meal row shows its calories.
+     * Uses saveMeals (not upsert) so it doesn't wipe the day review we just saved.
+     */
+    private fun splitDayToMeals(ctx: Context, date: String, json: String) {
+        val review = Ai.parse(json) ?: return
+        val meals = Store.loadMeals(ctx).filter { it.date == date }
+        if (meals.isEmpty() || review.items.isEmpty()) return
+
+        fun toks(s: String) = s.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 2 }.toSet()
+        val mealToks = meals.associate { it.id to toks(it.items) }
+        val assigned = HashMap<Long, MutableList<Pair<String, Int>>>()
+        review.items.forEach { item ->
+            val itTok = toks(item.first)
+            val best = meals.maxByOrNull { m -> (mealToks[m.id] ?: emptySet()).count { it in itTok } }
+            val overlap = best?.let { b -> (mealToks[b.id] ?: emptySet()).count { it in itTok } } ?: 0
+            val target = if (overlap > 0) best!! else meals.first()
+            assigned.getOrPut(target.id) { mutableListOf() }.add(item)
+        }
+
+        val all = Store.loadMeals(ctx)
+        var changed = false
+        all.forEach { m ->
+            if (m.date != date) return@forEach
+            val items = assigned[m.id] ?: return@forEach
+            val mj = JSONObject().apply {
+                put("total_calories", items.sumOf { it.second })
+                put("items", JSONArray().apply { items.forEach { put(JSONObject().put("name", it.first).put("calories", it.second)) } })
+                put("assessment", tr("(Tách từ xem xét cả ngày)", "(Split from the whole-day review)"))
+                put("from_day", true)
+            }
+            m.reviewJson = mj.toString(); m.reviewAt = System.currentTimeMillis(); changed = true
+        }
+        if (changed) Store.saveMeals(ctx, all)
     }
 }

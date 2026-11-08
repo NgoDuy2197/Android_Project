@@ -66,7 +66,7 @@ object Ai {
     fun reviewBlocking(ctx: Context, scope: String, mealsText: String): Review {
         val prefs = Prefs(ctx)
         val profile = Store.loadProfile(ctx)
-        if (mealsText.isBlank()) throw IllegalStateException("Chưa có món ăn nào để xem xét.")
+        if (mealsText.isBlank()) throw IllegalStateException(tr("Chưa có món ăn nào để xem xét.", "No food to review yet."))
         val prompt = buildPrompt(profile, scope, mealsText)
         val t0 = System.currentTimeMillis()
         DiagLog.i(TAG, "Bắt đầu xem xét — chế độ=${prefs.engine}, phạm vi=$scope, prompt ${prompt.length} ký tự")
@@ -79,7 +79,8 @@ object Ai {
         if (parsed == null) {
             DiagLog.w(TAG, "Không đọc được JSON. Output thô (${raw.length} ký tự): ${raw.take(800).replace("\n", " ")}")
             return Review(0, 0, 0, 0, emptyList(),
-                "Model trả về dữ liệu không đọc được (JSON lỗi). Mở “Nhật ký chẩn đoán” để xem output thô, hoặc Thử lại / dùng Gemini.",
+                tr("Model trả về dữ liệu không đọc được (JSON lỗi). Mở “Nhật ký chẩn đoán” để xem output thô, hoặc Thử lại / dùng Gemini.",
+                    "The model returned unreadable data (bad JSON). Open the diagnostic log for the raw output, or try again / use Gemini."),
                 emptyList(), emptyList(), raw)
         }
         DiagLog.i(TAG, "Đã đọc JSON: ${parsed.calories} kcal, ${parsed.items.size} món")
@@ -88,7 +89,8 @@ object Ai {
 
     /** Turn any failure (Exception or Error) into a short Vietnamese message. */
     fun friendly(t: Throwable): String = when (t) {
-        is OutOfMemoryError -> "Hết bộ nhớ khi nạp/chạy model — model quá lớn cho máy này. Thử model nhỏ hơn (q4) hoặc dùng Gemini."
+        is OutOfMemoryError -> tr("Hết bộ nhớ khi nạp/chạy model — model quá lớn cho máy này. Thử model nhỏ hơn (q4) hoặc dùng Gemini.",
+            "Out of memory loading/running the model — too large for this device. Try a smaller model (q4) or use Gemini.")
         else -> t.message?.takeIf { it.isNotBlank() } ?: t.javaClass.simpleName
     }
 
@@ -126,7 +128,7 @@ HỒ SƠ:
 - Mức vận động: ${p.activityLabel()}
 - Nhu cầu duy trì (TDEE): ~${p.tdee()} kcal/ngày; mục tiêu calo: ~${p.targetCalories()} kcal/ngày
 - Mục tiêu: $goalLine
-- Yêu cầu riêng: $notes
+- Thông tin thêm: $notes
 
 MÓN ĂN ($scope):
 $mealsText
@@ -142,7 +144,7 @@ Hãy ước tính và CHỈ trả về một JSON THUẦN (không bọc trong ``
 QUY TẮC BẮT BUỘC:
 - total_calories PHẢI bằng tổng "calories" của tất cả items.
 - Điền tên món thật từ danh sách trên, KHÔNG để chữ "tên món".
-- Mọi con số là ƯỚC TÍNH. Trả về JSON hợp lệ, đóng đủ ngoặc, KHÔNG thêm chữ nào ngoài JSON.
+- Mọi con số là ƯỚC TÍNH. Trả về JSON hợp lệ, đóng đủ ngoặc, KHÔNG thêm chữ nào ngoài JSON.${if (I18n.en) "\n- IMPORTANT: write ALL text values (item names, assessment, tips, warnings) in ENGLISH." else ""}
 """.trim()
     }
 
@@ -303,7 +305,7 @@ private class KeyRetryException(msg: String) : Exception(msg)
 private object GeminiClient {
     fun run(prefs: Prefs, prompt: String): String {
         val keys = prefs.geminiKeyList()
-        if (keys.isEmpty()) throw IllegalStateException("Chưa nhập Gemini API key (vào Cài đặt AI).")
+        if (keys.isEmpty()) throw IllegalStateException(tr("Chưa nhập Gemini API key (vào Cài đặt AI).", "No Gemini API key yet (open AI settings)."))
         val model = prefs.geminiModel.ifBlank { "gemini-2.5-flash" }
         var lastErr: String? = null
         for ((i, key) in keys.withIndex()) {
@@ -318,7 +320,8 @@ private object GeminiClient {
                 // quota / invalid key -> try the next one
             }
         }
-        throw java.io.IOException("Tất cả ${keys.size} Gemini key đều lỗi (quota/không hợp lệ). Lỗi cuối — $lastErr")
+        throw java.io.IOException(tr("Tất cả ${keys.size} Gemini key đều lỗi (quota/không hợp lệ). Lỗi cuối — $lastErr",
+            "All ${keys.size} Gemini key(s) failed (quota/invalid). Last error — $lastErr"))
     }
 
     private fun request(key: String, model: String, prompt: String): String {
@@ -353,11 +356,11 @@ private object GeminiClient {
             }
             val resp = c.inputStream.bufferedReader().readText()
             val cand = JSONObject(resp).optJSONArray("candidates")?.optJSONObject(0)
-                ?: throw java.io.IOException("Gemini không trả về nội dung (có thể bị chặn an toàn).")
+                ?: throw java.io.IOException(tr("Gemini không trả về nội dung (có thể bị chặn an toàn).", "Gemini returned no content (possibly a safety block)."))
             val parts = cand.optJSONObject("content")?.optJSONArray("parts")
             val sb = StringBuilder()
             if (parts != null) for (i in 0 until parts.length()) sb.append(parts.optJSONObject(i)?.optString("text").orEmpty())
-            return sb.toString().ifBlank { throw java.io.IOException("Gemini trả về rỗng.") }
+            return sb.toString().ifBlank { throw java.io.IOException(tr("Gemini trả về rỗng.", "Gemini returned empty.")) }
         } finally {
             c.disconnect()
         }
@@ -373,11 +376,11 @@ private object OfflineClient {
     fun run(ctx: Context, prefs: Prefs, prompt: String): String = synchronized(lock) {
         val path = prefs.offlineModelPath
         if (path.isBlank() || !File(path).exists())
-            throw IllegalStateException("Chưa chọn model offline (vào Cài đặt AI → Import model).")
+            throw IllegalStateException(tr("Chưa chọn model offline (vào Cài đặt AI → Import model).", "No offline model selected (AI settings → Import model)."))
         val llm = instance(ctx, path, prefs.offlineMaxTokens)
         val t0 = System.currentTimeMillis()
         DiagLog.i("HA_AI", "Offline: đang sinh phản hồi… (prompt ${prompt.length} ký tự)")
-        val out = llm.generateResponse(prompt) ?: throw java.io.IOException("Model không trả về nội dung.")
+        val out = llm.generateResponse(prompt) ?: throw java.io.IOException(tr("Model không trả về nội dung.", "The model returned no content."))
         DiagLog.i("HA_AI", "Offline: sinh xong sau ${System.currentTimeMillis() - t0}ms (${out.length} ký tự)")
         return out
     }
@@ -441,7 +444,8 @@ object LocalEstimator {
             calories = total, protein = (total * 0.20 / 4).roundToInt(),
             carb = (total * 0.50 / 4).roundToInt(), fat = (total * 0.30 / 9).roundToInt(),
             items = items,
-            assessment = "Ước tính thô theo bảng calo có sẵn (chưa dùng AI). Cấu hình Gemini hoặc model offline để có nhận xét chi tiết hơn.",
+            assessment = tr("Ước tính thô theo bảng calo có sẵn (chưa dùng AI). Cấu hình Gemini hoặc model offline để có nhận xét chi tiết hơn.",
+                "Rough estimate from a built-in table (no AI). Set up Gemini or an offline model for detailed reviews."),
             tips = emptyList(), warnings = emptyList(), raw = "", estimated = true,
         )
     }

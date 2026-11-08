@@ -36,14 +36,14 @@ class MealEditorActivity : Activity() {
         }
         selType = meal.type
 
-        val col = page(p, if (isNew) "Thêm bữa ăn" else "Sửa bữa ăn")
+        val col = page(p, if (isNew) tr("Thêm bữa ăn", "Add meal") else tr("Sửa bữa ăn", "Edit meal"))
 
         // type
-        col.addView(sectionHeader(p, "Loại bữa"))
-        col.addView(Segmented(this, p, Meal.MEAL_TYPES, meal.type) { selType = it }, vlp().apply { marginStart = dp(4); marginEnd = dp(4) })
+        col.addView(sectionHeader(p, tr("Loại bữa", "Meal type")))
+        col.addView(Segmented(this, p, Meal.mealTypes(), meal.type) { selType = it }, vlp().apply { marginStart = dp(4); marginEnd = dp(4) })
 
         // time
-        col.addView(sectionHeader(p, "Giờ ăn"))
+        col.addView(sectionHeader(p, tr("Giờ ăn", "Time")))
         timeField = inlineField(p, meal.time) {}.apply {
             gravity = Gravity.START; setTextColor(p.text)
             layoutParams = LinearLayout.LayoutParams(dp(120), ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -51,10 +51,11 @@ class MealEditorActivity : Activity() {
         col.addView(group(p, row(p, "HH:mm", timeField)))
 
         // items
-        col.addView(sectionHeader(p, "Món ăn (mỗi dòng một món)"))
+        col.addView(sectionHeader(p, tr("Món ăn (mỗi dòng một món)", "Foods (one per line)")))
         itemsField = EditText(this).apply {
             setText(meal.items)
-            hint = "VD:\n2 chén cơm\n100g thịt kho\n1 tô canh rau\n1 ly trà sữa"
+            hint = tr("VD:\n2 chén cơm\n100g thịt kho\n1 tô canh rau\n1 ly trà sữa",
+                "e.g.:\n2 bowls of rice\n100g braised pork\n1 bowl of soup\n1 milk tea")
             background = null
             setTextColor(p.text); setHintTextColor(p.secondary)
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
@@ -66,7 +67,7 @@ class MealEditorActivity : Activity() {
         col.addView(card(p).apply { addView(itemsField) })
 
         // note
-        col.addView(sectionHeader(p, "Ghi chú (tuỳ chọn)"))
+        col.addView(sectionHeader(p, tr("Ghi chú (tuỳ chọn)", "Note (optional)")))
         noteField = inlineField(p, meal.note, wide = true) {}.apply {
             gravity = Gravity.START; setTextColor(p.text)
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -74,12 +75,12 @@ class MealEditorActivity : Activity() {
         col.addView(card(p).apply { addView(noteField) })
 
         // actions
-        col.addView(bigIconButton("Xem xét bữa này", R.drawable.ic_search, p.indigo, p.blue) { saveThen { reviewThisMeal() } },
+        col.addView(bigIconButton(tr("Xem xét bữa này", "Review this meal"), R.drawable.ic_search, p.indigo, p.blue) { saveThen { reviewThisMeal() } },
             vlp().apply { topMargin = dp(22) })
-        col.addView(bigIconButton("Lưu", R.drawable.ic_check, p.green, p.teal) { saveThen { finish() } },
+        col.addView(bigIconButton(tr("Lưu", "Save"), R.drawable.ic_check, p.accent, p.accent2) { saveThen { finish() } },
             vlp().apply { topMargin = dp(10) })
         if (!isNew)
-            col.addView(bigIconButton("Xoá bữa này", R.drawable.ic_delete, p.red, p.pink) { Store.delete(this, meal.id); finish() },
+            col.addView(bigIconButton(tr("Xoá bữa này", "Delete this meal"), R.drawable.ic_delete, p.red, p.pink) { Store.delete(this, meal.id); finish() },
                 vlp().apply { topMargin = dp(10) })
     }
 
@@ -94,7 +95,7 @@ class MealEditorActivity : Activity() {
 
     private fun saveThen(after: () -> Unit) {
         collect()
-        if (meal.items.isBlank()) { toast("Hãy nhập ít nhất một món ăn."); return }
+        if (meal.items.isBlank()) { toast(tr("Hãy nhập ít nhất một món ăn.", "Enter at least one food.")); return }
         Store.upsert(this, meal)
         after()
     }

@@ -20,8 +20,9 @@ class ReviewActivity : Activity() {
     private lateinit var p: Palette
     private lateinit var body: LinearLayout
     private var jobId: Long = 0
+    private var savedDate: String? = null
     private var diagTail: TextView? = null
-    private val onQueue = { runOnUiThread { bindJob() } }
+    private val onQueue = { runOnUiThread { if (savedDate != null) showSavedDay() else bindJob() } }
     private val onDiag = { runOnUiThread { updateDiagTail() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,14 +30,25 @@ class ReviewActivity : Activity() {
         p = palette()
 
         jobId = intent.getLongExtra("jobId", 0)
+        val saved = intent.getStringExtra("savedDate")
+        if (jobId == 0L && saved != null && Store.loadDayReview(this, saved).isNotBlank()) {
+            savedDate = saved
+            val col = page(p, tr("Xem xét cả ngày", "Whole-day review"))
+            col.addView(text("${tr("Cả ngày", "Whole day")} · ${Store.prettyDate(saved)}", 14f, p.secondary)
+                .apply { setPadding(dp(4), 0, 0, dp(8)) })
+            body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            col.addView(body)
+            showSavedDay()
+            return
+        }
         if (jobId == 0L) {
             val job = buildAndEnqueue() ?: return // finishes itself on error
             jobId = job.id
         }
         val job = ReviewQueue.job(jobId)
-        if (job == null) { toast("Không tìm thấy yêu cầu xem xét."); finish(); return }
+        if (job == null) { toast(tr("Không tìm thấy yêu cầu xem xét.", "Review request not found.")); finish(); return }
 
-        val col = page(p, if (job.isDay) "Xem xét cả ngày" else "Xem xét bữa ăn")
+        val col = page(p, if (job.isDay) tr("Xem xét cả ngày", "Whole-day review") else tr("Xem xét bữa ăn", "Meal review"))
         col.addView(text(job.title, 14f, p.secondary).apply { setPadding(dp(4), 0, 0, dp(8)) })
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(body)
@@ -45,7 +57,8 @@ class ReviewActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        ReviewQueue.addListener(onQueue); DiagLog.addListener(onDiag); bindJob()
+        ReviewQueue.addListener(onQueue); DiagLog.addListener(onDiag)
+        if (savedDate != null) showSavedDay() else bindJob()
     }
     override fun onPause() {
         super.onPause()
@@ -68,19 +81,26 @@ class ReviewActivity : Activity() {
             return ReviewQueue.enqueueMeal(this, m, scopeLabel, mealsText)
         }
         val d = intent.getStringExtra("date") ?: Store.today()
+        if (Store.mealsForDate(this, d).isEmpty()) { toast(tr("Chưa có món ăn nào để xem xét.", "No food to review yet.")); finish(); return null }
+        return ReviewQueue.enqueueDay(this, d, "cả ngày", buildDayMealsText(d))
+    }
+
+    /** The day's meals (+ water) as the text the AI reviews. */
+    private fun buildDayMealsText(d: String): String {
         val meals = Store.mealsForDate(this, d)
-        val mealsText = meals.joinToString("\n") { m ->
+        val sb = StringBuilder(meals.joinToString("\n") { m ->
             "• ${m.typeLabel()}${if (m.time.isNotBlank()) " (${m.time})" else ""}: " +
                 m.items.replace("\n", ", ") + (if (m.note.isNotBlank()) " [${m.note}]" else "")
-        }
-        if (mealsText.isBlank()) { toast("Chưa có món ăn nào để xem xét."); finish(); return null }
-        return ReviewQueue.enqueueDay(this, d, "cả ngày", mealsText)
+        })
+        val water = Water.amount(this, d)
+        if (water > 0) sb.append("\n\nNước uống trong ngày: $water ml (mục tiêu ${Water.targetMl(this)} ml).")
+        return sb.toString()
     }
 
     private fun bindJob() {
         if (!::body.isInitialized) return
         diagTail = null
-        val job = ReviewQueue.job(jobId) ?: run { showMessage("Yêu cầu đã bị xoá khỏi hàng đợi."); return }
+        val job = ReviewQueue.job(jobId) ?: run { showMessage(tr("Yêu cầu đã bị xoá khỏi hàng đợi.", "This request was removed from the queue.")); return }
         when (job.status) {
             ReviewQueue.Status.QUEUED, ReviewQueue.Status.RUNNING -> showProcessing(job)
             ReviewQueue.Status.AWAITING -> showResult(job, parsed(job), awaiting = true)
@@ -109,7 +129,30 @@ class ReviewActivity : Activity() {
 
     private fun openQueue() = startActivity(Intent(this, ReviewQueueActivity::class.java))
     private fun openDiag() = startActivity(Intent(this, DiagLogActivity::class.java))
-    private fun engineLabel(e: String) = when (e) { "offline" -> "model offline"; "local" -> "ước tính thô (không AI)"; else -> "Gemini" }
+    private fun engineLabel(e: String) = when (e) {
+        "offline" -> tr("model offline", "offline model")
+        "local" -> tr("ước tính thô (không AI)", "rough estimate (no AI)")
+        "saved" -> tr("đã lưu", "saved")
+        else -> "Gemini"
+    }
+
+    /** A previously-approved whole-day review loaded from the store (read-only + re-review). */
+    private fun showSavedDay() {
+        if (!::body.isInitialized) return
+        val d = savedDate ?: return
+        val json = Store.loadDayReview(this, d)
+        if (json.isBlank()) { savedDate = null; finish(); return }
+        val r = Ai.parse(json) ?: Ai.Review(0, 0, 0, 0, emptyList(), Ai.cleanForDisplay(json), emptyList(), emptyList(), json)
+        body.removeAllViews()
+        body.addView(banner(tr("Đã lưu — kết quả cả ngày đã tính vào calo.", "Saved — the whole-day result counts toward calories."),
+            R.drawable.ic_check, p.green), vlp().apply { bottomMargin = dp(12) })
+        renderResultCards(r, "saved")
+        body.addView(bigIconButton(tr("Xoá & xem xét lại", "Delete & re-review"), R.drawable.ic_refresh, p.accent, p.accent2) {
+            Store.clearDayReview(this, d); Store.clearDerivedMealReviews(this, d)
+            val job = ReviewQueue.enqueueDay(this, d, "cả ngày", buildDayMealsText(d))
+            savedDate = null; jobId = job.id; bindJob()
+        }, vlp().apply { topMargin = dp(16) })
+    }
 
     // ---- states ----
     private fun showProcessing(job: ReviewQueue.Job) {
@@ -120,14 +163,15 @@ class ReviewActivity : Activity() {
             addView(WalkProgressView(this@ReviewActivity, p).apply {
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(96)).apply { bottomMargin = dp(10) }
             })
-            addView(text(if (waiting) "Đang chờ trong hàng đợi…" else "Đang phân tích bằng ${engineLabel(job.engine)}…",
+            addView(text(if (waiting) tr("Đang chờ trong hàng đợi…", "Waiting in the queue…") else tr("Đang phân tích bằng ${engineLabel(job.engine)}…", "Analyzing with ${engineLabel(job.engine)}…"),
                 16f, p.text, 500).apply { gravity = Gravity.CENTER })
-            addView(text("Có thể thoát ra — kết quả vẫn chạy nền và lưu trong hàng đợi. Model offline lần đầu nạp có thể lâu.",
+            addView(text(tr("Có thể thoát ra — kết quả vẫn chạy nền và lưu trong hàng đợi. Model offline lần đầu nạp có thể lâu.",
+                "You can leave — it keeps running in the background and stays in the queue. The offline model can be slow on first load."),
                 13f, p.secondary).apply { gravity = Gravity.CENTER; setPadding(0, dp(8), 0, 0); setLineSpacing(0f, 1.15f) })
         })
 
         // live diagnostic tail — so the user can SEE which step it's on / where it stalls
-        body.addView(sectionHeader(p, "Đang chạy ở bước"))
+        body.addView(sectionHeader(p, tr("Đang chạy ở bước", "Current step")))
         val tail = TextView(this).apply {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
             typeface = Typeface.MONOSPACE; setTextColor(p.secondary); setLineSpacing(0f, 1.1f)
@@ -136,26 +180,26 @@ class ReviewActivity : Activity() {
         body.addView(card(p).apply { setPadding(dp(12), dp(12), dp(12), dp(12)); addView(tail) })
         updateDiagTail()
 
-        body.addView(bigIconButton("Xem hàng đợi", R.drawable.ic_list, p.indigo, p.blue) { openQueue() },
+        body.addView(bigIconButton(tr("Xem hàng đợi", "View queue"), R.drawable.ic_list, p.indigo, p.blue) { openQueue() },
             vlp().apply { topMargin = dp(12) })
-        body.addView(bigButton("Huỷ yêu cầu này", p.red, p.pink) { ReviewQueue.cancel(jobId); bindJob() },
+        body.addView(bigButton(tr("Huỷ yêu cầu này", "Cancel this request"), p.red, p.pink) { ReviewQueue.cancel(jobId); bindJob() },
             vlp().apply { topMargin = dp(10) })
     }
 
     private fun updateDiagTail() {
         val tail = diagTail ?: return
         val lines = DiagLog.snapshot().takeLast(8)
-        tail.text = if (lines.isEmpty()) "(chưa có log)" else lines.joinToString("\n") { it.format() }
+        tail.text = if (lines.isEmpty()) tr("(chưa có log)", "(no log yet)") else lines.joinToString("\n") { it.format() }
     }
 
     private fun showCancelled() {
         body.removeAllViews()
         body.addView(card(p).apply {
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            addView(text("Đã huỷ yêu cầu", 17f, p.text, 700))
-            addView(text("Yêu cầu xem xét này đã bị huỷ.", 14f, p.secondary).apply { setPadding(0, dp(6), 0, 0) })
+            addView(text(tr("Đã huỷ yêu cầu", "Request cancelled"), 17f, p.text, 700))
+            addView(text(tr("Yêu cầu xem xét này đã bị huỷ.", "This review request was cancelled."), 14f, p.secondary).apply { setPadding(0, dp(6), 0, 0) })
         }, vlp().apply { bottomMargin = dp(12) })
-        body.addView(bigIconButton("Xem xét lại", R.drawable.ic_refresh, p.green, p.teal) { retry() })
+        body.addView(bigIconButton(tr("Xem xét lại", "Review again"), R.drawable.ic_refresh, p.accent, p.accent2) { retry() })
     }
 
     private fun showMessage(msg: String) {
@@ -167,40 +211,40 @@ class ReviewActivity : Activity() {
         body.removeAllViews()
         body.addView(card(p).apply {
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            addView(text("Không xem xét được (Thất bại)", 17f, p.red, 700))
-            addView(text(job.error.ifBlank { "Lỗi không rõ" }, 14f, p.secondary).apply { setPadding(0, dp(8), 0, 0); setLineSpacing(0f, 1.15f) })
+            addView(text(tr("Không xem xét được (Thất bại)", "Couldn't review (Failed)"), 17f, p.red, 700))
+            addView(text(job.error.ifBlank { tr("Lỗi không rõ", "Unknown error") }, 14f, p.secondary).apply { setPadding(0, dp(8), 0, 0); setLineSpacing(0f, 1.15f) })
         }, vlp().apply { bottomMargin = dp(12) })
-        body.addView(bigIconButton("Thử lại", R.drawable.ic_refresh, p.green, p.teal) { retry() }, vlp().apply { bottomMargin = dp(10) })
-        body.addView(bigIconButton("Xem nhật ký chẩn đoán", R.drawable.ic_list, p.secondary, p.secondary) { openDiag() }, vlp().apply { bottomMargin = dp(10) })
-        body.addView(bigIconButton("Dùng ước tính thô (không AI)", R.drawable.ic_search, p.orange, p.orange) {
+        body.addView(bigIconButton(tr("Thử lại", "Try again"), R.drawable.ic_refresh, p.accent, p.accent2) { retry() }, vlp().apply { bottomMargin = dp(10) })
+        body.addView(bigIconButton(tr("Xem nhật ký chẩn đoán", "View diagnostic log"), R.drawable.ic_list, p.secondary, p.secondary) { openDiag() }, vlp().apply { bottomMargin = dp(10) })
+        body.addView(bigIconButton(tr("Dùng ước tính thô (không AI)", "Use rough estimate (no AI)"), R.drawable.ic_search, p.orange, p.orange) {
             showEstimate(LocalEstimator.estimate(ReviewQueue.job(jobId)?.mealsText ?: ""))
         }, vlp().apply { bottomMargin = dp(10) })
-        body.addView(bigIconButton("Mở Cài đặt AI", R.drawable.ic_settings, p.indigo, p.blue) {
+        body.addView(bigIconButton(tr("Mở Cài đặt AI", "Open AI settings"), R.drawable.ic_settings, p.indigo, p.blue) {
             startActivity(Intent(this, AiSettingsActivity::class.java))
         }, vlp().apply { bottomMargin = dp(10) })
-        body.addView(bigIconButton("Xem hàng đợi", R.drawable.ic_list, p.indigo, p.blue) { openQueue() })
+        body.addView(bigIconButton(tr("Xem hàng đợi", "View queue"), R.drawable.ic_list, p.indigo, p.blue) { openQueue() })
     }
 
     /** A review result with the approve / regenerate actions appropriate to the job's status. */
     private fun showResult(job: ReviewQueue.Job, r: Ai.Review, awaiting: Boolean) {
         body.removeAllViews()
 
-        if (awaiting) body.addView(banner("Có kết quả — xem rồi bấm “Duyệt” để lưu vào bữa ăn.", R.drawable.ic_warning, p.orange),
+        if (awaiting) body.addView(banner(tr("Có kết quả — xem rồi bấm “Duyệt” để lưu vào bữa ăn.", "Result ready — review it, then tap “Approve” to save."), R.drawable.ic_warning, p.orange),
             vlp().apply { bottomMargin = dp(12) })
-        else body.addView(banner("Đã duyệt — kết quả này đã được lưu và tính vào calo.", R.drawable.ic_check, p.green),
+        else body.addView(banner(tr("Đã duyệt — kết quả này đã được lưu và tính vào calo.", "Approved — this result is saved and counted."), R.drawable.ic_check, p.green),
             vlp().apply { bottomMargin = dp(12) })
 
         renderResultCards(r, job.engine)
 
         if (awaiting) {
             val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            actions.addView(bigIconButton("Duyệt & lưu", R.drawable.ic_check, p.green, p.teal) { approve() },
+            actions.addView(bigIconButton(tr("Duyệt & lưu", "Approve & save"), R.drawable.ic_check, p.accent, p.accent2) { approve() },
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            actions.addView(bigIconButton("Xoá & tạo lại", R.drawable.ic_delete, p.red, p.pink) { retry() },
+            actions.addView(bigIconButton(tr("Xoá & tạo lại", "Delete & redo"), R.drawable.ic_delete, p.red, p.pink) { retry() },
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(10) })
             body.addView(actions, vlp().apply { topMargin = dp(16) })
         } else {
-            body.addView(bigIconButton("Xoá & xem xét lại", R.drawable.ic_refresh, p.green, p.teal) { retry() },
+            body.addView(bigIconButton(tr("Xoá & xem xét lại", "Delete & re-review"), R.drawable.ic_refresh, p.accent, p.accent2) { retry() },
                 vlp().apply { topMargin = dp(16) })
         }
     }
@@ -208,26 +252,27 @@ class ReviewActivity : Activity() {
     /** The LocalEstimator fallback (no job to approve) — just show it with a re-review button. */
     private fun showEstimate(r: Ai.Review) {
         body.removeAllViews()
-        body.addView(banner("Ước tính thô theo bảng calo có sẵn — chưa dùng AI.", R.drawable.ic_warning, p.orange),
+        body.addView(banner(tr("Ước tính thô theo bảng calo có sẵn — chưa dùng AI.", "Rough estimate from a built-in table — no AI used."), R.drawable.ic_warning, p.orange),
             vlp().apply { bottomMargin = dp(12) })
         renderResultCards(r, "local")
-        body.addView(bigIconButton("Xem xét lại bằng AI", R.drawable.ic_refresh, p.green, p.teal) { retry() },
+        body.addView(bigIconButton(tr("Xem xét lại bằng AI", "Re-review with AI"), R.drawable.ic_refresh, p.accent, p.accent2) { retry() },
             vlp().apply { topMargin = dp(16) })
     }
 
     private fun renderResultCards(r: Ai.Review, engine: String) {
         body.addView(card(p).apply {
             setPadding(dp(18), dp(16), dp(18), dp(16))
-            addView(text("Tổng calo (ước tính)", 13f, p.secondary))
-            addView(text("${r.calories} kcal", 38f, p.green, 700).apply { setPadding(0, dp(2), 0, dp(6)) })
+            addView(text(tr("Tổng calo (ước tính)", "Total calories (estimated)"), 13f, p.secondary))
+            addView(text("${r.calories} kcal", 38f, p.accent, 700).apply { setPadding(0, dp(2), 0, dp(6)) })
             val target = Store.loadProfile(this@ReviewActivity).targetCalories()
             val rem = target - r.calories
-            addView(text(if (rem >= 0) "≈ $rem kcal nữa là tới mục tiêu ngày (~$target)" else "Vượt mục tiêu ngày ~${-rem} kcal (~$target)",
+            addView(text(if (rem >= 0) tr("≈ $rem kcal nữa là tới mục tiêu ngày (~$target)", "≈ $rem kcal to the daily target (~$target)")
+                else tr("Vượt mục tiêu ngày ~${-rem} kcal (~$target)", "~${-rem} kcal over the daily target (~$target)"),
                 13.5f, if (rem >= 0) p.secondary else p.orange, 500))
             val macros = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(14), 0, 0) }
-            macros.addView(macroTile("Đạm", "${r.protein}g"))
-            macros.addView(macroTile("Tinh bột", "${r.carb}g"))
-            macros.addView(macroTile("Chất béo", "${r.fat}g"))
+            macros.addView(macroTile(tr("Đạm", "Protein"), "${r.protein}g"))
+            macros.addView(macroTile(tr("Tinh bột", "Carbs"), "${r.carb}g"))
+            macros.addView(macroTile(tr("Chất béo", "Fat"), "${r.fat}g"))
             addView(macros, vlp())
         }, vlp().apply { bottomMargin = dp(12) })
 
@@ -236,20 +281,20 @@ class ReviewActivity : Activity() {
             vlp().apply { bottomMargin = dp(4) })
 
         if (r.assessment.isNotBlank()) {
-            body.addView(sectionHeader(p, "Nhận xét"))
+            body.addView(sectionHeader(p, tr("Nhận xét", "Assessment")))
             body.addView(card(p).apply { setPadding(dp(16), dp(14), dp(16), dp(14))
                 addView(text(r.assessment, 15f, p.text).apply { setLineSpacing(0f, 1.2f) }) })
         }
 
         if (r.items.isNotEmpty()) {
-            body.addView(sectionHeader(p, "Chi tiết món"))
+            body.addView(sectionHeader(p, tr("Chi tiết món", "Item breakdown")))
             body.addView(group(p, *r.items.map { (name, kcal) ->
-                row(p, name.ifBlank { "(món)" }, text("$kcal kcal", 14f, p.secondary, 500))
+                row(p, name.ifBlank { tr("(món)", "(item)") }, text("$kcal kcal", 14f, p.secondary, 500))
             }.toTypedArray()))
         }
 
         if (r.tips.isNotEmpty()) {
-            body.addView(sectionHeader(p, "Gợi ý"))
+            body.addView(sectionHeader(p, tr("Gợi ý", "Tips")))
             body.addView(card(p).apply {
                 setPadding(dp(16), dp(10), dp(16), dp(10))
                 r.tips.forEach { addView(text("• $it", 14.5f, p.text).apply { setPadding(0, dp(5), 0, dp(5)); setLineSpacing(0f, 1.15f) }) }
@@ -257,14 +302,15 @@ class ReviewActivity : Activity() {
         }
 
         if (r.warnings.isNotEmpty()) {
-            body.addView(sectionHeader(p, "Lưu ý sức khoẻ"))
+            body.addView(sectionHeader(p, tr("Lưu ý sức khoẻ", "Health notes")))
             body.addView(card(p).apply {
                 setPadding(dp(16), dp(10), dp(16), dp(10))
                 r.warnings.forEach { addView(text("• $it", 14.5f, p.orange, 500).apply { setPadding(0, dp(5), 0, dp(5)); setLineSpacing(0f, 1.15f) }) }
             })
         }
 
-        body.addView(footnote(p, "Nguồn: ${engineLabel(engine)}. Mọi con số là ước tính, không thay thế tư vấn dinh dưỡng/y tế chuyên môn."),
+        body.addView(footnote(p, tr("Nguồn: ${engineLabel(engine)}. Mọi con số là ước tính, không thay thế tư vấn dinh dưỡng/y tế chuyên môn.",
+            "Source: ${engineLabel(engine)}. All numbers are estimates, not a substitute for professional nutrition/medical advice.")),
             vlp().apply { topMargin = dp(16) })
     }
 

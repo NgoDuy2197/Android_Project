@@ -1,7 +1,9 @@
 package com.dsoft.healthassistant
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -9,16 +11,24 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Bundle
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
- * Water tracker: target + cup size, one-tap logging for the selected day, and a month
- * calendar whose cells fill up in proportion to that day's intake.
+ * Water tracker: a timestamped drink log for the selected day (like the meal list), a cups × ml
+ * dialog for logging, target/cup config, and a month calendar whose cells fill with intake.
  */
 class WaterActivity : Activity() {
     private lateinit var p: Palette
@@ -31,7 +41,7 @@ class WaterActivity : Activity() {
         p = palette()
         intent?.getStringExtra("date")?.takeIf { it.isNotBlank() }?.let { date = it }
         monthStart = Water.monthStart(date)
-        val col = page(p, "Uống nước")
+        val col = page(p, tr("Uống nước", "Water"))
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(content)
         render()
@@ -49,31 +59,125 @@ class WaterActivity : Activity() {
         val now = Water.amount(this, date)
 
         content.addView(dayCard(now, target, cup), vlp().apply { bottomMargin = dp(12) })
-        content.addView(actionRow(cup), vlp().apply { bottomMargin = dp(4) })
+        content.addView(bigIconButton(tr("Ghi uống nước", "Log water"), R.drawable.ic_water, p.blue, p.teal) { showDrinkDialog() })
 
-        content.addView(sectionHeader(p, "Cấu hình"))
+        // today's drinks, like the meal list
+        content.addView(sectionHeader(p, tr("Đã uống ${if (date == Store.today()) "hôm nay" else "ngày này"}", "Logged ${if (date == Store.today()) "today" else "this day"}")))
+        val entries = Water.entries(this, date)
+        if (entries.isEmpty()) {
+            content.addView(footnote(p, tr("Chưa ghi lần uống nào. Bấm “Ghi uống nước”.", "No drinks logged yet. Tap “Log water”.")))
+        } else {
+            content.addView(group(p, *entries.reversed().map { entryRow(it) }.toTypedArray()))
+            content.addView(footnote(p, tr("Chạm biểu tượng xoá để bỏ một lần uống.", "Tap the delete icon to remove a drink.")))
+        }
+
+        content.addView(sectionHeader(p, tr("Cấu hình", "Settings")))
         content.addView(
             group(
                 p,
-                row(p, "Mục tiêu mỗi ngày (ml)", inlineField(p, target.toString(), numeric = true) { v ->
+                row(p, tr("Mục tiêu mỗi ngày (ml)", "Daily target (ml)"), inlineField(p, target.toString(), numeric = true) { v ->
                     Water.setTargetMl(this, v.toIntOrNull() ?: Water.DEFAULT_TARGET_ML)
                     content.post { render() }
                 }),
-                row(p, "Dung tích 1 cốc (ml)", inlineField(p, cup.toString(), numeric = true) { v ->
+                row(p, tr("Dung tích 1 cốc mặc định (ml)", "Default cup size (ml)"), inlineField(p, cup.toString(), numeric = true) { v ->
                     Water.setCupMl(this, v.toIntOrNull() ?: Water.DEFAULT_CUP_ML)
                     content.post { render() }
                 }),
             ),
         )
-        content.addView(footnote(p, "Mỗi lần chạm “+ 1 cốc” (trong app hoặc trên widget) sẽ cộng đúng dung tích này."))
+        content.addView(footnote(p, tr("Dung tích 1 cốc sẽ tự cập nhật theo lần ghi gần nhất để nhập nhanh hơn.",
+            "The cup size updates to your last entry for faster logging.")))
 
-        content.addView(sectionHeader(p, "Lịch uống nước"))
+        content.addView(sectionHeader(p, tr("Lịch uống nước", "History")))
         content.addView(monthNav())
         content.addView(calendarCard(target), vlp().apply { topMargin = dp(8) })
         content.addView(monthStats(target))
-        content.addView(
-            footnote(p, "Ô ngày được tô đầy theo tỉ lệ nước đã uống / mục tiêu. Chạm một ngày để xem và sửa ngày đó."),
-        )
+        content.addView(footnote(p, tr("Ô ngày tô đầy theo tỉ lệ đã uống / mục tiêu. Chạm một ngày để xem và ghi cho ngày đó.",
+            "Each day fills by intake / target. Tap a day to view and log it.")))
+    }
+
+    // ---- logging ----
+
+    private fun showDrinkDialog() {
+        val cup0 = Water.cupMl(this)
+        val cupsField = numField("1")
+        val mlField = numField("$cup0")
+        val totalView = text("", 15f, p.text, 600)
+        fun cur(f: EditText, min: Int, max: Int, d: Int) = f.text.toString().toIntOrNull()?.coerceIn(min, max) ?: d
+        fun refresh() {
+            val c = cur(cupsField, 1, 50, 1); val m = cur(mlField, 20, 2000, cup0)
+            totalView.text = "${tr("Tổng", "Total")}: ${c * m} ml  ($c × $m ml)"
+        }
+        val watcher = object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) = refresh()
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        }
+        cupsField.addTextChangedListener(watcher); mlField.addTextChangedListener(watcher); refresh()
+
+        val view = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(8), dp(22), dp(4))
+            addView(stepper(tr("Số cốc", "Cups"), cupsField, 1, 1, 50))
+            addView(stepper(tr("Lượng 1 cốc (ml)", "Per cup (ml)"), mlField, 50, 20, 2000))
+            addView(totalView.apply { setPadding(dp(2), dp(14), 0, 0) })
+        }
+        AlertDialog.Builder(this)
+            .setTitle(tr("Ghi uống nước", "Log water"))
+            .setView(view)
+            .setPositiveButton(tr("Thêm", "Add")) { _, _ ->
+                val c = cur(cupsField, 1, 50, 1); val m = cur(mlField, 20, 2000, cup0)
+                Water.setCupMl(this, m)        // remember as default for next time
+                Water.addEntry(this, date, c * m)
+                render()
+            }
+            .setNegativeButton(tr("Huỷ", "Cancel"), null)
+            .show()
+    }
+
+    private fun numField(v: String) = EditText(this).apply {
+        setText(v); inputType = InputType.TYPE_CLASS_NUMBER; gravity = Gravity.CENTER
+        setTextColor(p.text); setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+        background = rounded(p.fill, dpf(10)); setPadding(dp(8), dp(8), dp(8), dp(8))
+    }
+
+    private fun stepper(labelText: String, field: EditText, step: Int, min: Int, max: Int): LinearLayout {
+        fun cur() = field.text.toString().toIntOrNull()?.coerceIn(min, max) ?: min
+        fun btn(s: String, onClick: () -> Unit) = text(s, 22f, p.accent, 700).apply {
+            gravity = Gravity.CENTER
+            background = pressable(rounded(p.fill, dpf(12)), p.ripple); clipRounded()
+            setOnClickListener { onClick() }
+        }
+        val minus = btn("−") { field.setText("${(cur() - step).coerceAtLeast(min)}"); field.setSelection(field.text.length) }
+        val plus = btn("+") { field.setText("${(cur() + step).coerceAtMost(max)}"); field.setSelection(field.text.length) }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(text(labelText, 13f, p.secondary).apply { setPadding(dp(2), dp(10), 0, dp(4)) })
+            addView(LinearLayout(this@WaterActivity).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                addView(minus, LinearLayout.LayoutParams(dp(54), dp(46)))
+                addView(field, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(10); marginEnd = dp(10) })
+                addView(plus, LinearLayout.LayoutParams(dp(54), dp(46)))
+            })
+        }
+    }
+
+    private fun entryRow(e: WaterEntry): LinearLayout {
+        val tf = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val time = if (e.t == 0L) tr("trước đây", "earlier") else tf.format(Date(e.t))
+        val trailing = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(text("${e.ml} ml", 15f, p.blue, 600))
+            addView(ImageView(this@WaterActivity).apply {
+                setImageResource(R.drawable.ic_delete)
+                imageTintList = ColorStateList.valueOf(p.secondary)
+                val pd = dp(8); setPadding(pd, pd, pd, pd)
+                background = pressable(null, p.ripple); clipRounded()
+                layoutParams = LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(6) }
+                setOnClickListener { Water.removeEntry(this@WaterActivity, date, e.t); render() }
+            })
+        }
+        return row(p, time, trailing)
     }
 
     // ---- selected day ----
@@ -83,7 +187,7 @@ class WaterActivity : Activity() {
         val remaining = target - now
         return card(p).apply {
             setPadding(dp(18), dp(16), dp(18), dp(16))
-            addView(text(if (date == Store.today()) "Hôm nay" else Store.prettyDate(date), 13f, p.secondary))
+            addView(text(if (date == Store.today()) tr("Hôm nay", "Today") else Store.prettyDate(date), 13f, p.secondary))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.BOTTOM
@@ -94,8 +198,8 @@ class WaterActivity : Activity() {
             addView(progressBar(ratio), vlp(ViewGroup.LayoutParams.MATCH_PARENT, dp(10)))
             addView(
                 text(
-                    if (remaining > 0) "${Water.cups(now, cup)} cốc · còn $remaining ml"
-                    else "${Water.cups(now, cup)} cốc · đã đạt mục tiêu 🎉",
+                    if (remaining > 0) "${Water.cupsLabel(now, cup)} · ${tr("còn", "need")} $remaining ml"
+                    else "${Water.cupsLabel(now, cup)} · ${tr("đã đạt mục tiêu 🎉", "target reached 🎉")}",
                     14f, if (remaining > 0) p.secondary else p.green, 500,
                 ).apply { setPadding(0, dp(10), 0, 0) },
             )
@@ -114,30 +218,6 @@ class WaterActivity : Activity() {
             )
             addView(View(context), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f - r))
         }
-    }
-
-    private fun actionRow(cup: Int): View = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        addView(
-            text("− 1 cốc", 17f, p.text, 700).apply {
-                gravity = Gravity.CENTER
-                minHeight = dp(52)
-                background = pressable(rounded(p.fill, dpf(14)), p.ripple)
-                clipRounded()
-                setOnClickListener {
-                    Water.add(this@WaterActivity, date, -cup)
-                    render()
-                }
-            },
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(10) },
-        )
-        addView(
-            bigIconButton("+ 1 cốc ($cup ml)", R.drawable.ic_water, p.blue, p.teal) {
-                Water.add(this@WaterActivity, date, cup)
-                render()
-            },
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f),
-        )
     }
 
     // ---- month calendar ----
@@ -171,7 +251,7 @@ class WaterActivity : Activity() {
             setPadding(dp(10), dp(12), dp(10), dp(12))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
-                listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN").forEach { d ->
+                listOf(tr("T2", "Mon"), tr("T3", "Tue"), tr("T4", "Wed"), tr("T5", "Thu"), tr("T6", "Fri"), tr("T7", "Sat"), tr("CN", "Sun")).forEach { d ->
                     addView(
                         text(d, 12f, p.secondary, 500).apply { gravity = Gravity.CENTER },
                         LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
@@ -213,7 +293,10 @@ class WaterActivity : Activity() {
         val reached = log.values.count { it >= target }
         val sum = log.values.sum()
         val avg = if (logged > 0) sum / logged else 0
-        return footnote(p, "Tháng này: $logged ngày có ghi · $reached ngày đạt mục tiêu · trung bình $avg ml/ngày.")
+        return footnote(p, tr(
+            "Tháng này: $logged ngày có ghi · $reached ngày đạt mục tiêu · trung bình $avg ml/ngày.",
+            "This month: $logged days logged · $reached days on target · avg $avg ml/day.",
+        ))
     }
 }
 

@@ -19,7 +19,7 @@ class ReviewQueueActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         p = palette()
-        val col = page(p, "Hàng đợi xem xét")
+        val col = page(p, tr("Hàng đợi xem xét", "Review queue"))
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(content)
         render()
@@ -39,14 +39,16 @@ class ReviewQueueActivity : Activity() {
         }
 
         content.addView(text(
-            if (jobs.isEmpty()) "Chưa có yêu cầu nào. Bấm “Xem xét” ở một bữa hoặc cả ngày để thêm vào đây."
-            else "$active đang xử lý/chờ duyệt · ${jobs.size} tất cả. Chạm một mục để xem.",
+            if (jobs.isEmpty()) tr("Chưa có yêu cầu nào. Bấm “Xem xét” ở một bữa hoặc cả ngày để thêm vào đây.",
+                "No requests yet. Tap “Review” on a meal or the whole day to add one here.")
+            else tr("$active đang xử lý/chờ duyệt · ${jobs.size} tất cả. Chạm một mục để xem.",
+                "$active processing/pending · ${jobs.size} total. Tap an item to view."),
             14f, p.secondary).apply { setPadding(dp(4), 0, dp(4), dp(10)); setLineSpacing(0f, 1.15f) })
 
         if (jobs.isNotEmpty()) {
             content.addView(group(p, *jobs.map { jobRow(it) }.toTypedArray()))
             if (jobs.any { it.status.terminal() })
-                content.addView(bigIconButton("Xoá các mục đã xong", R.drawable.ic_delete, p.red, p.pink) {
+                content.addView(bigIconButton(tr("Xoá các mục đã xong", "Clear finished"), R.drawable.ic_delete, p.red, p.pink) {
                     ReviewQueue.clearFinished()
                 }, vlp().apply { topMargin = dp(16) })
         }
@@ -57,12 +59,12 @@ class ReviewQueueActivity : Activity() {
 
     private fun jobRow(job: ReviewQueue.Job): LinearLayout {
         val (badge, badgeColor) = when (job.status) {
-            ReviewQueue.Status.QUEUED -> "Đang chờ" to p.secondary
-            ReviewQueue.Status.RUNNING -> "Đang xử lý…" to p.orange
-            ReviewQueue.Status.AWAITING -> "Chờ duyệt" to p.blue
-            ReviewQueue.Status.APPROVED -> ((Ai.parse(job.resultJson)?.calories?.let { "$it kcal ✓" }) ?: "Đã duyệt") to p.green
-            ReviewQueue.Status.ERROR -> "Thất bại" to p.red
-            ReviewQueue.Status.CANCELLED -> "Đã huỷ" to p.secondary
+            ReviewQueue.Status.QUEUED -> tr("Đang chờ", "Queued") to p.secondary
+            ReviewQueue.Status.RUNNING -> tr("Đang xử lý…", "Processing…") to p.orange
+            ReviewQueue.Status.AWAITING -> tr("Chờ duyệt", "To approve") to p.blue
+            ReviewQueue.Status.APPROVED -> ((Ai.parse(job.resultJson)?.calories?.let { "$it kcal ✓" }) ?: tr("Đã duyệt", "Approved")) to p.green
+            ReviewQueue.Status.ERROR -> tr("Thất bại", "Failed") to p.red
+            ReviewQueue.Status.CANCELLED -> tr("Đã huỷ", "Cancelled") to p.secondary
         }
         val tileColors = when (job.status) {
             ReviewQueue.Status.APPROVED -> intArrayOf(p.green, p.teal)
@@ -94,5 +96,5 @@ class ReviewQueueActivity : Activity() {
         }
     }
 
-    private fun engineLabel(e: String) = when (e) { "offline" -> "Model offline"; else -> "Gemini" }
+    private fun engineLabel(e: String) = when (e) { "offline" -> tr("Model offline", "Offline model"); else -> "Gemini" }
 }

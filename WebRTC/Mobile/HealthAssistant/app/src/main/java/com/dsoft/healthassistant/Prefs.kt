@@ -11,6 +11,16 @@ class Prefs(ctx: Context) {
         get() = sp.getString("engine", "gemini") ?: "gemini"
         set(v) = sp.edit().putString("engine", v).apply()
 
+    /** UI + AI output language: "vi" or "en". */
+    var lang: String
+        get() = sp.getString("lang", "vi") ?: "vi"
+        set(v) = sp.edit().putString("lang", v).apply()
+
+    /** Accent theme key: "khoe" (default) | "nang_dong" | "thoai_mai" | "diu_nhe". */
+    var theme: String
+        get() = sp.getString("theme", "khoe") ?: "khoe"
+        set(v) = sp.edit().putString("theme", v).apply()
+
     /** Legacy single key (kept for migration into [geminiKeys]). */
     var geminiKey: String
         get() = sp.getString("geminiKey", "") ?: ""
@@ -50,4 +60,23 @@ class Prefs(ctx: Context) {
     var hfToken: String
         get() = sp.getString("hfToken", "") ?: ""
         set(v) = sp.edit().putString("hfToken", v).apply()
+
+    // ---- reminders (local notifications) ----
+    var waterRemind: Boolean
+        get() = sp.getBoolean("waterRemind", false)
+        set(v) = sp.edit().putBoolean("waterRemind", v).apply()
+
+    /** Water reminder interval, in hours. */
+    var waterRemindHours: Int
+        get() = sp.getInt("waterRemindHours", 2)
+        set(v) = sp.edit().putInt("waterRemindHours", v).apply()
+
+    var mealRemind: Boolean
+        get() = sp.getBoolean("mealRemind", false)
+        set(v) = sp.edit().putBoolean("mealRemind", v).apply()
+
+    /** Meal reminder times, comma-separated "HH:mm". */
+    var mealTimes: String
+        get() = sp.getString("mealTimes", "08:00,12:00,19:00") ?: "08:00,12:00,19:00"
+        set(v) = sp.edit().putString("mealTimes", v).apply()
 }

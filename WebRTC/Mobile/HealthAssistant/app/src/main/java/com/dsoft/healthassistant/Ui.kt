@@ -30,7 +30,20 @@ import android.widget.TextView
 import kotlin.math.roundToInt
 
 /** iOS system colors (light / dark). */
-class Palette(val dark: Boolean) {
+class Palette(val dark: Boolean, themeKey: String = "khoe") {
+    /** Brand accent pair (themeable). Semantic colors below (red/green/orange…) stay fixed. */
+    val accent: Int
+    val accent2: Int
+    init {
+        val pair = when (themeKey) {
+            "nang_dong" -> if (dark) 0xFFFF9F0A.toInt() to 0xFFFF375F.toInt() else 0xFFFF9500.toInt() to 0xFFFF2D55.toInt()
+            "thoai_mai" -> if (dark) 0xFF0A84FF.toInt() to 0xFF5E5CE6.toInt() else 0xFF007AFF.toInt() to 0xFF5856D6.toInt()
+            "diu_nhe" -> if (dark) 0xFF40C8E0.toInt() to 0xFF0A84FF.toInt() else 0xFF30B0C7.toInt() to 0xFF007AFF.toInt()
+            else -> if (dark) 0xFF30D158.toInt() to 0xFF40C8E0.toInt() else 0xFF34C759.toInt() to 0xFF30B0C7.toInt() // khoe
+        }
+        accent = pair.first; accent2 = pair.second
+    }
+
     val bg = if (dark) 0xFF000000.toInt() else 0xFFF2F2F7.toInt()
     val card = if (dark) 0xFF1C1C1E.toInt() else Color.WHITE
     val raised = if (dark) 0xFF2C2C2E.toInt() else Color.WHITE
@@ -49,9 +62,11 @@ class Palette(val dark: Boolean) {
     val ripple = if (dark) 0x33FFFFFF else 0x1A000000
 }
 
-fun Context.palette() = Palette(
-    (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-)
+fun Context.palette(): Palette {
+    I18n.apply(this) // every screen calls palette() first, so language is current before any tr()
+    val dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    return Palette(dark, Prefs(this).theme)
+}
 
 fun Context.dp(v: Number): Int = (v.toFloat() * resources.displayMetrics.density).roundToInt()
 fun Context.dpf(v: Number): Float = v.toFloat() * resources.displayMetrics.density
@@ -225,7 +240,7 @@ fun Activity.page(p: Palette, title: String, back: Boolean = true): LinearLayout
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(8), dp(12), dp(4))
             addView(icon(R.drawable.ic_back, p.blue, 26))
-            addView(text("Trở lại", 17f, p.blue))
+            addView(text(tr("Trở lại", "Back"), 17f, p.blue))
             setOnClickListener { finish() }
         }, vlp(ViewGroup.LayoutParams.WRAP_CONTENT))
     }
@@ -305,7 +320,7 @@ fun Context.iconButton(p: Palette, iconRes: Int, tint: Int, onClick: () -> Unit)
 
 fun Context.copyText(s: String) {
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("text", s))
-    Toast.makeText(this, "Đã copy", Toast.LENGTH_SHORT).show()
+    Toast.makeText(this, tr("Đã copy", "Copied"), Toast.LENGTH_SHORT).show()
 }
 
 fun Context.toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()

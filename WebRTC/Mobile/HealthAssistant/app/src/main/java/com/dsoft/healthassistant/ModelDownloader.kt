@@ -27,7 +27,7 @@ object ModelDownloader {
         ctx: Context, startUrl: String, token: String, suggestedName: String,
         onProgress: (Long, Long) -> Unit, onDone: (Result) -> Unit,
     ) {
-        if (busy) { onDone(Result(false, "Đang có một lượt tải khác.")); return }
+        if (busy) { onDone(Result(false, tr("Đang có một lượt tải khác.", "Another download is in progress."))); return }
         busy = true; cancelFlag = false
         Thread {
             var conn: HttpURLConnection? = null
@@ -49,22 +49,24 @@ object ModelDownloader {
                         val loc = conn!!.getHeaderField("Location") ?: break
                         conn!!.disconnect()
                         current = URL(current, loc)
-                        if (++redirects > 6) throw IOException("Quá nhiều lần chuyển hướng")
+                        if (++redirects > 6) throw IOException(tr("Quá nhiều lần chuyển hướng", "Too many redirects"))
                         continue
                     }
                     break
                 }
                 if (code == 401 || code == 403) {
                     finish(onDone, Result(false,
-                        "Model này cần đăng nhập Hugging Face (gated). Dán HF token ở trên rồi thử lại, hoặc bấm “Mở trang” để tải thủ công.",
+                        tr("Model này cần đăng nhập Hugging Face (gated). Dán HF token ở trên rồi thử lại, hoặc bấm “Mở trang” để tải thủ công.",
+                            "This model is gated on Hugging Face. Paste an HF token above and retry, or tap “Open page” to download manually."),
                         needsAuth = true))
                     return@Thread
                 }
-                if (code != 200) throw IOException("Máy chủ trả về HTTP $code")
+                if (code != 200) throw IOException(tr("Máy chủ trả về HTTP $code", "Server returned HTTP $code"))
                 val ctype = conn!!.contentType ?: ""
                 if (ctype.startsWith("text/html")) {
                     finish(onDone, Result(false,
-                        "Link trả về trang web chứ không phải tệp model (thường do cần đăng nhập). Dán HF token rồi thử lại, hoặc mở trang.",
+                        tr("Link trả về trang web chứ không phải tệp model (thường do cần đăng nhập). Dán HF token rồi thử lại, hoặc mở trang.",
+                            "The link returned a web page, not a model file (usually needs login). Paste an HF token and retry, or open the page."),
                         needsAuth = true))
                     return@Thread
                 }
@@ -83,7 +85,7 @@ object ModelDownloader {
                         var done = 0L
                         var lastPost = 0L
                         while (true) {
-                            if (cancelFlag) { os.flush(); out.delete(); finish(onDone, Result(false, "Đã huỷ tải.")); return@Thread }
+                            if (cancelFlag) { os.flush(); out.delete(); finish(onDone, Result(false, tr("Đã huỷ tải.", "Download cancelled."))); return@Thread }
                             val r = inp.read(buf)
                             if (r < 0) break
                             os.write(buf, 0, r)
@@ -94,12 +96,13 @@ object ModelDownloader {
                     }
                 }
 
-                if (out.length() < 1_000_000L) { out.delete(); throw IOException("Tệp tải về quá nhỏ — có thể không phải model hợp lệ.") }
+                if (out.length() < 1_000_000L) { out.delete(); throw IOException(tr("Tệp tải về quá nhỏ — có thể không phải model hợp lệ.", "Downloaded file is too small — may not be a valid model.")) }
                 Prefs(ctx).apply { offlineModelPath = out.absolutePath; offlineModelName = name }
                 Ai.resetOffline()
-                finish(onDone, Result(true, "Đã tải xong: $name (${out.length() / (1024 * 1024)} MB). Model đã được chọn."))
+                finish(onDone, Result(true, tr("Đã tải xong: $name (${out.length() / (1024 * 1024)} MB). Model đã được chọn.",
+                    "Downloaded: $name (${out.length() / (1024 * 1024)} MB). Model selected.")))
             } catch (e: Exception) {
-                finish(onDone, Result(false, "Lỗi tải: ${e.message}"))
+                finish(onDone, Result(false, "${tr("Lỗi tải", "Download error")}: ${e.message}"))
             } finally {
                 conn?.disconnect()
             }

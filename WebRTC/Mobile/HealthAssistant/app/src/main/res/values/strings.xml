@@ -3,4 +3,6 @@
     <string name="app_name">HealthAssistant</string>
     <string name="widget_meal_desc">Chạm để ghi nhanh một bữa ăn cho hôm nay</string>
     <string name="widget_water_desc">Chạm dấu + để ghi một cốc nước</string>
+    <string name="widget_calories_desc">Calo hôm nay so với mục tiêu · chạm để mở ứng dụng</string>
+    <string name="widget_summary_desc">Tổng quan hôm nay: calo, nước và calo đốt từ tập · chạm để mở ứng dụng</string>
 </resources>

@@ -19,7 +19,7 @@ class MacroBar(ctx: Context, p: Palette, protein: Int, carb: Int, fat: Int) : Li
         val pC = protein * 4; val cC = carb * 4; val fC = fat * 9
         val total = (pC + cC + fC).coerceAtLeast(1)
 
-        addView(ctx.text("Tỷ lệ năng lượng", 13f, p.secondary))
+        addView(ctx.text(tr("Tỷ lệ năng lượng", "Energy ratio"), 13f, p.secondary))
 
         val bar = LinearLayout(ctx).apply {
             orientation = HORIZONTAL
@@ -34,9 +34,9 @@ class MacroBar(ctx: Context, p: Palette, protein: Int, carb: Int, fat: Int) : Li
 
         fun pct(x: Int) = Math.round(x * 100f / total)
         val legend = LinearLayout(ctx).apply { orientation = HORIZONTAL }
-        legend.addView(legendItem(ctx, p, p.blue, "Đạm ${pct(pC)}%"))
-        legend.addView(legendItem(ctx, p, p.orange, "Tinh bột ${pct(cC)}%"))
-        legend.addView(legendItem(ctx, p, p.purple, "Béo ${pct(fC)}%"))
+        legend.addView(legendItem(ctx, p, p.blue, "${tr("Đạm", "Protein")} ${pct(pC)}%"))
+        legend.addView(legendItem(ctx, p, p.orange, "${tr("Tinh bột", "Carbs")} ${pct(cC)}%"))
+        legend.addView(legendItem(ctx, p, p.purple, "${tr("Béo", "Fat")} ${pct(fC)}%"))
         addView(legend, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = ctx.dp(10) })
     }
 

@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Local reminder notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -31,6 +35,11 @@
         <activity android:name=".AiSettingsActivity" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".WaterActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".DiagLogActivity" android:exported="false" />
+        <activity android:name=".ExerciseActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".WeightActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".StatsActivity" android:exported="false" />
+        <activity android:name=".BackupActivity" android:exported="false" />
+        <activity android:name=".RemindersActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
 
         <!-- Home-screen widget: one tap -> add a meal for today. -->
         <activity
@@ -54,6 +63,30 @@
                 <action android:name="com.dsoft.healthassistant.ADD_CUP" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_water_info" />
+        </receiver>
+
+        <!-- Home-screen widget: today's calories vs the target. -->
+        <receiver android:name=".CaloriesWidget" android:exported="false" android:label="HealthAssistant — Calo hôm nay">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_calories_info" />
+        </receiver>
+
+        <!-- Home-screen widget: calories, water and calories burned, side by side. -->
+        <receiver android:name=".SummaryWidget" android:exported="false" android:label="HealthAssistant — Tổng quan">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_summary_info" />
+        </receiver>
+
+        <!-- Local reminder alarms -->
+        <receiver android:name=".ReminderReceiver" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
         </receiver>
 
     </application>

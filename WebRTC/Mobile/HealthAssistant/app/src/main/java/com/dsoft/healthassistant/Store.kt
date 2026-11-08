@@ -33,6 +33,12 @@ class Profile(
         private val FACTOR = listOf(1.2, 1.375, 1.55, 1.725, 1.9)
         val GOALS = listOf("lose" to "Giảm cân", "maintain" to "Giữ cân", "gain" to "Tăng cân")
 
+        /** Localized display labels (keys/indices stay the same for storage). */
+        fun activityLabels(): List<String> =
+            if (I18n.en) listOf("Sedentary", "Light", "Moderate", "Active", "Very active") else ACTIVITY
+        fun goalLabels(): List<String> =
+            if (I18n.en) listOf("Lose weight", "Maintain", "Gain weight") else GOALS.map { it.second }
+
         fun fromJson(j: JSONObject) = Profile(
             heightCm = j.optDouble("heightCm", 170.0),
             weightKg = j.optDouble("weightKg", 65.0),
@@ -74,16 +80,19 @@ class Profile(
     fun bmiLabel(): String {
         val b = bmi()
         return when {
-            b < 18.5 -> "Gầy"
-            b < 23 -> "Bình thường"
-            b < 25 -> "Hơi thừa cân"
-            b < 30 -> "Thừa cân"
-            else -> "Béo phì"
+            b < 18.5 -> tr("Gầy", "Underweight")
+            b < 23 -> tr("Bình thường", "Normal")
+            b < 25 -> tr("Hơi thừa cân", "Slightly overweight")
+            b < 30 -> tr("Thừa cân", "Overweight")
+            else -> tr("Béo phì", "Obese")
         }
     }
 
-    fun activityLabel() = ACTIVITY.getOrElse(activity) { ACTIVITY[0] }
-    fun goalLabel() = GOALS.firstOrNull { it.first == goal }?.second ?: goal
+    fun activityLabel() = activityLabels().getOrElse(activity) { activityLabels()[0] }
+    fun goalLabel(): String {
+        val i = GOALS.indexOfFirst { it.first == goal }
+        return if (i >= 0) goalLabels()[i] else goal
+    }
 }
 
 /** One logged meal. */
@@ -102,10 +111,12 @@ class Meal(
         put("items", items); put("note", note); put("reviewJson", reviewJson); put("reviewAt", reviewAt)
     }
 
-    fun typeLabel() = MEAL_TYPES.getOrElse(type) { MEAL_TYPES[0] }
+    fun typeLabel() = mealTypes().getOrElse(type) { mealTypes()[0] }
 
     companion object {
         val MEAL_TYPES = listOf("Sáng", "Trưa", "Tối", "Phụ")
+        fun mealTypes(): List<String> =
+            if (I18n.en) listOf("Breakfast", "Lunch", "Dinner", "Snack") else MEAL_TYPES
 
         fun fromJson(j: JSONObject) = Meal(
             id = j.optLong("id", System.currentTimeMillis()),
@@ -128,7 +139,9 @@ object Store {
 
     fun prettyDate(date: String): String = try {
         val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(date)!!
-        SimpleDateFormat("EEEE, dd/MM/yyyy", Locale("vi")).format(d).replaceFirstChar { it.uppercase() }
+        val loc = if (I18n.en) Locale.ENGLISH else Locale("vi")
+        val pat = if (I18n.en) "EEEE, MMM d, yyyy" else "EEEE, dd/MM/yyyy"
+        SimpleDateFormat(pat, loc).format(d).replaceFirstChar { it.uppercase() }
     } catch (_: Exception) { date }
 
     // ---- per-user file names (namespaced by the current user) ----
@@ -165,6 +178,8 @@ object Store {
         list.sortedWith(compareBy({ it.date }, { it.type }, { it.time })).forEach { arr.put(it.toJson()) }
         atomicWrite(mealsFile(ctx), JSONObject().put("meals", arr).toString())
         runCatching { QuickMealWidget.refreshAll(ctx) } // keep the widget's count current
+        runCatching { CaloriesWidget.refreshAll(ctx) }  // reviewed meals change today's calories
+        runCatching { SummaryWidget.refreshAll(ctx) }
     }
 
     fun mealsForDate(ctx: Context, date: String): List<Meal> =
@@ -201,13 +216,31 @@ object Store {
         val root = try { if (f.exists()) JSONObject(f.readText()) else JSONObject() } catch (_: Exception) { JSONObject() }
         root.put(date, json)
         atomicWrite(f, root.toString())
+        runCatching { CaloriesWidget.refreshAll(ctx) } // a saved day review changes today's calories
+        runCatching { SummaryWidget.refreshAll(ctx) }
     }
 
     fun clearDayReview(ctx: Context, date: String) = synchronized(lock) {
         val f = reviewsFile(ctx)
         if (!f.exists()) return
         val root = try { JSONObject(f.readText()) } catch (_: Exception) { return }
-        if (root.has(date)) { root.remove(date); atomicWrite(f, root.toString()) }
+        if (root.has(date)) {
+            root.remove(date); atomicWrite(f, root.toString())
+            runCatching { CaloriesWidget.refreshAll(ctx) }
+            runCatching { SummaryWidget.refreshAll(ctx) }
+        }
+    }
+
+    /** Clear per-meal reviews that were auto-split from a whole-day review (marked "from_day"). */
+    fun clearDerivedMealReviews(ctx: Context, date: String) {
+        val all = loadMeals(ctx)
+        var changed = false
+        all.forEach { m ->
+            if (m.date == date && m.reviewJson.contains("\"from_day\":true")) {
+                m.reviewJson = ""; m.reviewAt = 0; changed = true
+            }
+        }
+        if (changed) saveMeals(ctx, all)
     }
 
     // ---- per-day target snapshots (so changing a target later doesn't rewrite old days) ----
@@ -236,9 +269,50 @@ object Store {
 
     /** Remove every data file belonging to one user id (called when a user is deleted). */
     fun deleteUserData(ctx: Context, id: String) = synchronized(lock) {
-        listOf("profile_$id.json", "meals_$id.json", "day_reviews_$id.json", "day_meta_$id.json", Water.fileName(id)).forEach {
+        listOf("profile_$id.json", "meals_$id.json", "day_reviews_$id.json", "day_meta_$id.json",
+            Water.fileName(id), Exercise.fileName(id), Weight.fileName(id)).forEach {
             runCatching { File(ctx.filesDir, it).delete() }
         }
+    }
+
+    // ---- backup / restore (all data for the current user, as one JSON) ----
+    private fun userFile(ctx: Context, name: String) = File(ctx.filesDir, name)
+
+    fun exportAll(ctx: Context): String = synchronized(lock) {
+        val id = uid(ctx)
+        val root = JSONObject()
+        root.put("app", "HealthAssistant"); root.put("version", 1)
+        root.put("exportedAt", System.currentTimeMillis())
+        root.put("user", Users.current(ctx)?.name ?: "")
+        fun embed(key: String, f: File) { if (f.exists()) runCatching { root.put(key, JSONObject(f.readText())) } }
+        embed("profile", profileFile(ctx))
+        embed("meals", mealsFile(ctx))
+        embed("day_reviews", reviewsFile(ctx))
+        embed("day_meta", dayMetaFile(ctx))
+        embed("water", userFile(ctx, Water.fileName(id)))
+        embed("exercise", userFile(ctx, Exercise.fileName(id)))
+        embed("weight", userFile(ctx, Weight.fileName(id)))
+        return root.toString(2)
+    }
+
+    /** Overwrite the current user's data from a backup JSON. Returns false if it isn't valid. */
+    fun importAll(ctx: Context, text: String): Boolean = synchronized(lock) {
+        val root = try { JSONObject(text) } catch (_: Exception) { return false }
+        if (!root.has("profile") && !root.has("meals") && !root.has("water")) return false
+        val id = uid(ctx)
+        fun restore(key: String, f: File) { root.optJSONObject(key)?.let { atomicWrite(f, it.toString()) } }
+        restore("profile", profileFile(ctx))
+        restore("meals", mealsFile(ctx))
+        restore("day_reviews", reviewsFile(ctx))
+        restore("day_meta", dayMetaFile(ctx))
+        restore("water", userFile(ctx, Water.fileName(id)))
+        restore("exercise", userFile(ctx, Exercise.fileName(id)))
+        restore("weight", userFile(ctx, Weight.fileName(id)))
+        runCatching {
+            QuickMealWidget.refreshAll(ctx); CaloriesWidget.refreshAll(ctx)
+            WaterWidget.refreshAll(ctx); SummaryWidget.refreshAll(ctx)
+        }
+        return true
     }
 
     private fun atomicWrite(target: File, content: String) {
