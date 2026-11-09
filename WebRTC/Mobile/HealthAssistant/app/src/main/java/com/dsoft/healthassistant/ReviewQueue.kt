@@ -13,8 +13,9 @@ import java.util.concurrent.CopyOnWriteArraySet
  * (the offline LLM can't run concurrently anyway). Re-requesting a target that is still
  * queued/running/awaiting-approval returns the SAME job instead of creating a duplicate.
  *
- * Flow: QUEUED → RUNNING → AWAITING (có kết quả, "Chờ duyệt") → user bấm "Duyệt" → APPROVED
- * (kết quả mới được lưu vào bữa/ngày và tính calo). ERROR = "Thất bại", CANCELLED = "Đã huỷ".
+ * Flow: QUEUED → RUNNING → AWAITING (có kết quả, "Chờ duyệt") → user bấm "Duyệt" → kết quả được
+ * lưu vào bữa/ngày (tính calo) và job được BỎ khỏi hàng đợi (xem lại ngay ở bữa/ngày đó, không
+ * để lại dòng "đã duyệt" thừa). ERROR = "Thất bại", CANCELLED = "Đã huỷ".
  * The UI observes changes through [addListener]. In-memory only (cleared when the process dies).
  */
 object ReviewQueue {
@@ -104,7 +105,9 @@ object ReviewQueue {
         cacheResult(ctx.applicationContext, j)
         j.status = Status.APPROVED
         j.finishedAt = System.currentTimeMillis()
-        DiagLog.i(TAG, "Đã duyệt & lưu: ${j.title}")
+        // Kết quả đã nằm trong bữa/ngày (và tính calo) — không giữ lại trong hàng đợi nữa.
+        jobs.remove(j)
+        DiagLog.i(TAG, "Đã duyệt & lưu (đã bỏ khỏi hàng đợi): ${j.title}")
         notifyChanged()
         return true
     }

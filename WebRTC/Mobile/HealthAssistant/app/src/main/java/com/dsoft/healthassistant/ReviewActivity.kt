@@ -173,8 +173,14 @@ class ReviewActivity : Activity() {
     }
 
     private fun approve() {
-        if (ReviewQueue.approve(this, jobId)) { toast("Đã duyệt & lưu kết quả."); bindJob() }
-        else toast("Không duyệt được (hãy chắc đang đúng người dùng).")
+        val job = ReviewQueue.job(jobId)
+        if (job != null && ReviewQueue.approve(this, jobId)) {
+            toast(tr("Đã duyệt & lưu kết quả.", "Approved & saved."))
+            // Job đã được bỏ khỏi hàng đợi — chuyển sang xem bản đã lưu (vẫn xem/xem xét lại được).
+            if (job.isDay) savedDate = job.date else savedMealId = job.mealId
+            jobId = 0
+            rerender()
+        } else toast(tr("Không duyệt được (hãy chắc đang đúng người dùng).", "Couldn't approve (make sure the right user is active)."))
     }
 
     private fun openQueue() = startActivity(Intent(this, ReviewQueueActivity::class.java))
