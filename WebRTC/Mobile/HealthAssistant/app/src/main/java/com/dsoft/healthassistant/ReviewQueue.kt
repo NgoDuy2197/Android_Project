@@ -19,7 +19,11 @@ import java.util.concurrent.CopyOnWriteArraySet
  */
 object ReviewQueue {
     private const val TAG = "HA_QUEUE"
-    private const val TIMEOUT_MS = 300_000L // safety net for a stuck / very slow model (first load can be slow)
+    // Safety net for a stuck / very slow run. Offline models can be slow on first load; the Gemini
+    // path can legitimately take minutes when it auto-retries an overloaded server (up to 5× with
+    // 1-min waits), so give it enough headroom that a retrying job isn't killed mid-wait.
+    private const val OFFLINE_TIMEOUT_MS = 300_000L
+    private const val GEMINI_TIMEOUT_MS = 900_000L
 
     enum class Status { QUEUED, RUNNING, AWAITING, APPROVED, ERROR, CANCELLED }
 
@@ -153,13 +157,14 @@ object ReviewQueue {
             try { holder[0] = Ai.reviewBlocking(appCtx, job.scopeLabel, job.mealsText) }
             catch (x: Throwable) { holder[1] = x }
         }.apply { isDaemon = true; name = "review-job-${job.id}"; start() }
-        t.join(TIMEOUT_MS)
+        val timeoutMs = if (job.engine == "offline") OFFLINE_TIMEOUT_MS else GEMINI_TIMEOUT_MS
+        t.join(timeoutMs)
         when {
             job.cancelled -> { job.status = Status.CANCELLED; DiagLog.i(TAG, "Đã huỷ: ${job.title}") }
             t.isAlive -> {
                 job.status = Status.ERROR
-                job.error = tr("Quá thời gian (${TIMEOUT_MS / 1000}s) — model có thể quá chậm hoặc bị treo. Thử model nhỏ hơn / giảm max tokens, hoặc dùng Gemini.",
-                    "Timed out (${TIMEOUT_MS / 1000}s) — the model may be too slow or stuck. Try a smaller model / lower max tokens, or use Gemini.")
+                job.error = tr("Quá thời gian (${timeoutMs / 1000}s) — model có thể quá chậm hoặc bị treo. Thử model nhỏ hơn / giảm max tokens, hoặc dùng Gemini.",
+                    "Timed out (${timeoutMs / 1000}s) — the model may be too slow or stuck. Try a smaller model / lower max tokens, or use Gemini.")
                 DiagLog.e(TAG, "THẤT BẠI (quá thời gian): ${job.title}")
             }
             holder[1] != null -> {

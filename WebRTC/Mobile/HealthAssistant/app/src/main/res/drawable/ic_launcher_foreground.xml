@@ -2,22 +2,25 @@
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
 
-    <!-- Cute, centered white heart with a little kawaii face -->
-    <group android:translateX="28" android:translateY="24" android:scaleX="2.2" android:scaleY="2.2">
+    <!-- Chubby kawaii white heart: a bit wider/flatter, bottom softly rounded (gentle tip) -->
+    <group android:translateX="27" android:translateY="24" android:scaleX="2.25" android:scaleY="2.25">
         <path android:fillColor="#FFFFFFFF"
-            android:pathData="M12,21.35l-1.45,-1.32C5.4,15.36 2,12.28 2,8.5 2,5.42 4.42,3 7.5,3c1.74,0 3.41,0.81 4.5,2.09C13.09,3.81 14.76,3 16.5,3 19.58,3 22,5.42 22,8.5c0,3.78 -3.4,6.86 -8.55,11.54L12,21.35z" />
+            android:pathData="M12,20.0 C11.2,19.7 9.8,19.2 8.2,17.4 C5.6,14.8 1.7,11.4 1.7,8.0 C1.7,4.8 4.4,3.0 7.4,3.0 C9.9,3.0 11.3,4.3 12,5.9 C12.7,4.3 14.1,3.0 16.6,3.0 C19.6,3.0 22.3,4.8 22.3,8.0 C22.3,11.4 18.4,14.8 15.8,17.4 C14.2,19.2 12.8,19.7 12,20.0 Z" />
         <!-- blush cheeks -->
-        <path android:fillColor="#66FF4D7D" android:pathData="M8.6,11.9m-1.35,0a1.35,1.35 0 1,0 2.7,0a1.35,1.35 0 1,0 -2.7,0z" />
-        <path android:fillColor="#66FF4D7D" android:pathData="M15.4,11.9m-1.35,0a1.35,1.35 0 1,0 2.7,0a1.35,1.35 0 1,0 -2.7,0z" />
-        <!-- eyes -->
-        <path android:fillColor="#FF3A2A33" android:pathData="M10,9.6m-1,0a1,1 0 1,0 2,0a1,1 0 1,0 -2,0z" />
-        <path android:fillColor="#FF3A2A33" android:pathData="M14,9.6m-1,0a1,1 0 1,0 2,0a1,1 0 1,0 -2,0z" />
-        <!-- smile -->
-        <path android:fillColor="#00000000" android:strokeColor="#FF3A2A33" android:strokeWidth="0.7"
-            android:strokeLineCap="round" android:pathData="M10.8,11.1 Q12,12.4 13.2,11.1" />
+        <path android:fillColor="#66FF4D7D" android:pathData="M8.2,12.2m-1.4,0a1.4,1.4 0 1,0 2.8,0a1.4,1.4 0 1,0 -2.8,0z" />
+        <path android:fillColor="#66FF4D7D" android:pathData="M15.8,12.2m-1.4,0a1.4,1.4 0 1,0 2.8,0a1.4,1.4 0 1,0 -2.8,0z" />
+        <!-- big cute eyes -->
+        <path android:fillColor="#FF3A2A33" android:pathData="M9.7,10.0m-1.15,0a1.15,1.15 0 1,0 2.3,0a1.15,1.15 0 1,0 -2.3,0z" />
+        <path android:fillColor="#FF3A2A33" android:pathData="M14.3,10.0m-1.15,0a1.15,1.15 0 1,0 2.3,0a1.15,1.15 0 1,0 -2.3,0z" />
+        <!-- eye highlights -->
+        <path android:fillColor="#FFFFFFFF" android:pathData="M10.1,9.55m-0.38,0a0.38,0.38 0 1,0 0.76,0a0.38,0.38 0 1,0 -0.76,0z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M14.7,9.55m-0.38,0a0.38,0.38 0 1,0 0.76,0a0.38,0.38 0 1,0 -0.76,0z" />
+        <!-- happy smile -->
+        <path android:fillColor="#00000000" android:strokeColor="#FF3A2A33" android:strokeWidth="0.75"
+            android:strokeLineCap="round" android:pathData="M10.6,12.2 Q12,13.7 13.4,12.2" />
     </group>
 
-    <!-- small "D" badge in the corner, like other apps -->
+    <!-- small round "D" badge in the corner -->
     <path android:fillColor="#FFFFFFFF"
         android:pathData="M77,75.75m-11.5,0a11.5,11.5 0 1,0 23,0a11.5,11.5 0 1,0 -23,0z" />
     <path android:fillColor="#00000000" android:strokeColor="#FFFF2E63" android:strokeWidth="2.1"

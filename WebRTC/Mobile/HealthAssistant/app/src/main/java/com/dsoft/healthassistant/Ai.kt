@@ -46,7 +46,7 @@ object Ai {
     }
 
     val GEMINI_MODELS = listOf(
-        "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash",
+        "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-3.8-flash",
     )
 
     private const val TAG = "HA_AI"
@@ -103,7 +103,7 @@ object Ai {
         Thread {
             try {
                 val out = if (engine == "offline") OfflineClient.run(ctx, prefs, "Trả lời ngắn: xin chào")
-                else GeminiClient.run(prefs, "Trả lời đúng một từ: OK")
+                else GeminiClient.run(prefs, "Trả lời đúng một từ: OK", retryOnBusy = false)
                 main.post { cb(out.trim().take(120), null) }
             } catch (t: Throwable) {
                 Log.e(TAG, "test($engine) failed", t)
@@ -301,12 +301,44 @@ QUY TẮC BẮT BUỘC:
 /** A key failed for a quota/auth reason — the caller should fall back to the next key. */
 private class KeyRetryException(msg: String) : Exception(msg)
 
+/** Gemini is overloaded / transiently unavailable (HTTP 503/500) — wait and retry the whole request. */
+private class GeminiBusyException(msg: String) : Exception(msg)
+
 /** Google Gemini Generative Language API (REST). Tries each key in order, skipping to the next on quota/key errors. */
 private object GeminiClient {
-    fun run(prefs: Prefs, prompt: String): String {
+    /** When Gemini is overloaded, wait this long then retry — up to [OVERLOAD_MAX_RETRIES] times. */
+    private const val OVERLOAD_RETRY_DELAY_MS = 60_000L
+    private const val OVERLOAD_MAX_RETRIES = 5
+
+    /**
+     * @param retryOnBusy when the model is overloaded (HTTP 503/500), wait 1 phút and retry, up to 5 lần.
+     * Reviews pass true; the quick connectivity "test" passes false so it fails fast instead of spinning.
+     */
+    fun run(prefs: Prefs, prompt: String, retryOnBusy: Boolean = true): String {
         val keys = prefs.geminiKeyList()
         if (keys.isEmpty()) throw IllegalStateException(tr("Chưa nhập Gemini API key (vào Cài đặt AI).", "No Gemini API key yet (open AI settings)."))
         val model = prefs.geminiModel.ifBlank { "gemini-2.5-flash" }
+        var retries = 0
+        while (true) {
+            try {
+                return runPass(keys, model, prompt)
+            } catch (b: GeminiBusyException) {
+                if (!retryOnBusy) throw java.io.IOException(busyMsg(b, 0))
+                retries++
+                if (retries > OVERLOAD_MAX_RETRIES) throw java.io.IOException(busyMsg(b, OVERLOAD_MAX_RETRIES))
+                DiagLog.w("HA_AI", "Gemini quá tải (${b.message}) → chờ ${OVERLOAD_RETRY_DELAY_MS / 1000}s rồi thử lại (lần $retries/$OVERLOAD_MAX_RETRIES)")
+                try {
+                    Thread.sleep(OVERLOAD_RETRY_DELAY_MS)
+                } catch (ie: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    throw java.io.IOException(tr("Đã dừng khi đang chờ thử lại.", "Stopped while waiting to retry."))
+                }
+            }
+        }
+    }
+
+    /** One pass over all keys: the first success wins, switching keys on quota/auth errors. */
+    private fun runPass(keys: List<String>, model: String, prompt: String): String {
         var lastErr: String? = null
         for ((i, key) in keys.withIndex()) {
             try {
@@ -323,6 +355,11 @@ private object GeminiClient {
         throw java.io.IOException(tr("Tất cả ${keys.size} Gemini key đều lỗi (quota/không hợp lệ). Lỗi cuối — $lastErr",
             "All ${keys.size} Gemini key(s) failed (quota/invalid). Last error — $lastErr"))
     }
+
+    private fun busyMsg(b: GeminiBusyException, tried: Int): String =
+        if (tried > 0) tr("Gemini đang quá tải — đã tự thử lại $tried lần (cách ${OVERLOAD_RETRY_DELAY_MS / 1000}s mỗi lần) vẫn chưa được. Thử lại sau. (${b.message})",
+            "Gemini is overloaded — auto-retried $tried× (every ${OVERLOAD_RETRY_DELAY_MS / 1000}s) without luck. Try again later. (${b.message})")
+        else tr("Gemini đang quá tải, thử lại sau. (${b.message})", "Gemini is overloaded, try again later. (${b.message})")
 
     private fun request(key: String, model: String, prompt: String): String {
         val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key")
@@ -349,6 +386,10 @@ private object GeminiClient {
                 val err = (c.errorStream ?: c.inputStream)?.bufferedReader()?.readText().orEmpty()
                 val msg = runCatching { JSONObject(err).optJSONObject("error")?.optString("message") }.getOrNull()
                 val detail = msg ?: err.take(300)
+                // overloaded / transient server error -> wait & retry the whole request
+                if (code == 503 || code == 500 || msg?.contains("overload", true) == true || msg?.contains("UNAVAILABLE", true) == true)
+                    throw GeminiBusyException("HTTP $code: $detail")
+                // quota / invalid key -> fall back to the next key
                 if (code == 429 || code == 403 || code == 401 ||
                     (code == 400 && (msg?.contains("API key not valid", true) == true || msg?.contains("API_KEY_INVALID", true) == true)))
                     throw KeyRetryException("HTTP $code: $detail")

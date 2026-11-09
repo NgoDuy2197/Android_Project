@@ -74,8 +74,12 @@ class MealEditorActivity : Activity() {
         }
         col.addView(card(p).apply { addView(noteField) })
 
-        // actions
-        col.addView(bigIconButton(tr("Xem xét bữa này", "Review this meal"), R.drawable.ic_search, p.indigo, p.blue) { saveThen { reviewThisMeal() } },
+        // actions — show the saved result if there is one, otherwise generate a review
+        val hasResult = meal.reviewJson.isNotBlank() || ReviewQueue.inFlightForMeal(this, meal.id) != null
+        col.addView(bigIconButton(
+            if (hasResult) tr("Xem kết quả bữa này", "View meal result") else tr("Xem xét bữa này", "Review this meal"),
+            R.drawable.ic_search,
+            if (hasResult) p.accent else p.indigo, if (hasResult) p.accent2 else p.blue) { saveThen { reviewThisMeal() } },
             vlp().apply { topMargin = dp(22) })
         col.addView(bigIconButton(tr("Lưu", "Save"), R.drawable.ic_check, p.accent, p.accent2) { saveThen { finish() } },
             vlp().apply { topMargin = dp(10) })

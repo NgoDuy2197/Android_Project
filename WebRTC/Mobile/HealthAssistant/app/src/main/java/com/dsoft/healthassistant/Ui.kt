@@ -35,16 +35,19 @@ class Palette(val dark: Boolean, themeKey: String = "khoe") {
     val accent: Int
     val accent2: Int
     init {
+        // Light-mode accents are kept deep enough to read as text on the near-white background;
+        // accent2 is the (lighter) gradient partner used with white text on buttons.
         val pair = when (themeKey) {
-            "nang_dong" -> if (dark) 0xFFFF9F0A.toInt() to 0xFFFF375F.toInt() else 0xFFFF9500.toInt() to 0xFFFF2D55.toInt()
-            "thoai_mai" -> if (dark) 0xFF0A84FF.toInt() to 0xFF5E5CE6.toInt() else 0xFF007AFF.toInt() to 0xFF5856D6.toInt()
-            "diu_nhe" -> if (dark) 0xFF40C8E0.toInt() to 0xFF0A84FF.toInt() else 0xFF30B0C7.toInt() to 0xFF007AFF.toInt()
-            else -> if (dark) 0xFF30D158.toInt() to 0xFF40C8E0.toInt() else 0xFF34C759.toInt() to 0xFF30B0C7.toInt() // khoe
+            "de_thuong" -> if (dark) 0xFFFF8FBC.toInt() to 0xFFC79BF0.toInt() else 0xFFE84B8A.toInt() to 0xFF9B59E0.toInt() // cute: rose → orchid
+            "nang_dong" -> if (dark) 0xFFFF9F5A.toInt() to 0xFFFF6F91.toInt() else 0xFFF2762B.toInt() to 0xFFF0477E.toInt() // coral → pink
+            "thoai_mai" -> if (dark) 0xFF5EA9FF.toInt() to 0xFF8E8BFF.toInt() else 0xFF3B7DF0.toInt() to 0xFF6B63E0.toInt() // blue → periwinkle
+            "diu_nhe" -> if (dark) 0xFF40C8E0.toInt() to 0xFF6FB0FF.toInt() else 0xFF1FADB8.toInt() to 0xFF4A93E8.toInt() // teal → sky
+            else -> if (dark) 0xFF30D158.toInt() to 0xFF40C8E0.toInt() else 0xFF1FA85A.toInt() to 0xFF17A39A.toInt() // khoe: green → teal
         }
         accent = pair.first; accent2 = pair.second
     }
 
-    val bg = if (dark) 0xFF000000.toInt() else 0xFFF2F2F7.toInt()
+    val bg = if (dark) 0xFF000000.toInt() else 0xFFF7F2F6.toInt() // soft warm light background
     val card = if (dark) 0xFF1C1C1E.toInt() else Color.WHITE
     val raised = if (dark) 0xFF2C2C2E.toInt() else Color.WHITE
     val text = if (dark) Color.WHITE else Color.BLACK

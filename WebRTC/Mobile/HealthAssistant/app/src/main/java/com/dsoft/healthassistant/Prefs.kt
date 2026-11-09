@@ -16,9 +16,9 @@ class Prefs(ctx: Context) {
         get() = sp.getString("lang", "vi") ?: "vi"
         set(v) = sp.edit().putString("lang", v).apply()
 
-    /** Accent theme key: "khoe" (default) | "nang_dong" | "thoai_mai" | "diu_nhe". */
+    /** Accent theme key: "de_thuong" (default) | "khoe" | "nang_dong" | "thoai_mai" | "diu_nhe". */
     var theme: String
-        get() = sp.getString("theme", "khoe") ?: "khoe"
+        get() = sp.getString("theme", "de_thuong") ?: "de_thuong"
         set(v) = sp.edit().putString("theme", v).apply()
 
     /** Legacy single key (kept for migration into [geminiKeys]). */

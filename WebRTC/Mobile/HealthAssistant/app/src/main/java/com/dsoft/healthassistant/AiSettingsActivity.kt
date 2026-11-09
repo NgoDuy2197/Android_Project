@@ -49,8 +49,8 @@ class AiSettingsActivity : Activity() {
         }, vlp().apply { marginStart = dp(4); marginEnd = dp(4) })
 
         col.addView(sectionHeader(p, tr("Giao diện (theme)", "Theme")))
-        val themeKeys = listOf("khoe", "nang_dong", "thoai_mai", "diu_nhe")
-        val themeLabels = listOf(tr("Khoẻ mạnh", "Healthy"), tr("Năng động", "Active"),
+        val themeKeys = listOf("de_thuong", "khoe", "nang_dong", "thoai_mai", "diu_nhe")
+        val themeLabels = listOf(tr("Dễ thương", "Cute"), tr("Khoẻ mạnh", "Healthy"), tr("Năng động", "Active"),
             tr("Thoải mái", "Relaxed"), tr("Dịu nhẹ", "Calm"))
         col.addView(Segmented(this, p, themeLabels, themeKeys.indexOf(prefs.theme).coerceAtLeast(0)) {
             val v = themeKeys[it]
@@ -112,16 +112,29 @@ class AiSettingsActivity : Activity() {
         }), vlp().apply { topMargin = dp(6) })
 
         body.addView(sectionHeader(p, tr("Model", "Model")))
-        val modelField = inlineField(p, prefs.geminiModel, wide = true) { prefs.geminiModel = it.trim() }.apply {
-            gravity = Gravity.START; setTextColor(p.text); hint = "vd: gemini-2.5-flash"; setHintTextColor(p.secondary)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        // The text field is the source of truth: it saves on every keystroke, so a typed custom
+        // model name takes effect immediately. The segmented buttons just fill the field.
+        val modelField = EditText(this).apply {
+            setText(prefs.geminiModel)
+            setTextColor(p.text); setHintTextColor(p.secondary)
+            hint = "vd: gemini-2.5-flash"
+            background = null
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            inputType = InputType.TYPE_CLASS_TEXT
+            setSingleLine(true)
+            gravity = Gravity.START
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) { prefs.geminiModel = text.toString().trim() }
+                override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+                override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            })
         }
-        val sel = Ai.GEMINI_MODELS.indexOf(prefs.geminiModel)
-        body.addView(Segmented(this, p, Ai.GEMINI_MODELS, sel) {
-            prefs.geminiModel = Ai.GEMINI_MODELS[it]; modelField.setText(prefs.geminiModel)
+        body.addView(Segmented(this, p, Ai.GEMINI_MODELS, Ai.GEMINI_MODELS.indexOf(prefs.geminiModel)) {
+            modelField.setText(Ai.GEMINI_MODELS[it]); modelField.setSelection(modelField.text.length)
         }, vlp().apply { marginStart = dp(4); marginEnd = dp(4); topMargin = dp(6) })
-        body.addView(footnote(p, tr("Chọn nhanh ở trên hoặc gõ tên model tuỳ ý bên dưới (nếu Google ra model mới).",
-            "Pick one above or type any model name below (if Google releases a new one).")))
+        body.addView(footnote(p, tr("Chọn nhanh ở trên, hoặc gõ tên model tuỳ ý bên dưới — tên vừa gõ sẽ được dùng ngay.",
+            "Pick one above, or type any model name below — the typed name is used right away.")))
         body.addView(card(p).apply { addView(modelField) }, vlp().apply { topMargin = dp(6) })
 
         statusLine()

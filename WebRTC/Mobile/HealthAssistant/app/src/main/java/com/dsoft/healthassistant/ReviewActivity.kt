@@ -21,26 +21,30 @@ class ReviewActivity : Activity() {
     private lateinit var body: LinearLayout
     private var jobId: Long = 0
     private var savedDate: String? = null
+    private var savedMealId: Long? = null
     private var diagTail: TextView? = null
-    private val onQueue = { runOnUiThread { if (savedDate != null) showSavedDay() else bindJob() } }
+    private val onQueue = { runOnUiThread { rerender() } }
     private val onDiag = { runOnUiThread { updateDiagTail() } }
+
+    /** Re-draw whichever state this screen is showing (saved day / saved meal / live job). */
+    private fun rerender() = when {
+        savedDate != null -> showSavedDay()
+        savedMealId != null -> showSavedMeal()
+        else -> bindJob()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         p = palette()
 
         jobId = intent.getLongExtra("jobId", 0)
-        val saved = intent.getStringExtra("savedDate")
-        if (jobId == 0L && saved != null && Store.loadDayReview(this, saved).isNotBlank()) {
-            savedDate = saved
-            val col = page(p, tr("Xem xét cả ngày", "Whole-day review"))
-            col.addView(text("${tr("Cả ngày", "Whole day")} · ${Store.prettyDate(saved)}", 14f, p.secondary)
-                .apply { setPadding(dp(4), 0, 0, dp(8)) })
-            body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            col.addView(body)
-            showSavedDay()
-            return
-        }
+
+        // Decide what to show WITHOUT generating: prefer an in-flight job, then an already-saved
+        // result. Only enqueue a fresh AI run when nothing is pending-approval or already approved.
+        if (jobId == 0L) resolveTarget()
+        if (jobId == 0L && savedDate != null) { setupSavedDay(savedDate!!); return }
+        if (jobId == 0L && savedMealId != null) { setupSavedMeal(savedMealId!!); return }
+
         if (jobId == 0L) {
             val job = buildAndEnqueue() ?: return // finishes itself on error
             jobId = job.id
@@ -58,27 +62,73 @@ class ReviewActivity : Activity() {
     override fun onResume() {
         super.onResume()
         ReviewQueue.addListener(onQueue); DiagLog.addListener(onDiag)
-        if (savedDate != null) showSavedDay() else bindJob()
+        rerender()
     }
     override fun onPause() {
         super.onPause()
         ReviewQueue.removeListener(onQueue); DiagLog.removeListener(onDiag)
     }
 
-    /** Legacy entry: turn mealId/date into a queued job. */
+    /**
+     * Point this screen at an existing result instead of generating one: an in-flight job for the
+     * target wins, then a saved review. Leaves [jobId]/[savedDate]/[savedMealId] all unset only when
+     * there is genuinely nothing yet — in which case onCreate enqueues a new run.
+     */
+    private fun resolveTarget() {
+        val savedExtra = intent.getStringExtra("savedDate")
+        if (savedExtra != null && Store.loadDayReview(this, savedExtra).isNotBlank()) { savedDate = savedExtra; return }
+        if (intent.hasExtra("mealId")) {
+            val mid = intent.getLongExtra("mealId", 0)
+            val inflight = ReviewQueue.inFlightForMeal(this, mid)
+            when {
+                inflight != null -> jobId = inflight.id
+                Store.get(this, mid)?.reviewJson?.isNotBlank() == true -> savedMealId = mid
+            }
+        } else {
+            val d = intent.getStringExtra("date") ?: savedExtra ?: Store.today()
+            val inflight = ReviewQueue.inFlightForDay(this, d)
+            when {
+                Store.loadDayReview(this, d).isNotBlank() -> savedDate = d
+                inflight != null -> jobId = inflight.id
+            }
+        }
+    }
+
+    private fun setupSavedDay(d: String) {
+        val col = page(p, tr("Xem xét cả ngày", "Whole-day review"))
+        col.addView(text("${tr("Cả ngày", "Whole day")} · ${Store.prettyDate(d)}", 14f, p.secondary)
+            .apply { setPadding(dp(4), 0, 0, dp(8)) })
+        body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(body)
+        showSavedDay()
+    }
+
+    private fun setupSavedMeal(mid: Long) {
+        val m = Store.get(this, mid)
+        if (m == null || m.reviewJson.isBlank()) { savedMealId = null; toast(tr("Không tìm thấy kết quả đã lưu.", "No saved result found.")); finish(); return }
+        val col = page(p, tr("Xem xét bữa ăn", "Meal review"))
+        col.addView(text(mealTitle(m), 14f, p.secondary).apply { setPadding(dp(4), 0, 0, dp(8)) })
+        body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(body)
+        showSavedMeal()
+    }
+
+    private fun mealTitle(m: Meal): String = "Bữa ${m.typeLabel().lowercase()}" + if (m.time.isNotBlank()) " · ${m.time}" else ""
+    private fun mealScope(m: Meal): String = "bữa ${m.typeLabel().lowercase()}"
+    private fun mealText(m: Meal): String = buildString {
+        append("Bữa ${m.typeLabel()}")
+        if (m.time.isNotBlank()) append(" lúc ${m.time}")
+        append(":\n").append(m.items)
+        if (m.note.isNotBlank()) append("\nGhi chú: ${m.note}")
+    }
+
+    /** Legacy entry: turn mealId/date into a queued job (only reached when nothing exists yet). */
     private fun buildAndEnqueue(): ReviewQueue.Job? {
         if (intent.hasExtra("mealId")) {
             val m = Store.get(this, intent.getLongExtra("mealId", 0))
                 ?: run { toast("Không tìm thấy bữa ăn."); finish(); return null }
-            val scopeLabel = "bữa ${m.typeLabel().lowercase()}"
-            val mealsText = buildString {
-                append("Bữa ${m.typeLabel()}")
-                if (m.time.isNotBlank()) append(" lúc ${m.time}")
-                append(":\n").append(m.items)
-                if (m.note.isNotBlank()) append("\nGhi chú: ${m.note}")
-            }
             if (m.items.isBlank()) { toast("Bữa ăn chưa có món nào."); finish(); return null }
-            return ReviewQueue.enqueueMeal(this, m, scopeLabel, mealsText)
+            return ReviewQueue.enqueueMeal(this, m, mealScope(m), mealText(m))
         }
         val d = intent.getStringExtra("date") ?: Store.today()
         if (Store.mealsForDate(this, d).isEmpty()) { toast(tr("Chưa có món ăn nào để xem xét.", "No food to review yet.")); finish(); return null }
@@ -151,6 +201,28 @@ class ReviewActivity : Activity() {
             Store.clearDayReview(this, d); Store.clearDerivedMealReviews(this, d)
             val job = ReviewQueue.enqueueDay(this, d, "cả ngày", buildDayMealsText(d))
             savedDate = null; jobId = job.id; bindJob()
+        }, vlp().apply { topMargin = dp(16) })
+    }
+
+    /** A previously-saved single-meal review loaded from the store (read-only + re-review). */
+    private fun showSavedMeal() {
+        if (!::body.isInitialized) return
+        val mid = savedMealId ?: return
+        val m = Store.get(this, mid)
+        val json = m?.reviewJson.orEmpty()
+        if (m == null || json.isBlank()) { savedMealId = null; finish(); return }
+        val r = Ai.parse(json) ?: Ai.Review(0, 0, 0, 0, emptyList(), Ai.cleanForDisplay(json), emptyList(), emptyList(), json)
+        val fromDay = runCatching { org.json.JSONObject(json).optBoolean("from_day", false) }.getOrDefault(false)
+        body.removeAllViews()
+        body.addView(banner(
+            if (fromDay) tr("Đã lưu — tách từ xem xét cả ngày, đã tính vào calo.", "Saved — split from the whole-day review, counted toward calories.")
+            else tr("Đã lưu — kết quả bữa này đã tính vào calo.", "Saved — this meal result counts toward calories."),
+            R.drawable.ic_check, p.green), vlp().apply { bottomMargin = dp(12) })
+        renderResultCards(r, "saved")
+        body.addView(bigIconButton(tr("Xoá & xem xét lại", "Delete & re-review"), R.drawable.ic_refresh, p.accent, p.accent2) {
+            m.reviewJson = ""; m.reviewAt = 0; Store.upsert(this, m)
+            val job = ReviewQueue.enqueueMeal(this, m, mealScope(m), mealText(m))
+            savedMealId = null; jobId = job.id; bindJob()
         }, vlp().apply { topMargin = dp(16) })
     }
 
