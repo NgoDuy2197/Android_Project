@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RemoteLink</string>
+    <string name="accessibility_label">RemoteLink — điều khiển từ xa</string>
+    <string name="accessibility_desc">Cho phép RemoteLink chạm/vuốt/gõ phím thay bạn khi điều khiển từ máy tính cùng mạng. Chỉ hoạt động khi bạn bật server trong ứng dụng.</string>
+</resources>

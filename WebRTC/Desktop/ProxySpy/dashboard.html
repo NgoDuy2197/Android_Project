@@ -146,7 +146,8 @@
       <button class="accent" id="ruleSave">Lưu &amp; áp dụng</button>
     </div>
     <p class="tag" style="margin-top:8px"><b>match</b>: chuỗi con của URL (hoặc <code>re:regex</code>), rỗng = mọi URL.
-      <b>mock</b>: trả thẳng không gọi server. Không mock thì forward rồi đổi <b>status</b> / thay cả <b>body</b> / hoặc <b>find→replace</b> trong body.</p>
+      <b>mock</b>: trả thẳng không gọi server. Không mock thì forward rồi đổi <b>status</b> / thay cả <b>body</b> / hoặc <b>find→replace</b> trong body.
+      Có thể sửa cả <b>payload gửi lên</b>: thay toàn bộ, find→replace, hoặc <b>merge JSON</b> (dùng payload gốc, đè property từ JSON nhập vào — object lồng nhau merge đệ quy).</p>
   </div>
 </div>
 
@@ -367,6 +368,13 @@ function ruleCard(r,i){
       <input class="r-find" placeholder="find trong body" value="${esc(r.find||"")}" style="flex:1">
       <input class="r-replace" placeholder="replace" value="${esc(r.replace||"")}" style="flex:1">
     </div>
+    <div class="tag" style="margin-top:8px;opacity:.7">── sửa payload gửi lên (request) ──</div>
+    <textarea class="r-reqbody" placeholder="payload thay thế toàn bộ (trống nếu dùng merge)" style="width:100%;margin-top:6px;min-height:44px">${esc(r.reqBody||"")}</textarea>
+    <textarea class="r-reqmerge" placeholder='merge JSON vào payload gốc (vd {"debug":true})' style="width:100%;margin-top:6px;min-height:44px">${esc(r.reqMerge||"")}</textarea>
+    <div class="r-row">
+      <input class="r-reqfind" placeholder="find trong payload" value="${esc(r.reqFind||"")}" style="flex:1">
+      <input class="r-reqreplace" placeholder="replace" value="${esc(r.reqReplace||"")}" style="flex:1">
+    </div>
   </div>`;
 }
 function renderRules(){
@@ -388,6 +396,10 @@ function collectRules(){
     body: el.querySelector(".r-body").value,
     find: el.querySelector(".r-find").value,
     replace: el.querySelector(".r-replace").value,
+    reqBody: el.querySelector(".r-reqbody").value,
+    reqMerge: el.querySelector(".r-reqmerge").value,
+    reqFind: el.querySelector(".r-reqfind").value,
+    reqReplace: el.querySelector(".r-reqreplace").value,
   }));
   return out;
 }
@@ -397,7 +409,7 @@ $("#rulesBtn").onclick=async()=>{
 };
 $("#rulesClose").onclick=()=>$("#rulesModal").classList.remove("show");
 $("#rulesModal").onclick=e=>{ if(e.target===$("#rulesModal")) $("#rulesModal").classList.remove("show"); };
-$("#ruleAdd").onclick=()=>{ rules=collectRules(); rules.push({enabled:true,name:"rule mới",match:"",method:"",mock:false,status:"",contentType:"application/json; charset=utf-8",body:"",find:"",replace:""}); renderRules(); };
+$("#ruleAdd").onclick=()=>{ rules=collectRules(); rules.push({enabled:true,name:"rule mới",match:"",method:"",mock:false,status:"",contentType:"application/json; charset=utf-8",body:"",find:"",replace:"",reqBody:"",reqMerge:"",reqFind:"",reqReplace:""}); renderRules(); };
 $("#ruleSave").onclick=async()=>{
   const data=collectRules();
   try{ await fetch("/api/rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); }catch(e){}

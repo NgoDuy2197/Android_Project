@@ -19,6 +19,41 @@ import threading
 from mitmproxy import http
 
 
+def _deep_merge(base, over):
+    """Đè giá trị từ over lên base; object lồng nhau merge đệ quy."""
+    if not isinstance(base, dict) or not isinstance(over, dict):
+        return over
+    for k, ov in over.items():
+        if isinstance(ov, dict) and isinstance(base.get(k), dict):
+            base[k] = _deep_merge(base[k], ov)
+        else:
+            base[k] = ov
+    return base
+
+
+def _apply_request(content: bytes, r) -> bytes:
+    """Áp dụng sửa payload (bytes gốc) theo rule, trả bytes mới."""
+    cur = content or b""
+    if r.get("reqBody"):
+        cur = r["reqBody"].encode("utf-8")
+    elif r.get("reqFind"):
+        try:
+            cur = cur.decode("utf-8").replace(r["reqFind"], r.get("reqReplace", "")).encode("utf-8")
+        except Exception:
+            pass
+    if r.get("reqMerge"):
+        try:
+            over = json.loads(r["reqMerge"])
+            try:
+                base = json.loads(cur.decode("utf-8"))
+            except Exception:
+                base = {}
+            cur = json.dumps(_deep_merge(base, over), ensure_ascii=False).encode("utf-8")
+        except Exception:
+            pass
+    return cur
+
+
 class RuleStore:
     def __init__(self, path: str):
         self.path = path
@@ -90,6 +125,10 @@ class Rules:
                     flow.response = http.Response.make(status, body, {"Content-Type": ct})
                     flow.metadata["proxyspy_rule"] = r.get("name", "mock")
                     return
+                # sửa payload gửi lên: thay toàn bộ / find->replace / merge JSON
+                if r.get("reqBody") or r.get("reqMerge") or r.get("reqFind"):
+                    flow.request.content = _apply_request(flow.request.content, r)
+                    flow.metadata["proxyspy_rule"] = r.get("name", "modify-req")
         except Exception:
             pass
 

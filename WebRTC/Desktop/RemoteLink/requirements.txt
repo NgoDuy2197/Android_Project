@@ -1,0 +1,6 @@
+# Desktop viewer for RemoteLink.
+PySide6>=6.6,<6.9        # Qt GUI
+av>=13                  # PyAV: decode the H.264 stream (needs a prebuilt wheel; 13+ ships cp313)
+numpy>=1.24             # VNC framebuffer assembly
+cryptography>=41        # DES for VNC password auth (single-DES via TripleDES 8-byte key)
+Pillow>=10              # build-time: generate the app icon

@@ -29,6 +29,20 @@ object ProxyEngine {
         "trailer", "upgrade", "proxy-authenticate", "proxy-authorization",
     )
 
+    // Thu thông tin kết nối ra server (IP, protocol, TLS) cho từng request, theo thread.
+    private val upstreamTl = ThreadLocal<StringBuilder>()
+    private val upstreamListener = object : okhttp3.EventListener() {
+        override fun connectionAcquired(call: okhttp3.Call, connection: okhttp3.Connection) {
+            val sb = upstreamTl.get() ?: return
+            runCatching {
+                val sock = connection.socket()
+                sb.append("Server IP: ${sock.inetAddress?.hostAddress}:${sock.port}\n")
+                sb.append("Protocol: ${connection.protocol()}\n")
+                connection.handshake()?.let { sb.append("TLS lên server: ${it.tlsVersion} · ${it.cipherSuite}\n") }
+            }
+        }
+    }
+
     private val client: OkHttpClient by lazy {
         val trustAll = object : X509TrustManager {
             override fun checkClientTrusted(c: Array<out java.security.cert.X509Certificate>?, a: String?) {}
@@ -38,6 +52,7 @@ object ProxyEngine {
         val sc = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trustAll), null) }
         OkHttpClient.Builder()
             .proxy(java.net.Proxy.NO_PROXY)   // reach origins directly, never via the system proxy (avoid loops)
+            .eventListener(upstreamListener)
             .sslSocketFactory(sc.socketFactory, trustAll)
             .hostnameVerifier { _, _ -> true }
             .followRedirects(false).followSslRedirects(false)
@@ -46,6 +61,35 @@ object ProxyEngine {
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .build()
+    }
+
+    /**
+     * Socket bọc [base]: đọc trước [prefix] (ClientHello đã peek) rồi mới tới stream thật.
+     * Conscrypt khi bọc một socket có sẵn dùng input/output stream của nó → thay stream là đủ để replay byte.
+     */
+    private class PeekedSocket(private val base: Socket, prefix: ByteArray) : Socket() {
+        private val ins = java.io.SequenceInputStream(java.io.ByteArrayInputStream(prefix), base.getInputStream())
+        override fun getInputStream(): InputStream = ins
+        override fun getOutputStream(): OutputStream = base.getOutputStream()
+        override fun getInetAddress() = base.inetAddress
+        override fun getLocalAddress() = base.localAddress
+        override fun getPort() = base.port
+        override fun getLocalPort() = base.localPort
+        override fun getRemoteSocketAddress() = base.remoteSocketAddress
+        override fun getLocalSocketAddress() = base.localSocketAddress
+        override fun isConnected() = base.isConnected
+        override fun isBound() = base.isBound
+        override fun isClosed() = base.isClosed
+        override fun isInputShutdown() = base.isInputShutdown
+        override fun isOutputShutdown() = base.isOutputShutdown
+        override fun setSoTimeout(timeout: Int) { base.soTimeout = timeout }
+        override fun getSoTimeout() = base.soTimeout
+        override fun setTcpNoDelay(on: Boolean) { base.tcpNoDelay = on }
+        override fun getTcpNoDelay() = base.tcpNoDelay
+        override fun setKeepAlive(on: Boolean) { base.keepAlive = on }
+        override fun shutdownInput() = base.shutdownInput()
+        override fun shutdownOutput() = base.shutdownOutput()
+        override fun close() = base.close()
     }
 
     fun handle(client: Socket, maxBody: Int) {
@@ -67,10 +111,21 @@ object ProxyEngine {
                 if (DEBUG) android.util.Log.i(TAG, "CONNECT $host")
                 cout.write("HTTP/1.1 200 Connection established\r\n\r\n".toByteArray())
                 cout.flush()
+                // Peek ClientHello thô (trước bắt tay) để lấy fingerprint JA3 — thứ bị mất sau khi giải mã TLS.
+                val helloRec = runCatching { TlsPeek.readRecord(cin) }.getOrNull()
+                val chInfo = helloRec?.let { TlsPeek.parse(it) }
+                val clientTls = chInfo?.let {
+                    "JA3: ${it.ja3Md5}\n${it.tlsVersion} · ciphers=${it.cipherCount} · extensions=${it.extCount}" +
+                        "\nALPN (app đề nghị): ${it.alpn.joinToString(", ").ifBlank { "-" }}" +
+                        "\nSNI: ${it.sni.ifBlank { "-" }}\nJA3 raw: ${it.ja3}"
+                }
                 // wrap as a server-side TLS socket presenting a cert for `host`
                 val ssl = try {
-                    (CertManager.serverContext(host).socketFactory
-                        .createSocket(client, host, client.port, true) as SSLSocket).apply {
+                    val factory = CertManager.serverContext(host).socketFactory
+                    // Đã peek ClientHello để lấy JA3 → bọc socket replay lại các byte đó cho bắt tay TLS không thiếu.
+                    val base: Socket = if (helloRec != null) PeekedSocket(client, helloRec) else client
+                    val sock = factory.createSocket(base, host, client.port, true)
+                    (sock as SSLSocket).apply {
                         useClientMode = false
                         // Ép ALPN http/1.1 để client (Chromium/WebView) không huỷ bắt tay vì lệch h2
                         try {
@@ -84,7 +139,7 @@ object ProxyEngine {
                     if (DEBUG) android.util.Log.w(TAG, "TLS-FAIL $host: ${e.message}  (client từ chối cert → pinning hoặc chưa tin CA)")
                     runCatching { client.close() }; return
                 }
-                serveLoop(BufferedInputStream(ssl.getInputStream()), ssl.getOutputStream(), "https", host, maxBody)
+                serveLoop(BufferedInputStream(ssl.getInputStream()), ssl.getOutputStream(), "https", host, maxBody, clientTls)
                 runCatching { ssl.close() }
             } else {
                 // plain HTTP, absolute-form target: http://host/path
@@ -98,13 +153,13 @@ object ProxyEngine {
     }
 
     /** Keep-alive loop for a decrypted HTTPS tunnel (host fixed from CONNECT). */
-    private fun serveLoop(input: InputStream, out: OutputStream, scheme: String, host: String, maxBody: Int) {
+    private fun serveLoop(input: InputStream, out: OutputStream, scheme: String, host: String, maxBody: Int, clientTls: String? = null) {
         while (true) {
             val line = readLine(input) ?: break
             if (line.isEmpty()) continue
             val parts = line.split(' ')
             if (parts.size < 2) break
-            val keepAlive = serveRequest(parts[0], parts[1], input, out, scheme, host, maxBody)
+            val keepAlive = serveRequest(parts[0], parts[1], input, out, scheme, host, maxBody, clientTls)
             if (!keepAlive) break
         }
     }
@@ -124,7 +179,7 @@ object ProxyEngine {
     /** Parses one request from [input], forwards it, writes the response. Returns whether to keep the connection. */
     private fun serveRequest(
         method: String, target: String, input: InputStream, out: OutputStream,
-        scheme: String, connectHost: String?, maxBody: Int,
+        scheme: String, connectHost: String?, maxBody: Int, clientTls: String? = null,
     ): Boolean {
         val headers = readHeaders(input)
         val hmap = headers.associate { it.first.lowercase() to it.second }
@@ -159,6 +214,7 @@ object ProxyEngine {
 
         val f = Flow(FlowStore.newId(), System.currentTimeMillis(), method, scheme, host, path, url)
         f.reqHeaders = headers
+        f.clientTls = clientTls
         f.reqBody = extractBody(reqBody, hmap["content-type"] ?: "", maxBody)
         FlowStore.add(f)
 
@@ -180,12 +236,23 @@ object ProxyEngine {
             return !connClose
         }
 
+        // Rules: sửa payload request trước khi gửi lên server (thay cả body / find→replace / merge JSON).
+        var fwdBody = reqBody
+        for (r in rules) {
+            if (r.mock || !r.modifiesRequest()) continue
+            fwdBody = r.applyRequest(fwdBody)
+        }
+        if (!fwdBody.contentEquals(reqBody)) {
+            f.reqBody = extractBody(fwdBody, hmap["content-type"] ?: "", maxBody)
+            FlowStore.touched()
+        }
+
         val started = System.currentTimeMillis()
         try {
             val permits = !method.equals("GET", true) && !method.equals("HEAD", true)
             val mustBody = method.uppercase() in setOf("POST", "PUT", "PATCH", "DELETE")
             val mt = (hmap["content-type"] ?: "").let { if (it.isBlank()) null else it.toMediaTypeOrNull() }
-            val rb = if (permits && (reqBody.isNotEmpty() || mustBody)) reqBody.toRequestBody(mt) else null
+            val rb = if (permits && (fwdBody.isNotEmpty() || mustBody)) fwdBody.toRequestBody(mt) else null
             val rb2 = Request.Builder().url(url)
             for ((k, v) in headers) {
                 val lk = k.lowercase()
@@ -194,7 +261,9 @@ object ProxyEngine {
                 rb2.addHeader(k, v)
             }
             rb2.method(method, rb)
+            val ub = StringBuilder(); upstreamTl.set(ub)
             client.newCall(rb2.build()).execute().use { resp ->
+                if (ub.isNotEmpty()) f.upstream = ub.toString().trimEnd()
                 var code = resp.code
                 var bodyBytes = resp.body?.bytes() ?: ByteArray(0)
                 // Rules: modify the real response (status / whole body / find→replace in body).
@@ -239,6 +308,8 @@ object ProxyEngine {
                     listOf("Content-Type" to "text/plain; charset=utf-8"), msg, true)
             }
             return false
+        } finally {
+            upstreamTl.remove()
         }
         return !connClose
     }

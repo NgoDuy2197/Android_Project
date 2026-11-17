@@ -27,6 +27,8 @@ class Flow(
     @Volatile var resBody: Body? = null,
     @Volatile var durationMs: Long = -1,
     @Volatile var error: String? = null,
+    @Volatile var clientTls: String? = null,   // fingerprint TLS (JA3) app gửi lên khi bắt tay
+    @Volatile var upstream: String? = null,     // thông tin kết nối ProxySpy → server (IP, protocol, TLS)
 ) {
     val pending get() = status < 0 && error == null
     val resType get() = (resBody?.contentType ?: "").substringBefore(';').substringAfter('/')

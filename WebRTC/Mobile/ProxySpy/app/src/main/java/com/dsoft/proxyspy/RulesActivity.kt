@@ -27,8 +27,8 @@ class RulesActivity : Activity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(p.card); setPadding(dp(16), dp(14), dp(16), dp(10))
         }
-        header.addView(text("Rules — chặn & sửa response", 19f, p.text, 600))
-        header.addView(text("match URL (vd /login) → mock trả thẳng, hoặc đổi status / body / find→replace.",
+        header.addView(text("Rules — chặn & sửa request/response", 19f, p.text, 600))
+        header.addView(text("match URL → mock, đổi status/body response, hoặc sửa payload gửi lên (thay / find→replace / merge JSON).",
             12f, p.sec).apply { setPadding(0, dp(3), 0, 0) })
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
         bar.addView(pill("+ Thêm", p.fill, p.blue) { addCard(Rule(name = "rule mới")); scrollBottom() }, flex())
@@ -70,6 +70,15 @@ class RulesActivity : Activity() {
         }
         val find = field("find trong body", r.find)
         val replace = field("replace", r.replace)
+        // --- sửa payload REQUEST ---
+        val reqBody = field("payload thay thế toàn bộ (trống nếu dùng merge)", r.reqBody).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; minLines = 2; gravity = Gravity.TOP
+        }
+        val reqMerge = field("merge JSON vào payload gốc (vd {\"debug\":true})", r.reqMerge).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; minLines = 2; gravity = Gravity.TOP
+        }
+        val reqFind = field("find trong payload", r.reqFind)
+        val reqReplace = field("replace", r.reqReplace)
         val view: LinearLayout
 
         init {
@@ -89,12 +98,19 @@ class RulesActivity : Activity() {
                 addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                     .apply { topMargin = dp(5) })
                 addView(row(find, replace))
+                addView(text("── sửa payload gửi lên (request) ──", 11f, p.sec).apply { setPadding(0, dp(9), 0, 0) })
+                addView(reqBody, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = dp(5) })
+                addView(reqMerge, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = dp(5) })
+                addView(row(reqFind, reqReplace))
             }
         }
 
         fun toRule() = Rule(enabled.isChecked, name.text.toString(), match.text.toString(), method.text.toString(),
             mock.isChecked, status.text.toString(), ct.text.toString().ifBlank { "application/json; charset=utf-8" },
-            body.text.toString(), find.text.toString(), replace.text.toString())
+            body.text.toString(), find.text.toString(), replace.text.toString(),
+            reqBody.text.toString(), reqMerge.text.toString(), reqFind.text.toString(), reqReplace.text.toString())
     }
 
     private fun addCard(r: Rule) {

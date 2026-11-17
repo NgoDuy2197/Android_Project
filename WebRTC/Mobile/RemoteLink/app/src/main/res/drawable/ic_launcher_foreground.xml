@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RemoteLink: a phone (white) casting its screen, with a remote cursor. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <!-- phone body -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M46,24 L62,24 Q69,24 69,31 L69,77 Q69,84 62,84 L46,84 Q39,84 39,77 L39,31 Q39,24 46,24 Z" />
+    <!-- screen -->
+    <path android:fillColor="#FF141734"
+        android:pathData="M45,30 L63,30 Q65.5,30 65.5,32.5 L65.5,69.5 Q65.5,72 63,72 L45,72 Q42.5,72 42.5,69.5 L42.5,32.5 Q42.5,30 45,30 Z" />
+    <!-- home indicator -->
+    <path android:fillColor="#FFB7BDD6"
+        android:pathData="M51.5,76.5 L56.5,76.5 Q57.5,76.5 57.5,77.5 Q57.5,78.5 56.5,78.5 L51.5,78.5 Q50.5,78.5 50.5,77.5 Q50.5,76.5 51.5,76.5 Z" />
+
+    <!-- cast glyph on screen (origin bottom-left) -->
+    <path android:fillColor="#FF22D3EE"
+        android:pathData="M46.3,68.3 m-1.7,0 a1.7,1.7 0 1,0 3.4,0 a1.7,1.7 0 1,0 -3.4,0 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#FF22D3EE" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:pathData="M44.6,63.2 A5.1,5.1 0 0 1 49.7,68.3" />
+    <path android:fillColor="#00000000" android:strokeColor="#FF22D3EE" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:pathData="M44.6,58.0 A10.3,10.3 0 0 1 54.9,68.3" />
+
+    <!-- remote cursor -->
+    <path android:fillColor="#FFFFFFFF" android:strokeColor="#FF141734" android:strokeWidth="1.0"
+        android:strokeLineJoin="round"
+        android:pathData="M58,46 L58,64 L62.4,59.6 L65.6,66.3 L68.0,65.2 L64.8,58.6 L70.3,58.6 Z" />
+</vector>
