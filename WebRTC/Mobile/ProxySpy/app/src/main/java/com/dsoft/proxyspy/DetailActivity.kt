@@ -43,11 +43,6 @@ class DetailActivity : Activity() {
         if (f.status >= 0) kv(col, "Status", "${f.status} ${f.reason}")
         if (f.durationMs >= 0) kv(col, "Thời lượng", "${f.durationMs} ms")
 
-        f.clientTls?.let {
-            section(col, "TLS fingerprint (app → ProxySpy)")
-            col.addView(mono(it, p.text))
-            copyRow(col, "Copy JA3", it.substringAfter("JA3 raw: ", it))
-        }
         f.upstream?.let {
             section(col, "Kết nối ProxySpy → server")
             col.addView(mono(it, p.text))

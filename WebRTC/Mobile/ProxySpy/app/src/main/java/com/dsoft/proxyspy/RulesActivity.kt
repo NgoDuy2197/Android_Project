@@ -1,6 +1,7 @@
 package com.dsoft.proxyspy
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
@@ -28,9 +29,10 @@ class RulesActivity : Activity() {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(p.card); setPadding(dp(16), dp(14), dp(16), dp(10))
         }
         header.addView(text("Rules — chặn & sửa request/response", 19f, p.text, 600))
-        header.addView(text("match URL → mock, đổi status/body response, hoặc sửa payload gửi lên (thay / find→replace / merge JSON).",
-            12f, p.sec).apply { setPadding(0, dp(3), 0, 0) })
+        header.addView(text("Bấm vào đây để xem ⓘ ghi chú · match URL → mock / sửa response / sửa payload.",
+            12f, p.blue).apply { setPadding(0, dp(3), 0, dp(2)); setOnClickListener { showNotes() } })
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+        bar.addView(pill("ⓘ Ghi chú", p.fill, p.blue) { showNotes() }, flex())
         bar.addView(pill("+ Thêm", p.fill, p.blue) { addCard(Rule(name = "rule mới")); scrollBottom() }, flex())
         bar.addView(pill("Lưu & áp dụng", p.blue, Color.WHITE) { save() }, flex())
         header.addView(bar)
@@ -44,6 +46,40 @@ class RulesActivity : Activity() {
         RuleStore.all().forEach { addCard(it) }
         if (cards.isEmpty()) addCard(Rule(name = "ví dụ: login", match = "/login", mock = true,
             status = "200", body = "{\"success\":true,\"token\":\"FAKE\"}"))
+    }
+
+    private fun showNotes() {
+        val notes = """
+            GIẢ LẬP (MOCK) KẾT QUẢ API
+            • Tích ô "mock" → trả thẳng body, KHÔNG gọi server thật.
+            • Điền: status (vd 200), content-type, body (vd {"success":true}).
+            • Rule mock BỎ QUA phần sửa response/payload của chính nó (vì không forward).
+
+            SỬA RESPONSE THẬT (không tích mock)
+            • status: ghi đè mã trả về.
+            • body: thay TOÀN BỘ body trả về.
+            • find → replace: thay chuỗi trong body (chỉ khi body để trống).
+
+            SỬA PAYLOAD GỬI LÊN (request)
+            • payload thay thế: đè TOÀN BỘ payload.
+            • merge JSON: GIỮ payload gốc, chỉ ĐÈ các property trong JSON nhập (object lồng nhau merge đệ quy). JSON sai cú pháp → bỏ qua, không phá request.
+            • find → replace: thay chuỗi trong payload.
+            • Thứ tự trong 1 rule: thay toàn bộ HOẶC find→replace, rồi merge chồng lên.
+
+            MATCH URL
+            • Để trống = khớp MỌI URL.
+            • Chuỗi con (vd /login) hoặc re:regex.
+            • method để trống = mọi method.
+
+            CHUNG
+            • Nhiều rule khớp sẽ áp dụng lần lượt (trừ khi 1 rule mock trả thẳng).
+            • Nhớ bấm "Lưu & áp dụng" sau khi sửa.
+        """.trimIndent()
+        AlertDialog.Builder(this)
+            .setTitle("Lưu ý khi dùng Rules")
+            .setMessage(notes)
+            .setPositiveButton("Đã hiểu", null)
+            .show()
     }
 
     private val svRef get() = (list.parent as ScrollView)
