@@ -24,6 +24,8 @@ class MainActivity : Activity() {
     private lateinit var p: Palette
     private lateinit var statusText: TextView
     private lateinit var toggleBtn: TextView
+    private lateinit var hookBtn: TextView
+    private lateinit var banner: TextView
     private lateinit var rv: RecyclerView
     private lateinit var lm: LinearLayoutManager
     private val adapter = FlowAdapter()
@@ -44,6 +46,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         FlowStore.addListener(onFlows)
+        Hub.addListener(onState)
         ProxyService.listener = onState
         refreshState(); refreshList()
     }
@@ -51,6 +54,7 @@ class MainActivity : Activity() {
     override fun onPause() {
         super.onPause()
         FlowStore.removeListener(onFlows)
+        Hub.removeListener(onState)
         ProxyService.listener = null
     }
 
@@ -91,6 +95,30 @@ class MainActivity : Activity() {
             startActivity(Intent(this, RulesActivity::class.java))
         }, lpRow())
         header.addView(controls2)
+
+        // Chế độ 2: tự soi — hook thẳng vào app đích qua LSPosed, không cần proxy/CA.
+        val controls3 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        hookBtn = pill("Bật tự soi", p.fill, p.purple) { toggleHook() }
+        controls3.addView(hookBtn, lpRow())
+        controls3.addView(pill("Chọn app", p.fill, p.blue) {
+            startActivity(Intent(this, AppPickerActivity::class.java))
+        }, lpRow())
+        controls3.addView(pill("Breakpoint", p.fill, p.orange) { breakpointDialog() }, lpRow())
+        header.addView(controls3)
+
+        banner = text("", 13f, android.graphics.Color.WHITE, 600).apply {
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = rounded(p.orange, dp(10).toFloat())
+            visibility = View.GONE
+            setOnClickListener { openFirstPending() }
+        }
+        header.addView(banner, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(10) })
+
         root.addView(header)
 
         // list
@@ -118,13 +146,58 @@ class MainActivity : Activity() {
         App.main.postDelayed({ refreshState() }, 400)
     }
 
+    private fun toggleHook() {
+        if (Hub.running) HookService.stop(this) else HookService.start(this)
+        App.main.postDelayed({ refreshState() }, 400)
+    }
+
+    private fun openFirstPending() {
+        val id = Hub.pending.keys.minOrNull() ?: return
+        startActivity(Intent(this, BreakActivity::class.java).putExtra("askId", id))
+    }
+
+    /** Dừng call lại để sửa tay — chỉ có ý nghĩa ở chế độ tự soi. */
+    private fun breakpointDialog() {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+        }
+        box.addView(switchRow(p, "Dừng trước khi gửi (request)", Prefs.brkReq) { Prefs.brkReq = it })
+        box.addView(switchRow(p, "Dừng khi nhận (response)", Prefs.brkRes) { Prefs.brkRes = it })
+        box.addView(switchRow(p, "Dừng frame WebSocket", Prefs.brkWs) { Prefs.brkWs = it })
+        val match = input(p, "Chỉ dừng URL chứa… (trống = tất cả)", Prefs.brkMatch)
+        box.field(p, "Lọc breakpoint", match)
+        AlertDialog.Builder(this)
+            .setTitle("Breakpoint (chế độ tự soi)")
+            .setView(ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Xong") { _, _ ->
+                Prefs.brkMatch = match.text.toString().trim()
+                Hub.broadcastConfig()
+                refreshState()
+            }
+            .setNegativeButton("Huỷ", null)
+            .show()
+    }
+
     private fun refreshState() {
         val running = ProxyService.running
         val ip = Net.primaryIp()
-        statusText.text = if (running) "Proxy: $ip : ${ProxyService.port}   •   đặt proxy máy khác vào đây"
-        else (ProxyService.error ?: "Đang tắt — bấm Bật proxy")
+        val proxyLine = if (running) "Proxy: $ip : ${ProxyService.port}  •  đặt proxy máy khác vào đây"
+        else (ProxyService.error ?: "Proxy: tắt")
+        val conns = Hub.connections()
+        val hookLine = if (!Hub.running) "Tự soi: tắt"
+        else "Tự soi: cổng ${Hub.port} · ${conns.count { it.capturing }}/${conns.size} tiến trình · " +
+            (if (XposedStatus.moduleActive()) "module LSPosed BẬT" else "module LSPosed CHƯA BẬT")
+        statusText.text = proxyLine + "\n" + hookLine
         toggleBtn.text = if (running) "Dừng" else "Bật proxy"
         toggleBtn.background = rounded(if (running) p.red else p.green, dp(12).toFloat())
+        hookBtn.text = if (Hub.running) "Tắt tự soi" else "Bật tự soi"
+        hookBtn.background = rounded(if (Hub.running) p.red else p.fill, dp(12).toFloat())
+        hookBtn.setTextColor(if (Hub.running) android.graphics.Color.WHITE else p.purple)
+
+        val n = Hub.pending.size
+        banner.visibility = if (n > 0) View.VISIBLE else View.GONE
+        if (n > 0) banner.text = "⏸ $n call đang bị dừng — chạm để sửa"
     }
 
     private fun refreshList() {
@@ -210,15 +283,33 @@ class MainActivity : Activity() {
 
         override fun getItemCount() = items.size
 
+        /** Một dòng WebSocket hiện ngay nội dung frame, vì nó không có path để xem. */
+        private fun wsPreview(f: Flow): String {
+            val b = f.resBody
+            val t = b?.text ?: b?.base64?.let { "[nhị phân " + fmtSize(b.size) + "]" } ?: ""
+            return (t.replace("\n", " ").trim().ifEmpty { f.note ?: f.wsOp }).take(200)
+        }
+
         override fun onBindViewHolder(h: VH, position: Int) {
             val f = items[position]
-            h.m.text = f.method
-            h.m.setTextColor(methodColor(p, f.method))
+            h.m.text = f.badge
+            h.m.setTextColor(if (f.ws) p.purple else methodColor(p, f.method))
             h.m.background = rounded(p.fill, dp(6).toFloat())
-            h.host.text = timeFmt.format(f.time) + "  " + (if (f.scheme == "https") "🔒 " else "") + f.host
-            h.path.text = f.path
-            h.st.text = when { f.error != null -> "ERR"; f.pending -> "…"; else -> f.status.toString() }
-            h.st.setTextColor(if (f.error != null) p.red else statusColor(p, f.status))
+            h.host.text = timeFmt.format(f.time) + "  " +
+                (if (f.scheme == "https" || f.scheme == "wss") "🔒 " else "") +
+                (if (f.pkg.isNotEmpty()) f.pkg + "  " else "") + f.host
+            h.path.text = if (f.ws) wsPreview(f) else f.path
+            h.st.text = when {
+                f.error != null -> "ERR"
+                f.ws -> f.wsOp
+                f.pending -> "…"
+                else -> f.status.toString()
+            }
+            h.st.setTextColor(when {
+                f.error != null -> p.red
+                f.ws -> p.sec
+                else -> statusColor(p, f.status)
+            })
             h.row.setOnClickListener {
                 startActivity(Intent(this@MainActivity, DetailActivity::class.java).putExtra("id", f.id))
             }

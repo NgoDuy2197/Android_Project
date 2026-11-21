@@ -62,6 +62,38 @@ class MainActivity : Activity() {
                 CaptureService.isEnabled()) { toggleCapture() },
         ))
 
+        // ---- always-on text watcher ----
+        content.addView(sectionHeader(p, "Tự động bấm chữ"))
+        val prefs = Prefs(this)
+        val watchCard = card(p)
+        watchCard.addView(
+            row(p, "Bật tự động bấm chữ", iosSwitch(p, prefs.watchOn) { on ->
+                prefs.watchOn = on
+                if (on && !AutoClickService.isEnabled()) {
+                    toast("Hãy bật dịch vụ Trợ năng AutoTap trước")
+                    Access.openAccessibilitySettings(this)
+                }
+                AutoClickService.refreshWatch(this)
+                safeBuild()
+            }),
+        )
+        watchCard.addView(separator(p))
+        val watched = prefs.watchRules.count { it.enabled && it.text.isNotBlank() }
+        watchCard.addView(
+            row(p, "Danh sách chữ & tuỳ chọn", text("$watched chữ ›", 15f, p.secondary)) {
+                startActivity(Intent(this, WatchActivity::class.java))
+            },
+        )
+        content.addView(watchCard)
+        content.addView(
+            footnote(
+                p,
+                "Chạy nền: thấy chữ đã cấu hình (ví dụ \"Skip\") là tự bấm, khớp đúng cả hoa/thường. " +
+                    "Không cần OCR hay quyền ghi màn hình, chạy được cả trên tivi. " +
+                    "Tạm nghỉ trong lúc một kịch bản đang chạy.",
+            ),
+        )
+
         // ---- API server ----
         content.addView(sectionHeader(p, "API server"))
         val apiCard = card(p)

@@ -1,0 +1,6 @@
+# ScreenGrab desktop (Windows screen capture + recording)
+PySide6>=6.6,<6.9        # Qt GUI
+mss>=9.0                 # fast screenshots (full / region)
+numpy>=1.24             # frame buffers
+Pillow>=10              # save PNG + build the icon
+imageio-ffmpeg>=0.5     # bundled ffmpeg.exe (recording engine; no system install needed)

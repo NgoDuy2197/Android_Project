@@ -84,7 +84,7 @@ class DimActivity : Activity() {
         ))
         col.addView(footnote(p,
             "Từ Android 12, lớp phủ thường chỉ được tối tối đa ~79% (để không chặn chạm). " +
-                "Muốn tối hơn: bật \"Toolbox – Làm tối\" trong Cài đặt › Trợ năng › Ứng dụng đã tải xuống.\n" +
+                "Muốn tối hơn: bật \"Toolbox – Làm tối & menu nguồn\" trong Cài đặt › Trợ năng › Ứng dụng đã tải xuống.\n" +
                 "Nếu mục đó bị mờ (\"Cài đặt bị hạn chế\"): vào Cài đặt › Ứng dụng › Toolbox › ⋮ › Cho phép cài đặt bị hạn chế, rồi bật lại.\n" +
                 "Có thể thêm ô \"Làm tối\" vào bảng Cài đặt nhanh (kéo thanh thông báo › sửa ô)."))
     }

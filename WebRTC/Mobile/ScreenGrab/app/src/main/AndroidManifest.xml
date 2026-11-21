@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Screen capture + recording runs in a foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Audio: microphone and (API 29+) internal/device audio via AudioPlaybackCapture -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Save screenshots/videos on Android ≤ 9 (10+ uses MediaStore, no permission needed) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <!-- Keep the service alive with screen off -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Floating control bubble over other apps -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- Video sniffer: local MITM proxy + downloader -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <!-- ===== ScreenGrab is also an LSPosed module ("bỏ FLAG_SECURE" to record Telegram/Udemy) ===== -->
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposedminversion" android:value="82" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="Gỡ cờ chặn chụp/quay màn hình (FLAG_SECURE) của các app được chọn, để ScreenGrab quay được (vd Telegram, Udemy). Cần máy đã root + LSPosed." />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".SettingsActivity" android:exported="false" />
+
+        <!-- List of sniffed video/audio streams + downloader -->
+        <activity android:name=".MediaListActivity" android:exported="false" />
+
+        <!-- Local MITM proxy that sniffs video streams, routes apps through it -->
+        <service
+            android:name=".SniffService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device HTTP(S) inspection proxy to detect and download video streams" />
+        </service>
+
+        <!-- Experimental no-root routing via VpnService.setHttpProxy -->
+        <service
+            android:name=".SniffVpn"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Routes device traffic through the on-device sniffer proxy (no-root mode)" />
+        </service>
+
+        <!-- Fullscreen translucent overlay to draw the capture region -->
+        <activity
+            android:name=".RegionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/OverlayTheme" />
+
+        <!-- Transparent activity: asks for the MediaProjection consent, then tells the service what to do -->
+        <activity
+            android:name=".ProjectionRequestActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Floating bubble + quick menu over other apps -->
+        <service
+            android:name=".OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Floating on-screen capture control bubble" />
+        </service>
+
+        <!-- Foreground service owning the capture (screenshot + recording) -->
+        <service
+            android:name=".CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device screen capture and recording (root capture mode without MediaProjection)" />
+        </service>
+
+    </application>
+</manifest>

@@ -27,7 +27,10 @@ xa qua một API HTTP nhỏ gọn.
 - **Chọn điểm:** lớp phủ đơn giản để lấy một toạ độ cho một bước.
 - **Trình sửa thủ công:** thêm/sửa/xoá/đổi thứ tự các bước, sửa tên, số lần lặp,
   thời gian chờ; nút "Chạy thử".
+- **Tự động bấm chữ (chạy nền):** theo dõi màn hình, thấy chữ đã cấu hình (ví dụ
+  "Skip") là tự bấm — **không cần OCR, không cần quyền ghi màn hình**. Xem mục riêng bên dưới.
 - **API server:** server HTTP nhỏ (socket thuần) để chạy kịch bản từ máy khác.
+- **Chạy trên Android TV:** app lên launcher tivi, điều khiển bằng remote được.
 
 ---
 
@@ -124,6 +127,50 @@ Logic thuần (JSON của kịch bản/bước, thay thế tham số) có unit t
 ```bat
 gradlew.bat :app:testDebugUnitTest
 ```
+
+---
+
+## Tự động bấm chữ (chạy nền)
+
+Khác với bước `TAP_TEXT` trong kịch bản: chức năng này **chạy liên tục ở nền**, đọc chữ
+thẳng từ cây giao diện (`AccessibilityNodeInfo`) thay vì chụp màn hình + OCR — nên
+**không cần quyền ghi màn hình**, nhẹ hơn, và chạy được trên **tivi không có cảm ứng**.
+Mục đích chính: tự bấm **Skip / Bỏ qua quảng cáo** khi xem YouTube.
+
+Bật bằng switch ở màn hình chính, cấu hình trong **Danh sách chữ & tuỳ chọn**.
+
+- **Danh sách chữ**: thêm / sửa / xoá, bật tắt từng dòng. Mỗi dòng chọn kiểu khớp:
+  - **Đúng y hệt** — chữ trên màn hình phải giống hệt (mặc định).
+  - **Chứa** — chỉ cần có đoạn chữ này bên trong.
+- **Phân biệt chữ hoa / chữ thường**: bật sẵn, nên `Skip` không khớp `skip` hay `SKIP`.
+- Mặc định có sẵn: `Skip Ads`, `Skip Ad`, `Skip ads`, `Skip`, `Bỏ qua quảng cáo`, `Bỏ qua`.
+- Khớp cả **text** lẫn **content description** của phần tử trên màn hình.
+- **Cách bấm**: ưu tiên `ACTION_CLICK` lên đúng nút (leo lên tối đa 6 cấp cha để tìm nút
+  bấm được) — cách này không cần cảm ứng nên chạy được trên tivi. Tắt
+  "Chỉ bấm vào nút bấm được" thì khi chữ không phải nút, app sẽ chạm thẳng vào toạ độ chữ
+  (cần màn cảm ứng).
+- **Tốc độ**:
+  - *Quét lại mỗi (ms)*: `0` = chỉ bấm khi hệ thống báo màn hình đổi (ít tốn pin nhất);
+    `150–10000` = quét thêm theo chu kỳ, bắt được cả nút hiện ra im lặng. Mặc định `600`.
+  - *Nghỉ giữa 2 lần bấm*: cùng một chữ chỉ được bấm lại sau khoảng này. Mặc định `1500 ms`.
+- **Chỉ chạy trong ứng dụng**: chọn từ danh sách app có icon (gồm cả app TV); để trống =
+  mọi ứng dụng. Không bao giờ tự bấm vào chính AutoTap.
+- **Nhật ký**: 30 lần bấm gần nhất (giờ, chữ, app, cách bấm). Có tuỳ chọn hiện thông báo
+  mỗi lần bấm để dò khi mới cấu hình.
+- **Không đấm nhau với kịch bản**: khi một kịch bản đang chạy, phần tự bấm chữ tạm nghỉ.
+
+**Quyền:** dùng chung **dịch vụ Trợ năng AutoTap** với phần chạy kịch bản — bật một lần là đủ.
+Màn hình của chức năng có dòng trạng thái và nút **Mở Cài đặt › Trợ năng** để bật ngay.
+
+---
+
+## Android TV
+
+- App hiện trong launcher của tivi (`LEANBACK_LAUNCHER` + banner riêng), không bắt buộc
+  màn cảm ứng.
+- Mọi hàng bấm được đều nhận focus bằng phím điều hướng của remote, có viền sáng khi được chọn.
+- Ghi thao tác / Chọn điểm / OCR vẫn là các tính năng thiên về cảm ứng; trên tivi nên dùng
+  **tự động bấm chữ**.
 
 ---
 

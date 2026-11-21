@@ -92,6 +92,16 @@ class Prefs(ctx: Context) {
         get() = sp.getString("share_save_name", "") ?: ""
         set(v) = sp.edit().putString("share_save_name", v).apply()
 
+    // ---- Restart menu ----
+    /**
+     * Off (default): try the no-root way first (system power menu via the
+     * accessibility service) and only fall back to `su`. On: go straight to `su`
+     * when root is available, which skips the extra confirmation menu.
+     */
+    var rebootPreferRoot: Boolean
+        get() = sp.getBoolean("reboot_prefer_root", false)
+        set(v) = sp.edit().putBoolean("reboot_prefer_root", v).apply()
+
     companion object {
         const val DEFAULT_PORT = 2121
         const val DEFAULT_USER = "admin"

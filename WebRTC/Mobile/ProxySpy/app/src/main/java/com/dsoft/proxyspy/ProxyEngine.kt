@@ -180,14 +180,28 @@ object ProxyEngine {
         if (DEBUG) android.util.Log.i(TAG, ">> $method $url\n   req-headers: " +
             headers.joinToString(" | ") { "${it.first}: ${it.second}" } + "\n   req-bodyLen=${reqBody.size}")
 
-        // Rules: a mock rule returns a canned response without contacting the server.
         val rules = RuleStore.matching(method, url)
+
+        // Rules dùng chung với chế độ tự soi. Trễ và ép lỗi chạy trước mọi thứ khác.
+        rules.maxOfOrNull { it.delayMs }?.takeIf { it > 0 }
+            ?.let { runCatching { Thread.sleep(it.toLong()) } }
+        rules.firstOrNull { it.failWith.isNotEmpty() }?.let { r ->
+            f.error = r.failWith
+            f.durationMs = 0
+            FlowStore.touched()
+            writeResponse(out, 502, "Bad Gateway",
+                listOf("Content-Type" to "text/plain; charset=utf-8"),
+                ("ProxySpy ép lỗi: " + r.failWith).toByteArray(Charsets.UTF_8), true)
+            return false
+        }
+
+        // Rules: a mock rule returns a canned response without contacting the server.
         rules.firstOrNull { it.mock }?.let { mk ->
             val code = mk.status.toIntOrNull() ?: 200
             val bodyBytes = mk.body.toByteArray(Charsets.UTF_8)
             val ct = mk.contentType.ifBlank { "application/json; charset=utf-8" }
             f.status = code; f.reason = "mock"
-            f.resHeaders = listOf("Content-Type" to ct)
+            f.resHeaders = mergeHeaderLines(listOf("Content-Type" to ct), mk.resHeaders)
             f.resBody = extractBody(bodyBytes, ct, maxBody)
             f.durationMs = 0
             FlowStore.touched()
@@ -212,11 +226,23 @@ object ProxyEngine {
             val mustBody = method.uppercase() in setOf("POST", "PUT", "PATCH", "DELETE")
             val mt = (hmap["content-type"] ?: "").let { if (it.isBlank()) null else it.toMediaTypeOrNull() }
             val rb = if (permits && (fwdBody.isNotEmpty() || mustBody)) fwdBody.toRequestBody(mt) else null
-            val rb2 = Request.Builder().url(url)
+            // Rule có thể bẻ URL sang server khác (vd prod -> staging).
+            var fwdUrl = url
+            for (r in rules) if (r.urlFind.isNotEmpty()) fwdUrl = r.newUrl(fwdUrl)
+            if (fwdUrl != url) {
+                f.note = "URL đã đổi → $fwdUrl"
+                FlowStore.touched()
+            }
+            val rb2 = Request.Builder().url(fwdUrl)
             for ((k, v) in headers) {
                 val lk = k.lowercase()
                 // let OkHttp set Host and manage gzip itself so we get decoded bodies back
                 if (lk in HOP || lk == "content-length" || lk == "host" || lk == "accept-encoding") continue
+                rb2.addHeader(k, v)
+            }
+            // Header do rule thêm/ghi đè, sau khi đã copy header gốc.
+            for (r in rules) for ((k, v) in Wire.parseHeaderLines(r.reqHeaders)) {
+                rb2.removeHeader(k)
                 rb2.addHeader(k, v)
             }
             rb2.method(method, rb)
@@ -229,9 +255,7 @@ object ProxyEngine {
                 for (r in rules) {
                     if (r.mock) continue
                     r.status.toIntOrNull()?.let { code = it }
-                    if (r.body.isNotEmpty()) bodyBytes = r.body.toByteArray(Charsets.UTF_8)
-                    else if (r.find.isNotEmpty())
-                        bodyBytes = String(bodyBytes, Charsets.UTF_8).replace(r.find, r.replace).toByteArray(Charsets.UTF_8)
+                    r.applyResponseBody(bodyBytes)?.let { bodyBytes = it }
                 }
                 f.status = code
                 f.reason = resp.message
@@ -241,7 +265,9 @@ object ProxyEngine {
                         name.equals("content-encoding", true)) continue
                     for (v in resp.headers.values(name)) rh.add(name to v)
                 }
-                f.resHeaders = rh
+                var rh2: List<Pair<String, String>> = rh
+                for (r in rules) if (r.resHeaders.isNotEmpty()) rh2 = mergeHeaderLines(rh2, r.resHeaders)
+                f.resHeaders = rh2
                 f.resBody = extractBody(bodyBytes, resp.header("content-type") ?: "", maxBody)
                 f.durationMs = System.currentTimeMillis() - started
                 FlowStore.touched()
@@ -254,7 +280,7 @@ object ProxyEngine {
                         android.util.Log.i(TAG, "   res-body: " +
                             String(bodyBytes.copyOf(minOf(bodyBytes.size, 600)), Charsets.UTF_8))
                 }
-                writeResponse(out, code, resp.message, rh, bodyBytes, connClose)
+                writeResponse(out, code, resp.message, rh2, bodyBytes, connClose)
             }
         } catch (e: Throwable) {
             f.error = e.message ?: e.javaClass.simpleName
@@ -271,6 +297,17 @@ object ProxyEngine {
             upstreamTl.remove()
         }
         return !connClose
+    }
+
+    /** "Key: value" mỗi dòng, ghi đè header cùng tên và giữ phần còn lại. */
+    private fun mergeHeaderLines(
+        base: List<Pair<String, String>>, lines: String,
+    ): List<Pair<String, String>> {
+        val over = Wire.parseHeaderLines(lines)
+        if (over.isEmpty()) return base
+        val out = base.filter { b -> over.none { it.first.equals(b.first, true) } }.toMutableList()
+        out.addAll(over)
+        return out
     }
 
     private fun serveCaPage(path: String, out: OutputStream) {

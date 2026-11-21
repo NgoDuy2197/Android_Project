@@ -21,6 +21,13 @@
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
+        <!-- ===== ProxySpy cũng là một module LSPosed (chế độ "tự soi") ===== -->
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposedminversion" android:value="82" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="Ghi lại và sửa API/WebSocket của app được chọn, ngay trên máy đã root." />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -47,9 +54,32 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
 
+        <activity
+            android:name=".AppPickerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
+
+        <!-- Mở thẳng từ thông báo khi một call đang bị đóng băng. -->
+        <activity
+            android:name=".BreakActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
+
         <service
             android:name=".ProxyService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name=".HookService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name=".BreakReceiver"
+            android:exported="false" />
     </application>
 </manifest>

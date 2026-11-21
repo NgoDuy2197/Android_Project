@@ -66,6 +66,20 @@ fun gradient(radius: Float, vararg colors: Int) =
 fun pressable(bg: Drawable?, rippleColor: Int): Drawable =
     RippleDrawable(ColorStateList.valueOf(rippleColor), bg, bg ?: ColorDrawable(Color.WHITE))
 
+/**
+ * Make a clickable view reachable, and visibly highlighted, with a TV remote or
+ * keyboard D-pad. Does nothing on a phone: in touch mode views do not take focus.
+ */
+fun View.dpadFocus(p: Palette) {
+    isFocusable = true
+    isFocusableInTouchMode = false
+    setOnFocusChangeListener { v, has ->
+        v.foreground =
+            if (has) rounded(if (p.dark) 0x40FFFFFF else 0x22000000, v.context.dp(10).toFloat())
+            else null
+    }
+}
+
 /** Clip children to the background's rounded outline (cards). */
 fun View.clipRounded() {
     outlineProvider = ViewOutlineProvider.BACKGROUND
@@ -148,6 +162,7 @@ fun Context.row(p: Palette, title: String, trailing: View? = null, onClick: (() 
         if (onClick != null) {
             background = pressable(null, p.ripple)
             setOnClickListener { onClick() }
+            dpadFocus(p)
         }
     }
 
@@ -273,6 +288,7 @@ fun Context.toolRow(p: Palette, iconRes: Int, color: Int, title: String, onClick
         addView(chevron(p))
         background = pressable(null, p.ripple)
         setOnClickListener { onClick() }
+        dpadFocus(p)
     }
     return row to sub
 }
@@ -283,6 +299,7 @@ fun Context.bigButton(label: String, vararg colors: Int, onClick: () -> Unit): T
     minHeight = dp(52)
     background = pressable(gradient(dp(14).toFloat(), *colors), 0x33FFFFFF)
     setOnClickListener { onClick() }
+    dpadFocus(palette())
 }
 
 fun Context.copyText(s: String) {

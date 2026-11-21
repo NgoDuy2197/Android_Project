@@ -22,7 +22,7 @@ Phủ một lớp đen trong suốt, không nhận chạm, lên toàn màn hình
 - Có ô **Làm tối** trong Cài đặt nhanh.
 - Tùy chọn hạ độ sáng hệ thống xuống thấp nhất, cần quyền "Sửa cài đặt hệ thống". Độ sáng cũ được trả lại khi tắt làm tối.
 - Từ Android 12, lớp phủ thường bị giới hạn khoảng 79% để không chặn chạm. Muốn tối om:
-  1. Vào Cài đặt › Trợ năng và bật **Toolbox – Làm tối**. Lớp phủ trợ năng được phép tối hơn mà vẫn chạm được ứng dụng bên dưới.
+  1. Vào Cài đặt › Trợ năng và bật **Toolbox – Làm tối & menu nguồn**. Lớp phủ trợ năng được phép tối hơn mà vẫn chạm được ứng dụng bên dưới.
   2. Nếu mục này bị mờ ("Cài đặt bị hạn chế"), vào Cài đặt › Ứng dụng › Tiện ích › ⋮ › **Cho phép cài đặt bị hạn chế**.
 
 **Quyền cần cấp:** "Hiển thị trên ứng dụng khác".
@@ -55,6 +55,34 @@ Phủ một lớp đen trong suốt, không nhận chạm, lên toàn màn hình
 - Văn bản lưu trong bộ nhớ máy chủ (mất khi tắt server), đồng bộ giữa các máy.
 - **Tệp: máy chủ KHÔNG lưu.** Khi một máy gắn tệp, trình duyệt của máy đó giữ tệp; lúc máy khác bấm Tải, dữ liệu được **truyền thẳng** từ trình duyệt người gắn, qua máy chủ, tới người tải (máy chủ chỉ chuyển tiếp, không ghi ra đĩa). Vì vậy trang của người gắn phải còn mở.
 - Tệp do **chính máy chủ** gắn (nút "Gắn tệp từ máy này") thì được truyền thẳng từ bộ nhớ máy, không cần trang nào mở.
+
+## 6. Khởi động lại / Tắt nguồn
+Mỗi nút có **nhãn báo quyền**: `KHÔNG ROOT` (xanh) hay `ROOT` (đỏ), kèm dòng phụ nói rõ **lần bấm này sẽ chạy bằng cách gì** theo tình trạng máy hiện tại.
+
+| Mục | Cần gì |
+|---|---|
+| Khởi động lại | **Không cần root** — Trợ năng, hoặc root |
+| Tắt nguồn | **Không cần root** — Trợ năng, hoặc root |
+| Khởi động lại nhanh (soft) | Bắt buộc root |
+| Vào Recovery | Bắt buộc root |
+| Vào Bootloader / Fastboot | Bắt buộc root |
+
+**Thứ tự ưu tiên (mặc định):** thử cách không cần root trước — dịch vụ Trợ năng gọi
+`GLOBAL_ACTION_POWER_DIALOG` để mở **menu nguồn của hệ thống**, bạn chọn "Khởi động lại" /
+"Tắt nguồn" — chỉ khi không có mới dùng `su`.
+- Dùng **chung dịch vụ Trợ năng với chức năng Làm tối** ("Toolbox – Làm tối & menu nguồn"),
+  bật một lần là đủ cho cả hai.
+- Có switch **"Ưu tiên dùng root khi đã có"** (mặc định tắt) để chạy thẳng lệnh root, đỡ phải
+  bấm thêm một bước trong menu nguồn.
+- Ba mục còn lại (soft reboot / Recovery / Bootloader) **không có API công khai** nào — bắt buộc
+  root. Không có root thì cắm máy tính: `adb reboot recovery` / `adb reboot bootloader`.
+- Màn hình có dòng trạng thái **Quyền root** và **Menu nguồn (Trợ năng)**; chạm vào dòng Trợ năng
+  là mở thẳng trang Cài đặt. Hộp thoại xác nhận cũng ghi rõ sẽ chạy bằng cách nào.
+
+## Android TV
+- App hiện trong launcher của tivi (`LEANBACK_LAUNCHER` + banner riêng), và không bắt buộc màn cảm ứng / camera / cảm biến.
+- Mọi hàng bấm được đều nhận focus bằng phím điều hướng của remote, có viền sáng khi được chọn.
+- Chức năng **tự động bấm chữ trên màn hình** (tự bấm "Skip"…) nằm ở app riêng **AutoTap**, không ở đây.
 
 ## Build
 ```

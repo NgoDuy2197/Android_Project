@@ -1,7 +1,14 @@
 package com.dsoft.proxyspy
 
+import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
+import android.text.InputType
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.ScrollView
+import android.widget.Switch
+import android.widget.Toast
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -47,6 +54,7 @@ fun Context.text(s: CharSequence, sp: Float, color: Int, weight: Int = 400): Tex
 fun Context.card(p: Palette): LinearLayout = LinearLayout(this).apply {
     orientation = LinearLayout.VERTICAL
     background = rounded(p.card, dp(14).toFloat())
+    setPadding(dp(14), dp(12), dp(14), dp(12))
 }
 
 fun Context.pill(label: String, bg: Int, fg: Int, onClick: () -> Unit): TextView =
@@ -82,3 +90,82 @@ fun fmtSize(n: Int): String = when {
 }
 
 fun View.pad(l: Int, t: Int, r: Int, b: Int) = setPadding(l, t, r, b)
+
+// ===================== helpers dùng chung cho các màn của chế độ tự soi =====================
+
+fun Context.row(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+
+fun Context.col(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+
+fun Context.wlp(weight: Float = 1f) =
+    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+
+fun Context.gap(w: Int = 8): View =
+    View(this).apply { layoutParams = LinearLayout.LayoutParams(dp(w), 1) }
+
+fun Context.mono(s: CharSequence, sp: Float, color: Int): TextView = TextView(this).apply {
+    text = s
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
+    setTextColor(color)
+    typeface = Typeface.MONOSPACE
+    setTextIsSelectable(true)
+}
+
+fun Context.input(p: Palette, hint: String, value: String, lines: Int = 1): EditText = EditText(this).apply {
+    setText(value)
+    this.hint = hint
+    setHintTextColor(p.sec)
+    setTextColor(p.text)
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, if (lines > 1) 13f else 15f)
+    background = rounded(p.fill, dp(10).toFloat())
+    setPadding(dp(12), dp(10), dp(12), dp(10))
+    if (lines > 1) {
+        typeface = Typeface.MONOSPACE
+        minLines = lines
+        maxLines = lines * 3
+        gravity = Gravity.TOP or Gravity.START
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+    } else {
+        inputType = InputType.TYPE_CLASS_TEXT
+        maxLines = 1
+    }
+}
+
+/** Nhãn nhỏ phía trên một ô nhập. */
+fun LinearLayout.field(p: Palette, label: String, editor: View) {
+    val c = context
+    addView(c.text(label, 12f, p.sec, 600), c.vlp().apply { topMargin = c.dp(10) })
+    addView(editor, c.vlp().apply { topMargin = c.dp(4) })
+}
+
+@Suppress("DEPRECATION")
+fun Context.switchRow(p: Palette, label: String, checked: Boolean, onChange: (Boolean) -> Unit): View {
+    val r = row().apply {
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, dp(8), 0, dp(8))
+    }
+    r.addView(text(label, 15f, p.text), wlp())
+    r.addView(Switch(this).apply {
+        isChecked = checked
+        setOnCheckedChangeListener { _, v -> onChange(v) }
+    })
+    return r
+}
+
+fun Context.scroll(child: View): ScrollView = ScrollView(this).apply {
+    addView(
+        child,
+        ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+    )
+    isFillViewport = true
+}
+
+fun Activity.toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
+
+fun Activity.copyToClipboard(label: String, value: String) {
+    getSystemService(android.content.ClipboardManager::class.java)
+        .setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+    toast("Đã copy")
+}
+
+fun fmtTime(ms: Long): String = android.text.format.DateFormat.format("HH:mm:ss", ms).toString()

@@ -70,7 +70,7 @@ class MainActivity : Activity() {
         val (restartRow, restartSub) = toolRow(p, R.drawable.ic_restart, p.red, "Khởi động lại") {
             startActivity(Intent(this, RestartActivity::class.java))
         }
-        restartSub.text = "Reboot · Recovery · Fastboot · Tắt nguồn (root)"
+        restartSub.text = "Reboot/Tắt nguồn không cần root · Recovery/Fastboot cần root"
         shareSub = shs
         trSub = ts
         ftpSub = fs

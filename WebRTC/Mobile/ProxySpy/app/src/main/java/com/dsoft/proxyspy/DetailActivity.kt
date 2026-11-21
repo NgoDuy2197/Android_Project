@@ -30,7 +30,10 @@ class DetailActivity : Activity() {
             setPadding(dp(16), dp(14), dp(16), dp(32))
         }
 
-        col.addView(text("${f.method}  ${f.status.takeIf { it >= 0 } ?: ""}", 13f, methodColor(p, f.method), 600))
+        col.addView(text(
+            f.badge + "  " + (if (f.ws) f.wsOp else (f.status.takeIf { it >= 0 } ?: "").toString()),
+            13f, if (f.ws) p.purple else methodColor(p, f.method), 600,
+        ))
         col.addView(text(f.url, 13f, p.text).apply {
             typeface = Typeface.MONOSPACE; setPadding(0, dp(4), 0, dp(8))
         })
@@ -39,6 +42,13 @@ class DetailActivity : Activity() {
         f.error?.let { section(col, "Lỗi"); col.addView(mono(it, p.red)) }
 
         section(col, "Tổng quan")
+        if (f.pkg.isNotEmpty()) kv(col, "App", f.pkg)
+        kv(col, "Bắt bằng", when (f.source) {
+            Flow.SRC_HOOK -> "tự soi (hook trong app)"
+            Flow.SRC_RAW -> "tự soi — tầng thô (socket)"
+            else -> "proxy MITM"
+        })
+        f.note?.let { kv(col, "Ghi chú", it) }
         kv(col, "Thời gian", java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date(f.time)))
         if (f.status >= 0) kv(col, "Status", "${f.status} ${f.reason}")
         if (f.durationMs >= 0) kv(col, "Thời lượng", "${f.durationMs} ms")
@@ -46,6 +56,13 @@ class DetailActivity : Activity() {
         f.upstream?.let {
             section(col, "Kết nối ProxySpy → server")
             col.addView(mono(it, p.text))
+        }
+
+        if (f.ws) {
+            // Một frame WebSocket chỉ có nội dung, không có cặp header request/response.
+            bodySection(col, if (f.wsOut) "Frame gửi đi" else "Frame nhận về", f.resBody)
+            setContentView(ScrollView(this).apply { setBackgroundColor(p.bg); addView(col) })
+            return
         }
 
         headerSection(col, "Request headers", f.reqHeaders)

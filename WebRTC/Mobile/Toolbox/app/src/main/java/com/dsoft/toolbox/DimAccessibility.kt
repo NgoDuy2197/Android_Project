@@ -20,6 +20,17 @@ class DimAccessibility : AccessibilityService() {
     fun show(alpha: Float) = overlay.show(alpha)
     fun hide() = overlay.hide()
 
+    /**
+     * Opens the system power menu (Restart / Power off) — the no-root way to
+     * reboot. The user still confirms in that menu, which is why no permission
+     * beyond the accessibility binding is needed.
+     */
+    fun powerDialog(): Boolean = try {
+        performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)
+    } catch (_: Throwable) {
+        false
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
 

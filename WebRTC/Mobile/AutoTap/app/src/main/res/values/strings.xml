@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">AutoTap</string>
     <string name="acc_label">AutoTap – Tự động chạm</string>
-    <string name="acc_desc">Cho phép AutoTap thực hiện chạm, giữ và vuốt tự động để chạy các kịch bản bạn đã tạo. Không thu thập dữ liệu cá nhân.</string>
+    <string name="acc_desc">Cho phép AutoTap thực hiện chạm, giữ và vuốt tự động để chạy các kịch bản bạn đã tạo, và đọc chữ đang hiển thị để tự bấm những nút bạn đã cấu hình (ví dụ “Skip”). Không thu thập dữ liệu cá nhân, không gửi chữ đi đâu.</string>
 </resources>

@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Hand pointer tapping, with two "ripple" arcs. -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M11,2.5c-0.83,0 -1.5,0.67 -1.5,1.5v7.26l-1.1,-1.16c-0.62,-0.65 -1.66,-0.65 -2.28,0 -0.57,0.6 -0.6,1.53 -0.07,2.17l3.62,4.36c0.57,0.68 1.41,1.07 2.3,1.07h3.78c1.66,0 3,-1.34 3,-3v-4.2c0,-0.83 -0.67,-1.5 -1.5,-1.5 -0.28,0 -0.54,0.08 -0.77,0.21 -0.17,-0.68 -0.79,-1.19 -1.53,-1.19 -0.35,0 -0.68,0.12 -0.95,0.31 -0.25,-0.54 -0.8,-0.92 -1.44,-0.92 -0.19,0 -0.37,0.03 -0.54,0.09V4c0,-0.83 -0.67,-1.5 -1.5,-1.5z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M5.4,2.6 L4,1.2C2.56,2.64 1.75,4.56 1.75,6.6c0,2.04 0.81,3.96 2.25,5.4l1.4,-1.4C4.3,9.52 3.69,8.1 3.69,6.6c0,-1.5 0.61,-2.92 1.71,-4z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M8.2,5.4 L6.8,4C6.1,4.7 5.72,5.62 5.72,6.6c0,0.98 0.38,1.9 1.08,2.6l1.4,-1.4c-0.32,-0.32 -0.5,-0.75 -0.5,-1.2 0,-0.45 0.18,-0.88 0.5,-1.2z" />
+</vector>

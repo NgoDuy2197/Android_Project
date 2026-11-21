@@ -29,9 +29,32 @@ class Flow(
     @Volatile var error: String? = null,
     @Volatile var upstream: String? = null,     // thông tin kết nối ProxySpy → server (IP, protocol, TLS) — chỉ để xem
 ) {
-    val pending get() = status < 0 && error == null
+    // --- chế độ tự soi (hook): flow đến từ bên trong một app cụ thể ---
+    /** "proxy" | "hook" | "raw" — ai bắt được flow này. */
+    @Volatile var source: String = SRC_PROXY
+    /** Package của app bị soi (rỗng khi bắt bằng proxy). */
+    @Volatile var pkg: String = ""
+    /** true: đây là một frame WebSocket, không phải một cặp request/response. */
+    @Volatile var ws: Boolean = false
+    @Volatile var wsOut: Boolean = false        // chiều: app gửi đi
+    @Volatile var wsOp: String = ""             // text | binary | open | close | note
+    @Volatile var note: String? = null          // ghi chú (vd body quá lớn nên không ghi)
+
+    val pending get() = !ws && status < 0 && error == null
     val resType get() = (resBody?.contentType ?: "").substringBefore(';').substringAfter('/')
     val size get() = (resBody?.size ?: reqBody?.size ?: 0)
+
+    /** Nhãn ngắn hiện ở đầu dòng trong danh sách. */
+    val badge: String get() = when {
+        ws -> if (wsOut) "WS↑" else "WS↓"
+        else -> method
+    }
+
+    companion object {
+        const val SRC_PROXY = "proxy"
+        const val SRC_HOOK = "hook"
+        const val SRC_RAW = "raw"
+    }
 }
 
 /** In-memory ring buffer of captured flows, observed by the UI. */

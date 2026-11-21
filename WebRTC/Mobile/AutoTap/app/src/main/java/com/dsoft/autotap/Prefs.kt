@@ -56,6 +56,51 @@ class Prefs(ctx: Context) {
         get() = sp.getInt("bar_y", -1)
         set(v) = sp.edit().putInt("bar_y", v).apply()
 
+    // ---- Text watcher (tự động bấm chữ trên màn hình) ----
+    /** Feature switch. The accessibility service stays enabled for scenarios either way. */
+    var watchOn: Boolean
+        get() = sp.getBoolean("watch_on", false)
+        set(v) = sp.edit().putBoolean("watch_on", v).apply()
+
+    /** The texts to look for; seeded with [WatchRule.DEFAULTS] on first run. */
+    var watchRules: List<WatchRule>
+        get() {
+            val s = sp.getString("watch_rules", null)
+            return if (s.isNullOrBlank()) WatchRule.DEFAULTS else WatchRule.parse(s)
+        }
+        set(v) = sp.edit().putString("watch_rules", WatchRule.serialize(v)).apply()
+
+    /** "Skip" must not match "skip". On by default — the texts match letter for letter. */
+    var watchCaseSensitive: Boolean
+        get() = sp.getBoolean("watch_case", true)
+        set(v) = sp.edit().putBoolean("watch_case", v).apply()
+
+    /** Only tap real buttons; when off, a gesture tap is sent on the text position. */
+    var watchClickableOnly: Boolean
+        get() = sp.getBoolean("watch_clickable_only", true)
+        set(v) = sp.edit().putBoolean("watch_clickable_only", v).apply()
+
+    /** Milliseconds before the same text may be tapped again. */
+    var watchCooldownMs: Int
+        get() = sp.getInt("watch_cooldown", 1500).coerceIn(200, 60_000)
+        set(v) = sp.edit().putInt("watch_cooldown", v.coerceIn(200, 60_000)).apply()
+
+    /** Re-scan period in ms; 0 = only react to accessibility events. */
+    var watchScanMs: Int
+        get() = sp.getInt("watch_scan_ms", 600).let { if (it <= 0) 0 else it.coerceIn(150, 10_000) }
+        set(v) = sp.edit().putInt("watch_scan_ms", if (v <= 0) 0 else v.coerceIn(150, 10_000)).apply()
+
+    /** Packages to restrict tapping to; empty = every app. */
+    var watchApps: Set<String>
+        get() = (sp.getString("watch_apps", "") ?: "").split(',')
+            .map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        set(v) = sp.edit().putString("watch_apps", v.joinToString(",")).apply()
+
+    /** Show a toast on every tap (handy while setting the list up). */
+    var watchToast: Boolean
+        get() = sp.getBoolean("watch_toast", false)
+        set(v) = sp.edit().putBoolean("watch_toast", v).apply()
+
     companion object {
         const val DEFAULT_PORT = 8900
     }

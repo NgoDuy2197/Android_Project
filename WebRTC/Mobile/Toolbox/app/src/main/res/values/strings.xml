@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Toolbox</string>
-    <string name="acc_label">Toolbox – Làm tối</string>
-    <string name="acc_desc">Cho phép lớp làm tối màn hình tối hơn 80% mà vẫn chạm được vào ứng dụng bên dưới. Không đọc nội dung màn hình.</string>
+    <string name="acc_label">Toolbox – Làm tối &amp; menu nguồn</string>
+    <string name="acc_desc">Cho phép lớp làm tối màn hình tối hơn 80% mà vẫn chạm được vào ứng dụng bên dưới, và mở menu nguồn của hệ thống để khởi động lại / tắt nguồn mà không cần root. Không đọc nội dung màn hình.</string>
     <string name="tile_label">Làm tối</string>
 </resources>

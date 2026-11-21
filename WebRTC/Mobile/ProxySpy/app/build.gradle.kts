@@ -54,4 +54,8 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     // QR scanning (client mode: scan the proxy phone's address).
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
+    // Self-watch mode: ProxySpy is also an LSPosed module. These stubs are compile-time only —
+    // LSPosed injects the real de.robv.android.xposed.* classes into the hooked process.
+    compileOnly(project(":xposed-api"))
 }

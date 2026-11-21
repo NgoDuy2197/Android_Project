@@ -2,6 +2,7 @@ package com.dsoft.autotap
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Path
@@ -13,6 +14,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -20,6 +22,10 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -44,16 +50,31 @@ class AutoClickService : AccessibilityService() {
     override fun onServiceConnected() {
         try {
             instance = this
+            watchPrefs = Prefs(this)
+            reloadWatch()
             notifyChange()
         } catch (_: Throwable) {}
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null || !this::watchPrefs.isInitialized || !watchPrefs.watchOn) return
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            -> {
+                main.removeCallbacks(watchOnce)
+                main.postDelayed(watchOnce, WATCH_DEBOUNCE_MS)
+            }
+        }
+    }
+
     override fun onInterrupt() {}
 
     override fun onDestroy() {
         try { stopRun() } catch (_: Throwable) {}
         try { hideOverlay() } catch (_: Throwable) {}
+        try { stopWatch() } catch (_: Throwable) {}
         instance = null
         notifyChange()
         super.onDestroy()
@@ -249,6 +270,121 @@ class AutoClickService : AccessibilityService() {
         }
     }
 
+    // ---- text watcher: find a configured text on screen and tap it ----
+
+    private lateinit var watchPrefs: Prefs
+
+    /** Per-rule time of the last tap, so one button is not hammered. */
+    private val watchLastTap = HashMap<String, Long>()
+
+    private val watchOnce = Runnable { scanWatch() }
+
+    private val watchLoop = object : Runnable {
+        override fun run() {
+            scanWatch()
+            val ms = watchPrefs.watchScanMs
+            if (ms > 0) main.postDelayed(this, ms.toLong())
+        }
+    }
+
+    /** Re-read the watcher settings: restart, or stop, the periodic scan. */
+    fun reloadWatch() {
+        main.removeCallbacks(watchLoop)
+        main.removeCallbacks(watchOnce)
+        watchLastTap.clear()
+        if (!watchPrefs.watchOn) return
+        if (watchPrefs.watchScanMs > 0) main.post(watchLoop) else main.post(watchOnce)
+    }
+
+    private fun stopWatch() {
+        main.removeCallbacks(watchLoop)
+        main.removeCallbacks(watchOnce)
+    }
+
+    private fun scanWatch() {
+        if (!watchPrefs.watchOn) return
+        // A scenario owns the screen while it runs; do not interfere with it.
+        if (running) return
+        val rules = watchPrefs.watchRules.filter { it.enabled && it.text.isNotBlank() }
+        if (rules.isEmpty()) return
+
+        val root = try { rootInActiveWindow } catch (_: Throwable) { null } ?: return
+        val pkg = root.packageName?.toString().orEmpty()
+        if (pkg == packageName) return // never tap inside AutoTap itself
+        val only = watchPrefs.watchApps
+        if (only.isNotEmpty() && pkg !in only) return
+
+        val cs = watchPrefs.watchCaseSensitive
+        val now = SystemClock.elapsedRealtime()
+        val cooldown = watchPrefs.watchCooldownMs.toLong()
+
+        val nodes = ArrayList<AccessibilityNodeInfo>(128)
+        collectNodes(root, nodes, 0)
+
+        for (rule in rules) {
+            if (now - (watchLastTap[rule.text] ?: 0L) < cooldown) continue
+            for (n in nodes) {
+                val hit = try {
+                    n.isVisibleToUser && (rule.matches(n.text, cs) || rule.matches(n.contentDescription, cs))
+                } catch (_: Throwable) { false }
+                if (!hit) continue
+                val how = tapNode(n) ?: continue
+                watchLastTap[rule.text] = now
+                recordWatch(rule.text, pkg, how)
+                return // one tap per pass; the next scan picks up what is left
+            }
+        }
+    }
+
+    private fun collectNodes(n: AccessibilityNodeInfo?, out: MutableList<AccessibilityNodeInfo>, depth: Int) {
+        if (n == null || depth > WATCH_MAX_DEPTH || out.size >= WATCH_MAX_NODES) return
+        out += n
+        for (i in 0 until n.childCount) {
+            collectNodes(try { n.getChild(i) } catch (_: Throwable) { null }, out, depth + 1)
+        }
+    }
+
+    /**
+     * Clicks [node] or its nearest clickable parent; returns how it was tapped, or null.
+     * ACTION_CLICK first, because it needs no touchscreen and so works on a TV.
+     */
+    private fun tapNode(node: AccessibilityNodeInfo): String? {
+        var n: AccessibilityNodeInfo? = node
+        var up = 0
+        while (n != null && up <= WATCH_MAX_CLICK_PARENTS) {
+            val clicked = try {
+                n.isClickable && n.isEnabled && n.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            } catch (_: Throwable) { false }
+            if (clicked) return "bấm nút"
+            n = try { n.parent } catch (_: Throwable) { null }
+            up++
+        }
+        if (watchPrefs.watchClickableOnly) return null
+
+        val r = Rect().also { node.getBoundsInScreen(it) }
+        if (r.width() <= 0 || r.height() <= 0) return null
+        // Non-blocking on purpose: this runs on the main thread, unlike doGesture().
+        val path = Path().apply { moveTo(clampX(r.centerX()), clampY(r.centerY())) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, 60L))
+            .build()
+        val sent = try { dispatchGesture(gesture, null, null) } catch (_: Throwable) { false }
+        return if (sent) "chạm toạ độ" else null
+    }
+
+    private fun recordWatch(text: String, pkg: String, how: String) {
+        val line = "${WATCH_STAMP.format(Date())}  $text  -> $pkg  ($how)"
+        synchronized(watchLog) {
+            watchLog.add(0, line)
+            while (watchLog.size > WATCH_LOG_MAX) watchLog.removeAt(watchLog.size - 1)
+        }
+        watchTaps++
+        if (watchPrefs.watchToast) {
+            try { Toast.makeText(this, "Đã bấm: $text", Toast.LENGTH_SHORT).show() } catch (_: Throwable) {}
+        }
+        notifyChange()
+    }
+
     // ---- floating status bar (accessibility overlay) ----
 
     private fun showOverlay() = main.post {
@@ -324,6 +460,37 @@ class AutoClickService : AccessibilityService() {
 
         fun stop() {
             try { instance?.stopRun() } catch (_: Throwable) {}
+        }
+
+        // ---- text watcher ----
+
+        private const val WATCH_DEBOUNCE_MS = 150L
+        private const val WATCH_MAX_DEPTH = 40
+        private const val WATCH_MAX_NODES = 1500
+        private const val WATCH_MAX_CLICK_PARENTS = 6
+        private const val WATCH_LOG_MAX = 30
+        private val WATCH_STAMP = SimpleDateFormat("HH:mm:ss", Locale.US)
+
+        /** Taps the watcher has made since the service started. */
+        @Volatile var watchTaps = 0
+
+        private val watchLog = ArrayList<String>()
+
+        fun watchLogLines(): List<String> = synchronized(watchLog) { ArrayList(watchLog) }
+
+        fun clearWatchLog() {
+            synchronized(watchLog) { watchLog.clear() }
+            watchTaps = 0
+            instance?.notifyChange()
+        }
+
+        /** Push changed watcher settings into the running service. */
+        fun refreshWatch(ctx: Context) {
+            instance?.let {
+                it.watchPrefs = Prefs(ctx)
+                try { it.reloadWatch() } catch (_: Throwable) {}
+            }
+            listener?.invoke()
         }
     }
 }
